@@ -27,6 +27,7 @@ body {
 
 .no-print {
   /* 用于屏幕上的操作栏；打印时隐藏（见下方 @media print）。 */
+  display: block;
 }
 
 /* 屏幕展示：居中单页简历。思源宋体统一中英文与数字的呈现。 */
@@ -35,6 +36,25 @@ body {
   height: 297mm;
   box-sizing: border-box;
   font-family: 'Source Han Serif SC', 'PingFang SC', 'Microsoft YaHei', '微软雅黑', serif;
+}
+
+/* 简历中的 ul/li：把默认圆点改成短杠。 */
+.resume-sheet ul {
+  list-style: none !important;
+}
+
+.resume-sheet ul > li {
+  position: relative;
+  list-style: none !important;
+}
+
+.resume-sheet ul > li::before {
+  content: '-';
+  position: absolute;
+  left: -4mm; /* 对齐 <ul className="... pl-[4mm]"> 的缩进 */
+  top: 0;
+  width: 4mm;
+  text-align: center;
 }
 
 /* A4 打印时：只显示简历纸张，其他 UI 不可见。 */
