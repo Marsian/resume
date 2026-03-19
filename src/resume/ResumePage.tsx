@@ -5,7 +5,7 @@ import { resumeContents } from './resumeContent'
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div className="w-full">
-      <div className="text-[11pt] font-semibold text-black">{children}</div>
+      <div className="text-[16px] font-semibold text-black">{children}</div>
       <div className="mt-[1.6mm] w-full border-t border-black/60" />
     </div>
   )
@@ -15,7 +15,7 @@ export default function ResumePage() {
   const blocks = resumeContents
 
   return (
-    <div className="resume-sheet bg-white px-[14mm] py-[14mm] text-[10.5pt] leading-[1.35] text-black">
+    <div className="resume-sheet bg-white px-[14mm] py-[14mm] text-[14px] leading-[1.35] text-black">
       {blocks.map((block, idx) => (
         <BlockView key={`${block.type}-${'title' in block ? block.title : ''}-${idx}`} block={block} />
       ))}
@@ -31,7 +31,7 @@ function BlockView({ block }: { block: ResumeBlock }) {
         <div className="text-center">
           <div className="text-[18pt] font-semibold leading-[1.05]">{h.name}</div>
           {h.contacts?.length ? (
-            <div className="mt-[4mm] text-[10pt]">
+            <div className="mt-[4mm] text-[14px]">
               {h.contacts.filter((x) => x.value).map((it, idx) => (
                 <span key={`${it.label}-${it.value}`}>
                   {idx === 0 ? null : <span className="px-[3mm]"> </span>}
@@ -66,10 +66,10 @@ function BlockView({ block }: { block: ResumeBlock }) {
               <div key={`${ex.company}-${ex.role}-${ex.period}`}>
                 <div className="flex items-baseline justify-between gap-[6mm]">
                   <div className="font-semibold">{ex.company}</div>
-                  <div className="text-[10pt]">{ex.period}</div>
+                  <div className="text-[14px]">{ex.period}</div>
                 </div>
-                <div className="mt-[0.8mm] text-[10pt]">{ex.role}</div>
-                <ul className="mt-[2mm] space-y-[1.2mm] pl-[4mm] text-[10pt]">
+                <div className="mt-[0.8mm] text-[14px]">{ex.role}</div>
+                <ul className="mt-[2mm] space-y-[1.2mm] pl-[4mm] text-[14px]">
                   {ex.bullets.map((b) => (
                     <li key={b} className="list-disc">
                       {b}
@@ -91,11 +91,11 @@ function BlockView({ block }: { block: ResumeBlock }) {
               <div key={`${e.school}-${e.period}`}>
                 <div className="flex items-baseline justify-between gap-[6mm]">
                   <div className="font-semibold">{e.school}</div>
-                  <div className="text-[10pt]">{e.period}</div>
+                  <div className="text-[14px]">{e.period}</div>
                 </div>
-                {e.degree ? <div className="mt-[0.8mm] text-[10pt]">{e.degree}</div> : null}
+                {e.degree ? <div className="mt-[0.8mm] text-[14px]">{e.degree}</div> : null}
                 {e.bullets?.length ? (
-                  <ul className="mt-[2mm] space-y-[1.2mm] pl-[4mm] text-[10pt]">
+                  <ul className="mt-[2mm] space-y-[1.2mm] pl-[4mm] text-[14px]">
                     {e.bullets.map((b) => (
                       <li key={b} className="list-disc">
                         {b}
@@ -114,7 +114,7 @@ function BlockView({ block }: { block: ResumeBlock }) {
       return (
         <div className="mt-[6mm]">
           <SectionTitle>{block.title}</SectionTitle>
-          <ul className="mt-[3mm] space-y-[1.4mm] pl-[4mm] text-[10pt]">
+          <ul className="mt-[3mm] space-y-[1.4mm] pl-[4mm] text-[14px]">
             {items.map((s) => {
               const [k, ...rest] = s.split('：')
               const v = rest.join('：').trim()
@@ -141,7 +141,7 @@ function BlockView({ block }: { block: ResumeBlock }) {
       return (
         <div className="mt-[6mm]">
           <SectionTitle>{block.title}</SectionTitle>
-          <ul className="mt-[3mm] space-y-[1.4mm] pl-[4mm] text-[10pt]">
+          <ul className="mt-[3mm] space-y-[1.4mm] pl-[4mm] text-[14px]">
             {items.map((s) => (
               <li key={s} className="list-disc leading-[1.35]">
                 {s}

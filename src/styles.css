@@ -1,5 +1,11 @@
-@import '@fontsource/noto-serif-sc/chinese-simplified-400.css';
-@import '@fontsource/noto-serif-sc/chinese-simplified-600.css';
+/* 思源宋体 · Adobe Source Han Serif SC（https://github.com/adobe-fonts/source-han-serif） */
+@font-face {
+  font-family: 'Source Han Serif SC';
+  font-style: normal;
+  font-weight: 1 999;
+  font-display: swap;
+  src: url('../fonts/SourceHanSerifSC-VF.woff2') format('woff2');
+}
 
 @tailwind base;
 @tailwind components;
@@ -28,7 +34,7 @@ body {
   width: 210mm;
   height: 297mm;
   box-sizing: border-box;
-  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-family: 'Source Han Serif SC', '思源宋体', serif;
 }
 
 /* A4 打印时：只显示简历纸张，其他 UI 不可见。 */
