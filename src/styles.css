@@ -11,12 +11,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== Light Theme (Default) ===== */
+:root {
+  /* Dark theme colors (default to light values, overridden when dark mode is active) */
+  --dark-bg-primary: #ffffff;
+  --dark-bg-secondary: #f8fafc;
+  --dark-bg-tertiary: #f1f5f9;
+  
+  --dark-text-primary: #0f172a;
+  --dark-text-secondary: #475569;
+  --dark-text-tertiary: #64748b;
+  
+  --dark-border-primary: rgba(0, 0, 0, 0.1);
+  --dark-border-secondary: rgba(0, 0, 0, 0.05);
+}
+
+/* ===== Dark Theme ===== */
+html.dark {
+  --dark-bg-primary: #050A12;
+  --dark-bg-secondary: #0f172a;
+  --dark-bg-tertiary: #1e293b;
+  
+  --dark-text-primary: #ffffff;
+  --dark-text-secondary: #cbd5e1;
+  --dark-text-tertiary: #94a3b8;
+  
+  --dark-border-primary: rgba(255, 255, 255, 0.1);
+  --dark-border-secondary: rgba(255, 255, 255, 0.05);
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
   background: #ffffff;
   color: #000000;
+}
+
+/* Enable dark background when html.dark is toggled */
+html.dark,
+html.dark body {
+  background: var(--dark-bg-primary);
+  color: var(--dark-text-primary);
 }
 
 /* 打印时确保是 A4，且不留默认页边距。 */

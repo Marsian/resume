@@ -5,8 +5,8 @@ import { resumeContents } from './resumeContent'
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div className="w-full">
-      <div className="text-[16px] font-semibold text-black">{children}</div>
-      <div className="mt-[1.6mm] w-full border-t border-black/60" />
+      <div className="text-[16px] font-semibold text-black dark:text-dark-text-primary">{children}</div>
+      <div className="mt-[1.6mm] w-full border-t border-black/60 dark:border-dark-text-secondary" />
     </div>
   )
 }
@@ -15,7 +15,7 @@ export default function ResumePage() {
   const blocks = resumeContents
 
   return (
-    <div className="resume-sheet bg-white px-[14mm] py-[14mm] text-[14px] leading-[1.35] text-black">
+    <div className="resume-sheet bg-white px-[14mm] py-[14mm] text-[14px] leading-[1.35] text-black dark:bg-dark-bg-primary dark:text-dark-text-primary">
       {blocks.map((block, idx) => (
         <BlockView key={`${block.type}-${'title' in block ? block.title : ''}-${idx}`} block={block} />
       ))}
@@ -40,7 +40,7 @@ function BlockView({ block }: { block: ResumeBlock }) {
                     {it.href ? (
                       <a
                         href={it.href}
-                        className="underline decoration-black/70 underline-offset-2"
+                        className="underline decoration-black/70 dark:decoration-dark-text-secondary underline-offset-2"
                         target="_blank"
                         rel="noreferrer"
                       >

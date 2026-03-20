@@ -4,6 +4,24 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      colors: {
+        dark: {
+          bg: {
+            primary: 'var(--dark-bg-primary)',
+            secondary: 'var(--dark-bg-secondary)',
+            tertiary: 'var(--dark-bg-tertiary)',
+          },
+          text: {
+            primary: 'var(--dark-text-primary)',
+            secondary: 'var(--dark-text-secondary)',
+            tertiary: 'var(--dark-text-tertiary)',
+          },
+          border: {
+            primary: 'var(--dark-border-primary)',
+            secondary: 'var(--dark-border-secondary)',
+          },
+        },
+      },
       keyframes: {
         'fade-in-down-home': {
           '0%': { opacity: '0', transform: 'translateY(-10px)' },
