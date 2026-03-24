@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 
+import { Button } from '@/components/ui/button'
 import ResumePage from './ResumePage'
 
 export default function ResumeView() {
@@ -8,23 +9,27 @@ export default function ResumeView() {
   return (
     <div className="app-shell min-h-screen bg-white text-black dark:bg-dark-bg-primary dark:text-dark-text-primary transition-colors">
       <div className="no-print pointer-events-none fixed left-4 top-4 z-50">
-        <button
+        <Button
           type="button"
-          className="pointer-events-auto rounded-md border border-gray-300 bg-white/70 px-3 py-1.5 text-sm text-gray-900 shadow-xs backdrop-blur-sm transition-opacity hover:bg-white hover:opacity-100 focus:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-black/20 opacity-60 dark:border-dark-border-primary dark:bg-dark-bg-secondary dark:text-dark-text-primary dark:hover:bg-dark-bg-tertiary dark:focus:ring-dark-border-primary"
+          variant="outline"
+          size="sm"
+          className="pointer-events-auto bg-white/70 text-gray-900 shadow-xs backdrop-blur-sm transition-opacity hover:bg-white hover:opacity-100 focus-visible:opacity-100 opacity-60 dark:border-dark-border-primary dark:bg-dark-bg-secondary dark:text-dark-text-primary dark:hover:bg-dark-bg-tertiary"
           onClick={() => navigate('/')}
         >
           返回
-        </button>
+        </Button>
       </div>
 
       <div className="no-print pointer-events-none fixed right-4 top-4 z-50">
-        <button
+        <Button
           type="button"
-          className="pointer-events-auto rounded-md border border-gray-300 bg-white/70 px-3 py-1.5 text-sm text-gray-900 shadow-xs backdrop-blur-sm transition-opacity hover:bg-white hover:opacity-100 focus:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-black/20 opacity-60 dark:border-dark-border-primary dark:bg-dark-bg-secondary dark:text-dark-text-primary dark:hover:bg-dark-bg-tertiary dark:focus:ring-dark-border-primary"
+          variant="outline"
+          size="sm"
+          className="pointer-events-auto bg-white/70 text-gray-900 shadow-xs backdrop-blur-sm transition-opacity hover:bg-white hover:opacity-100 focus-visible:opacity-100 opacity-60 dark:border-dark-border-primary dark:bg-dark-bg-secondary dark:text-dark-text-primary dark:hover:bg-dark-bg-tertiary"
           onClick={() => window.print()}
         >
           打印/导出 PDF
-        </button>
+        </Button>
       </div>
 
       <main className="app-main flex items-center justify-center pl-[88px] pr-4 pb-10 pt-2">

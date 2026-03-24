@@ -11,7 +11,6 @@
     "subset-font": "npx tsx scripts/extract-resume-chars.ts > scripts/resume-chars.txt && npx tsx scripts/subset-font.ts"
   },
   "dependencies": {
-    "@fontsource-variable/geist": "^5.2.8",
     "@fontsource/open-sans": "^5.2.7",
     "@supabase/supabase-js": "^2.100.0",
     "class-variance-authority": "^0.7.1",

@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { Skeleton } from './skeleton-block'
 import type { CronStatusPayload, CronTask } from './cronStatus'
 import { CronStatusPanelSkeleton } from './CronStatusSkeleton'
@@ -190,18 +191,15 @@ export function CronStatusPanel({ loading, error, fetchedAt, rowId, payload, has
             </p>
           )}
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline"
           disabled={loading}
           onClick={onRefresh}
-          className={cn(
-            'shrink-0 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-medium shadow-xs',
-            'hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-black/10 disabled:opacity-50',
-            'dark:border-dark-border-primary dark:bg-dark-bg-tertiary dark:hover:bg-dark-bg-secondary dark:focus:ring-white/20',
-          )}
+          className="shrink-0 shadow-xs dark:border-dark-border-primary dark:bg-dark-bg-tertiary dark:hover:bg-dark-bg-secondary"
         >
           {loading ? '拉取中…' : '手动刷新'}
-        </button>
+        </Button>
       </div>
 
       {error ? (

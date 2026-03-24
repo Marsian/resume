@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
 import { CronStatusPanel } from './CronStatusPanel'
 import { parseCronStatus } from './cronStatus'
 import { getSupabaseClient } from './supabase'
@@ -92,13 +93,14 @@ export default function ClawView() {
     <div className="min-h-screen bg-white text-black dark:bg-dark-bg-primary dark:text-dark-text-primary transition-colors">
       <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-sm border-b border-black/5 dark:bg-dark-bg-secondary dark:border-dark-border-primary">
         <div className="mx-auto flex max-w-6xl items-center gap-3 pl-[88px] pr-4 py-3">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => navigate('/')}
-            className="rounded-md border border-gray-300 bg-white/70 px-3 py-2 text-sm shadow-xs backdrop-blur-sm hover:bg-white dark:border-dark-border-primary dark:bg-dark-bg-tertiary dark:hover:bg-dark-bg-secondary"
+            className="bg-white/70 shadow-xs backdrop-blur-sm hover:bg-white dark:border-dark-border-primary dark:bg-dark-bg-tertiary dark:hover:bg-dark-bg-secondary"
           >
             返回
-          </button>
+          </Button>
           <div className="flex flex-col leading-tight">
             <div className="text-base font-semibold">Claw</div>
             <div className="text-xs text-gray-600 dark:text-dark-text-secondary">OpenClaw 状态</div>

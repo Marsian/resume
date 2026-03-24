@@ -1,28 +1,24 @@
+/* =============================================================================
+   全局样式入口
+   - Tailwind + 动画 + shadcn 提供的 radix 变体与 accordion 关键帧（需保留）
+   - 下方按：主题扩展 → base → CSS 变量 → 页面/打印 顺序阅读
+   ============================================================================= */
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import 'shadcn/tailwind.css';
 
-/* 思源宋体 · Adobe Source Han Serif SC（https://github.com/adobe-fonts/source-han-serif） */
+/* 与 AppMenu 一致：在 <html> 上切换 .dark */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* 仅项目自用（非 shadcn 预设）：shell 颜色名、首页动画（简历样式见 resume/resume.css） */
 @theme {
-  --color-border: hsl(var(--border));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-
   --color-dark-bg-primary: var(--dark-bg-primary);
   --color-dark-bg-secondary: var(--dark-bg-secondary);
   --color-dark-bg-tertiary: var(--dark-bg-tertiary);
-
   --color-dark-text-primary: var(--dark-text-primary);
   --color-dark-text-secondary: var(--dark-text-secondary);
   --color-dark-text-tertiary: var(--dark-text-tertiary);
-
   --color-dark-border-primary: var(--dark-border-primary);
   --color-dark-border-secondary: var(--dark-border-secondary);
 
@@ -57,12 +53,7 @@
 }
 
 /*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+  Tailwind v4 默认边框色为 currentColor；保留显式默认边框色，避免旧写法依赖灰色边框。
 */
 @layer base {
   *,
@@ -75,44 +66,31 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
   }
-}
-
-@layer base {
-  @font-face {
-    font-family: 'Source Han Serif SC';
-    font-style: normal;
-    font-weight: 1 999;
-    font-display: swap;
-    src: url('../fonts/SourceHanSerifSC-VF-subset.woff2') format('woff2');
+  body {
+    @apply m-0 bg-background p-0 text-foreground;
   }
 }
 
-/* ===== Light Theme (Default) ===== */
+/* ----- 浅色：shadcn 语义变量 + 本项目 shell 变量（供 dark-* 颜色类使用） ----- */
 :root {
-  /* Tailwind 语义色（hsl(var(--token))）— HSL 分量，无 hsl() 包裹 */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --border: oklch(0.922 0 0);
 
-  /* Dark theme colors (default to light values, overridden when dark mode is active) */
   --dark-bg-primary: #ffffff;
   --dark-bg-secondary: #f8fafc;
   --dark-bg-tertiary: #f1f5f9;
-
   --dark-text-primary: #0f172a;
   --dark-text-secondary: #475569;
   --dark-text-tertiary: #64748b;
-
   --dark-border-primary: rgba(0, 0, 0, 0.1);
   --dark-border-secondary: rgba(0, 0, 0, 0.05);
+
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -142,116 +120,60 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* ===== Dark Theme ===== */
+/* ----- 深色：<html class="dark">，合并 shadcn 与 shell（避免再维护一份 .dark） ----- */
 html.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --border: 217.2 32.6% 17.5%;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 
-  --dark-bg-primary: #050A12;
+  --dark-bg-primary: #050a12;
   --dark-bg-secondary: #0f172a;
   --dark-bg-tertiary: #1e293b;
-
   --dark-text-primary: #ffffff;
   --dark-text-secondary: #cbd5e1;
   --dark-text-tertiary: #94a3b8;
-
   --dark-border-primary: rgba(255, 255, 255, 0.1);
   --dark-border-secondary: rgba(255, 255, 255, 0.05);
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: #ffffff;
-  color: #000000;
-  font-family: 'PingFang SC', 'Microsoft YaHei', '微软雅黑', system-ui, sans-serif;
-}
-
-/* Enable dark background when html.dark is toggled */
 html.dark,
 html.dark body {
   background: var(--dark-bg-primary);
   color: var(--dark-text-primary);
 }
 
-/* 打印时确保是 A4，且不留默认页边距。 */
-@page {
-  size: A4;
-  margin: 0;
-}
-
-.no-print {
-  /* 用于屏幕上的操作栏；打印时隐藏（见下方 @media print）。 */
-  display: block;
-}
-
-/* 屏幕展示：居中单页简历。思源宋体统一中英文与数字的呈现。 */
-.resume-sheet {
-  width: 210mm;
-  height: 297mm;
-  box-sizing: border-box;
-  font-family: 'Source Han Serif SC', 'PingFang SC', 'Microsoft YaHei', '微软雅黑', serif;
-}
-
-/* 简历中的 ul/li：把默认圆点改成短杠。 */
-.resume-sheet ul {
-  list-style: none !important;
-}
-
-.resume-sheet ul > li {
-  position: relative;
-  list-style: none !important;
-}
-
-.resume-sheet ul > li::before {
-  content: '-';
-  position: absolute;
-  left: -4mm; /* 对齐 <ul className="... pl-[4mm]"> 的缩进 */
-  top: 0;
-  width: 4mm;
-  text-align: center;
-}
-
-/* A4 打印时：只显示简历纸张，其他 UI 不可见。 */
-@media print {
-  /* 让浏览器在导出 PDF 时尽量保留颜色/透明度（不同浏览器支持程度不同）。 */
-  * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  body {
-    background: #ffffff !important;
-    padding: 0 !important;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-
-  .app-shell {
-    min-height: auto !important;
-  }
-
-  .app-main {
-    display: block !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  .resume-sheet {
-    box-shadow: none !important;
-    margin: 0 auto !important;
-  }
-}
-
+/* ----- shadcn：把 CSS 变量接到 Tailwind 主题（颜色已是完整 oklch，勿再包一层 hsl()） ----- */
 @theme inline {
+  --font-sans: 'PingFang SC', 'Microsoft YaHei', '微软雅黑', system-ui, sans-serif;
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -290,38 +212,4 @@ html.dark body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
