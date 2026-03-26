@@ -35,7 +35,6 @@ export default function HomeView() {
             'relative w-full h-full overflow-hidden text-center',
             'transition-colors',
             'bg-no-repeat bg-center bg-cover',
-            'max-md:bg-contain max-md:bg-top',
             "bg-[url('/images/Waikiki.jpg')]",
           )}
         >

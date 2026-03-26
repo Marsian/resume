@@ -119,7 +119,7 @@ export default function ClawView() {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors">
       <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-sm border-b border-black/5 dark:bg-card dark:border-border">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 pl-[88px] pr-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 pl-4 pr-4 py-3 sm:pl-[88px]">
           <Button
             type="button"
             variant="outline"
@@ -135,7 +135,7 @@ export default function ClawView() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 pl-[88px] pr-4 py-6">
+      <main className="mx-auto max-w-6xl space-y-6 pl-4 pr-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pl-[88px] sm:py-6">
         <CronJobsPanel
           loading={jobsLoading}
           error={jobsError}

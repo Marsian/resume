@@ -49,7 +49,7 @@ export function AppMenu() {
   const isDark = theme === 'dark'
   const routeButtonClass = (active: boolean) =>
     cn(
-      'size-10 rounded-[14px] [&_svg]:size-5',
+      'size-9 rounded-[12px] [&_svg]:size-4 sm:size-10 sm:rounded-[14px] sm:[&_svg]:size-5',
       isDark
         ? 'text-[#8ab4ff] hover:bg-[#8ab4ff]/10 hover:text-[#c3dcff] focus-visible:ring-[#8ab4ff]/40'
         : 'text-[#4679bd] hover:bg-[#4679bd]/10 hover:text-[#2e5fa0] focus-visible:ring-[#4679bd]/40',
@@ -68,16 +68,24 @@ export function AppMenu() {
   const menuButtonClass = routeButtonClass(false)
 
   return (
-    <div className="no-print fixed left-[18px] top-1/2 -translate-y-1/2 z-[60]">
+    <nav
+      className={cn(
+        'app-menu no-print fixed z-[60]',
+        /* 小屏：底栏居中；大屏：左侧垂直居中 */
+        'left-1/2 top-auto bottom-[calc(1rem+env(safe-area-inset-bottom))] -translate-x-1/2',
+        'sm:left-[18px] sm:top-1/2 sm:bottom-auto sm:-translate-y-1/2 sm:translate-x-0',
+      )}
+      aria-label="Site"
+    >
       <div
         className={cn(
-          'rounded-[18px] backdrop-blur-sm border shadow-xl px-[10px] py-[10px]',
+          'rounded-[999px] backdrop-blur-sm border shadow-xl px-2 py-1.5 sm:rounded-[18px] sm:px-[10px] sm:py-[10px]',
           isDark
             ? 'bg-[#0f172a]/85 border-white/10'
             : 'bg-white/85 border-black/5',
         )}
       >
-        <div className="flex flex-col gap-[8px]">
+        <div className="flex flex-row items-center gap-1.5 sm:flex-col sm:gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -87,7 +95,7 @@ export function AppMenu() {
             aria-label="Claw"
             title="Claw"
           >
-            <LobsterIcon className="text-[18px] font-bold" />
+            <LobsterIcon className="text-[15px] font-bold sm:text-[18px]" />
           </Button>
 
           <Button
@@ -119,7 +127,7 @@ export function AppMenu() {
           </Button>
         </div>
       </div>
-    </div>
+    </nav>
   )
 }
 
