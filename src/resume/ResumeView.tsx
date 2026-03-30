@@ -25,18 +25,9 @@ export default function ResumeView() {
   return (
     <div className="app-shell min-h-screen w-full overflow-x-hidden bg-background text-foreground transition-colors">
       <main className="app-main flex w-full min-w-0 max-w-full flex-col items-center justify-start overflow-x-clip pl-4 pr-4 pb-6 sm:min-h-screen sm:justify-center sm:pl-[88px] sm:pb-10">
-        {/* 与 .resume-sheet 同宽，保证「返回」左缘与简历内容左缘对齐 */}
+        {/* 与 .resume-sheet 同宽，保证按钮栏在简历区域内的布局一致 */}
         <div className="resume-page-column w-full max-w-[210mm] min-w-0">
           <div className="no-print mb-2 flex flex-wrap items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={floatingButtonClass}
-              onClick={() => navigate('/')}
-            >
-              返回
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -45,6 +36,15 @@ export default function ResumeView() {
               onClick={() => window.print()}
             >
               打印/导出 PDF
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={floatingButtonClass}
+              onClick={() => navigate('/')}
+            >
+              返回
             </Button>
           </div>
           <ResumePage />

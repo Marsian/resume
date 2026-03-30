@@ -119,7 +119,11 @@ export default function ClawView() {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors">
       <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-sm border-b border-black/5 dark:bg-card dark:border-border">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 pl-4 pr-4 py-3 sm:pl-[88px]">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 pl-4 pr-4 py-3 sm:pl-[88px]">
+          <div className="flex flex-col leading-tight">
+            <div className="text-base font-semibold">Claw</div>
+            <div className="text-xs text-muted-foreground">OpenClaw 状态</div>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -128,10 +132,6 @@ export default function ClawView() {
           >
             返回
           </Button>
-          <div className="flex flex-col leading-tight">
-            <div className="text-base font-semibold">Claw</div>
-            <div className="text-xs text-muted-foreground">OpenClaw 状态</div>
-          </div>
         </div>
       </header>
 

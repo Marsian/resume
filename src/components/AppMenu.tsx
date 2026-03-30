@@ -90,11 +90,11 @@ export function AppMenu() {
       'size-9 rounded-[12px] [&_svg]:size-4 sm:size-10 sm:rounded-[14px] sm:[&_svg]:size-5',
       isDark
         ? 'text-[#8ab4ff] hover:bg-[#8ab4ff]/10 hover:text-[#c3dcff] focus-visible:ring-[#8ab4ff]/40'
-        : 'text-[#4679bd] hover:bg-[#4679bd]/10 hover:text-[#2e5fa0] focus-visible:ring-[#4679bd]/40',
+        : 'text-[#1f4f8d] hover:bg-[#1f4f8d]/10 hover:text-[#0f2f5f] focus-visible:ring-[#1f4f8d]/40',
       active &&
         (isDark
           ? 'bg-[#8ab4ff]/15 text-[#d8e8ff] ring-1 ring-inset ring-[#8ab4ff]/35'
-          : 'bg-[#4679bd]/12 text-[#1f4f8d] ring-1 ring-inset ring-[#4679bd]/30'),
+          : 'bg-[#1f4f8d]/14 text-[#0f2f5f] ring-1 ring-inset ring-[#1f4f8d]/35'),
     )
   const routeButtonProps = (path: string) => {
     const active = location.pathname.startsWith(path)
@@ -120,7 +120,8 @@ export function AppMenu() {
           'rounded-[999px] backdrop-blur-sm border shadow-xl px-2 py-1.5 sm:rounded-[18px] sm:px-[10px] sm:py-[10px]',
           isDark
             ? 'bg-[#0f172a]/85 border-white/10'
-            : 'bg-white/85 border-black/5',
+            // Light theme: reduce white opacity (current "white sheet" felt too heavy)
+            : 'bg-white/40 border-black/6',
         )}
       >
         <div className="flex flex-row items-center gap-1.5 sm:flex-col sm:gap-2">

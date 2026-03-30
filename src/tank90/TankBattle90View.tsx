@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TouchControls } from './TouchControls'
@@ -30,6 +31,7 @@ function useTouchPrimary() {
 }
 
 export default function TankBattle90View() {
+  const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const stateRef = useRef<GameState>(createState(1))
   const inputRef = useRef<InputState>({ up: false, down: false, left: false, right: false, fire: false })
@@ -163,6 +165,9 @@ export default function TankBattle90View() {
   const shellBtn =
     'font-mono text-[11px] border-amber-900/25 bg-white/45 text-[#2a2018] hover:bg-white/70 dark:border-amber-400/25 dark:bg-white/10 dark:text-[#f4ead8] dark:hover:bg-white/15'
 
+  const backBtnClass =
+    'font-mono text-[11px] border-amber-800/40 bg-white/40 text-[#2a2018] hover:bg-white/60 dark:border-amber-400/25 dark:bg-white/10 dark:text-[#f4ead8] dark:hover:bg-white/15'
+
   return (
     <main
       className={cn(
@@ -178,10 +183,26 @@ export default function TankBattle90View() {
         aria-hidden
       />
       <div className="relative z-[1] mx-auto max-w-4xl">
-        <h1 className="font-mono text-2xl tracking-[0.18em] text-[#3d2e18] sm:text-3xl dark:text-[#f0d9a8]">
-          90 TANK BATTLE
-        </h1>
-        <p className="mt-2 font-mono text-xs tracking-[0.06em] text-[#5c4d3d] sm:text-sm dark:text-[#a89880]">{controlsHint}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-mono text-2xl tracking-[0.18em] text-[#3d2e18] sm:text-3xl dark:text-[#f0d9a8]">
+              90 TANK BATTLE
+            </h1>
+            <p className="mt-2 font-mono text-xs tracking-[0.06em] text-[#5c4d3d] sm:text-sm dark:text-[#a89880]">
+              {controlsHint}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate('/')}
+            className={cn(backBtnClass)}
+            aria-label="Back to home"
+            title="Back to home"
+          >
+            Back
+          </Button>
+        </div>
         <div
           className={cn(
             'mt-6 rounded-xl border px-3 py-3 shadow-md ring-1 ring-amber-900/10 sm:px-4',
