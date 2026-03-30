@@ -135,12 +135,18 @@ export function draw(
   }
 
   if (state.levelBannerUntil > 0) {
+    // In READY mode we draw a dedicated overlay that includes stage info,
+    // so the normal banner would be covered / duplicated.
+    if (state.status === 'ready') {
+      // Skip drawing the banner; ready overlay is rendered later.
+    } else {
     ctx.fillStyle = palette.bannerBg
     ctx.fillRect(0, WORLD_H / 2 - 26, WORLD_W, 52)
     ctx.fillStyle = palette.bannerText
     ctx.font = 'bold 20px monospace'
     ctx.textAlign = 'center'
     ctx.fillText(`STAGE ${state.level}`, WORLD_W / 2, WORLD_H / 2 + 7)
+    }
   }
 
   if (state.playerInvincibleUntil > 0 && state.status === 'running') {
@@ -150,10 +156,33 @@ export function draw(
     ctx.fillText('SPAWN SHIELD', 8, 14)
   }
 
+  if (state.status === 'ready') {
+    ctx.fillStyle = palette.overlayDim
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H)
+    ctx.fillStyle = palette.overlayText
+    ctx.textAlign = 'center'
+    ctx.font = 'bold 20px monospace'
+    ctx.fillText(`STAGE ${state.level}`, WORLD_W / 2, WORLD_H / 2 - 6)
+    ctx.font = 'bold 28px monospace'
+    ctx.fillText('FIRE TO START', WORLD_W / 2, WORLD_H / 2 + 22)
+  }
   if (state.status === 'paused') drawOverlay(ctx, 'PAUSED', palette)
   if (state.status === 'won') {
-    const msg = state.level >= 10 ? 'ALL STAGES CLEAR' : 'STAGE CLEAR'
-    drawOverlay(ctx, msg, palette)
+    if (state.level >= 10) {
+      drawOverlay(ctx, 'ALL STAGES CLEAR', palette)
+    } else {
+      // Two-line overlay: clear message + actionable prompt.
+      ctx.fillStyle = palette.overlayDim
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H)
+      ctx.fillStyle = palette.overlayText
+
+      ctx.font = 'bold 28px monospace'
+      ctx.textAlign = 'center'
+      ctx.fillText('STAGE CLEAR', WORLD_W / 2, WORLD_H / 2 - 10)
+
+      ctx.font = 'bold 18px monospace'
+      ctx.fillText('FIRE TO NEXT STAGE', WORLD_W / 2, WORLD_H / 2 + 18)
+    }
   }
   if (state.status === 'lost') drawOverlay(ctx, 'GAME OVER', palette)
 }

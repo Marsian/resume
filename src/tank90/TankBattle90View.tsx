@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { observer } from 'mobx-react-lite'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TouchControls } from './TouchControls'
@@ -9,6 +10,7 @@ import { draw } from './core/render'
 import { createState } from './core/state'
 import type { GameState, GameStatus, InputState } from './core/types'
 import { updateState } from './core/update'
+import { tank90DebugStore } from './debugStore'
 
 type GameEvent = { t: number; type: 'info' | 'warn' | 'state' | 'combat'; msg: string }
 const MOVEMENT_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
@@ -30,9 +32,10 @@ function useTouchPrimary() {
   return touchPrimary
 }
 
-export default function TankBattle90View() {
+function TankBattle90View() {
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const spawnQueueCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const stateRef = useRef<GameState>(createState(1))
   const inputRef = useRef<InputState>({ up: false, down: false, left: false, right: false, fire: false })
   const frameRef = useRef<number | null>(null)
@@ -44,16 +47,12 @@ export default function TankBattle90View() {
     enemiesDestroyed: 0,
     enemiesTotal: stateRef.current.enemiesTotal,
     playerAlive: true,
+    levelName: stateRef.current.levelName,
     levelIntent: stateRef.current.levelIntent,
   })
   const [debugTick, setDebugTick] = useState(0)
   const touchPrimary = useTouchPrimary()
-
-  const debugEnabled = useMemo(() => {
-    if (!import.meta.env.DEV || typeof window === 'undefined') return false
-    const flag = new URL(window.location.href).searchParams.get('debug')
-    return flag === '1' || flag === 'true'
-  }, [])
+  const debugEnabled = tank90DebugStore.enabled
 
   const reducedMotion = useMemo(() => {
     if (typeof window === 'undefined') return false
@@ -67,13 +66,48 @@ export default function TankBattle90View() {
       enemiesDestroyed: state.enemiesDestroyed,
       enemiesTotal: state.enemiesTotal,
       playerAlive: state.player.alive,
+      levelName: state.levelName,
       levelIntent: state.levelIntent,
     })
 
   useEffect(() => {
+    // Keep existing behavior: allow `?debug=1` only in dev builds.
+    if (!import.meta.env.DEV) return
+    if (typeof window === 'undefined') return
+    const flag = new URL(window.location.href).searchParams.get('debug')
+    if (flag === '1' || flag === 'true') tank90DebugStore.enable()
+  }, [])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const code = event.code
-      if ((MOVEMENT_KEYS.has(code) || code === 'Space') && !isInteractiveTarget(event.target)) event.preventDefault()
+
+      // 1) Debug unlock: tap `D` three times quickly (global MobX state).
+      if (code === 'KeyD' && !event.repeat) tank90DebugStore.onKeyD()
+
+      const st = stateRef.current
+
+      // 2) Before start: pressing FIRE (Space) starts the game.
+      if (code === 'Space' && !event.repeat && st.status === 'ready') {
+        if (!isInteractiveTarget(event.target)) event.preventDefault()
+        startOrRestartFromStage1()
+        // Do not `return`: allow `Space` to also set `input.fire = true` below.
+      }
+
+      // 3) Next stage: after finishing, pressing `Space` goes to next.
+      const wantsFireAdvance = code === 'Space' && !event.repeat && st.status === 'won'
+      if (wantsFireAdvance) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (st.level >= 10) playAgainAfterFinal()
+        else nextStage()
+        return
+      }
+
+      // 4) Never allow page scrolling from arrow keys.
+      if (MOVEMENT_KEYS.has(code)) event.preventDefault()
+
+      if (code === 'Space' && !isInteractiveTarget(event.target)) event.preventDefault()
       if (code === 'KeyW' || code === 'ArrowUp') inputRef.current.up = true
       if (code === 'KeyS' || code === 'ArrowDown') inputRef.current.down = true
       if (code === 'KeyA' || code === 'ArrowLeft') inputRef.current.left = true
@@ -86,7 +120,7 @@ export default function TankBattle90View() {
     }
     const onKeyUp = (event: KeyboardEvent) => {
       const code = event.code
-      if ((MOVEMENT_KEYS.has(code) || code === 'Space') && !isInteractiveTarget(event.target)) event.preventDefault()
+      if (code === 'Space' && !isInteractiveTarget(event.target)) event.preventDefault()
       if (code === 'KeyW' || code === 'ArrowUp') inputRef.current.up = false
       if (code === 'KeyS' || code === 'ArrowDown') inputRef.current.down = false
       if (code === 'KeyA' || code === 'ArrowLeft') inputRef.current.left = false
@@ -104,12 +138,61 @@ export default function TankBattle90View() {
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
+    const previewCtx = spawnQueueCanvasRef.current?.getContext('2d')
+    const previewW = previewCtx?.canvas.width ?? WORLD_W
+    const previewH = previewCtx?.canvas.height ?? 56
+
     const tick = (t: number) => {
       const state = stateRef.current
       const dt = Math.min((t - (lastTimeRef.current || t)) / 1000, 1 / 30)
       lastTimeRef.current = t
       if (state.levelBannerUntil > 0) state.levelBannerUntil -= dt * 1000
       if (state.status === 'running') updateState(state, dt, t, inputRef.current)
+
+      // Draw enemy spawn queue preview (independent canvas).
+      if (previewCtx) {
+        previewCtx.imageSmoothingEnabled = false
+        previewCtx.clearRect(0, 0, previewW, previewH)
+        // Slightly lighter than main playfield to read as a UI panel.
+        previewCtx.fillStyle = '#1f2937'
+        previewCtx.fillRect(0, 0, previewW, previewH)
+
+        const totalSlots = 14
+        const remaining = Math.max(0, state.enemiesTotal - state.enemiesSpawned)
+        const iconsToDraw = Math.min(totalSlots, remaining)
+        const cell = Math.floor(previewW / totalSlots)
+        const padX = Math.floor((previewW - totalSlots * cell) / 2)
+        const iconSize = Math.max(10, Math.floor(cell * 0.45))
+        const y = Math.floor((previewH - iconSize) / 2)
+
+        const toColors = (archId: string) => {
+          if (archId === 'heavy') return RENDER_PALETTE.enemyHeavy
+          if (archId === 'sniper') return RENDER_PALETTE.enemySniper
+          if (archId === 'raider') return RENDER_PALETTE.enemyRaider
+          return RENDER_PALETTE.enemyGrunt
+        }
+
+        for (let i = 0; i < iconsToDraw; i += 1) {
+          const idx = state.enemiesSpawned + i
+          const arch = state.enemyQueue[idx] ?? state.enemyQueue[0] ?? 'grunt'
+          const [body, trim, barrel] = toColors(arch)
+          const x = padX + i * cell + Math.floor((cell - iconSize) / 2)
+
+          // Outer body
+          previewCtx.fillStyle = body
+          previewCtx.fillRect(x, y, iconSize, iconSize)
+          // Inner trim
+          previewCtx.fillStyle = body
+          previewCtx.fillStyle = trim
+          previewCtx.fillRect(x + 2, y + 2, iconSize - 4, iconSize - 4)
+          previewCtx.fillStyle = trim
+          previewCtx.fillRect(x + Math.floor(iconSize / 2) - 1, y + Math.floor(iconSize * 0.35) + 2, 2, 5)
+          // Barrel-ish accent (simple vertical line)
+          previewCtx.fillStyle = barrel
+          previewCtx.fillRect(x + Math.floor(iconSize / 2) - 1, y + Math.floor(iconSize * 0.35) + 2, 2, Math.max(3, Math.floor(iconSize * 0.45)))
+        }
+      }
+
       draw(ctx, state, RENDER_PALETTE, { reducedMotion })
       syncUi(state)
       frameRef.current = window.requestAnimationFrame(tick)
@@ -203,19 +286,15 @@ export default function TankBattle90View() {
             Back
           </Button>
         </div>
-        <div
-          className={cn(
-            'mt-6 rounded-xl border px-3 py-3 shadow-md ring-1 ring-amber-900/10 sm:px-4',
-            'border-black/10 bg-white/55 backdrop-blur-sm',
-            'dark:border-white/10 dark:bg-white/[0.06] dark:ring-amber-400/15',
-          )}
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div className="font-mono text-sm text-[#2a2018] dark:text-[#e8dcc8]">
-              STAGE {ui.stage} | ENEMY {ui.enemiesDestroyed}/{ui.enemiesTotal} | {ui.status.toUpperCase()} | PLAYER{' '}
-              {ui.playerAlive ? 'ALIVE' : 'DEAD'}
+              STAGE {ui.stage}
+              <span className="sr-only">
+                {ui.status.toUpperCase()} | PLAYER {ui.playerAlive ? 'ALIVE' : 'DEAD'}
+              </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
                 type="button"
                 onClick={startOrRestartFromStage1}
@@ -224,7 +303,12 @@ export default function TankBattle90View() {
                 {ui.status === 'ready' ? 'START' : 'RESTART'}
               </Button>
               {showRetry ? (
-                <Button type="button" variant="secondary" className={cn('font-mono', shellBtn)} onClick={retryCurrentStage}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={cn('font-mono', shellBtn)}
+                  onClick={retryCurrentStage}
+                >
                   RETRY
                 </Button>
               ) : null}
@@ -248,104 +332,139 @@ export default function TankBattle90View() {
               ) : null}
             </div>
           </div>
-        </div>
-        {debugEnabled ? (
-          <div
-            className={cn(
-              'mt-4 rounded-xl border px-3 py-2 shadow-lg ring-1 ring-black/5 sm:px-4',
-              'border-black/10 bg-white/40 backdrop-blur-sm',
-              'dark:border-white/10 dark:bg-black/25 dark:ring-white/10',
-            )}
-          >
-            <div className="w-full">
-              <div className="flex flex-nowrap gap-2 overflow-x-auto">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={shellBtn}
-                  onClick={() => {
-                    const st = stateRef.current
-                    st.enemies.forEach((e) => (e.alive = false))
-                    st.enemiesDestroyed = st.enemiesTotal
-                    st.enemiesSpawned = st.enemiesTotal
-                    st.status = 'won'
-                    syncUi(st)
-                  }}
-                >
-                  FORCE_WIN
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={shellBtn}
-                  onClick={() => {
-                    const st = stateRef.current
-                    st.base.alive = false
-                    st.player.alive = false
-                    st.status = 'lost'
-                    syncUi(st)
-                  }}
-                >
-                  FORCE_LOSE
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={shellBtn}
-                  onClick={() => {
-                    const st = stateRef.current
-                    st.enemies.forEach((e) => (e.alive = false))
-                    st.enemiesDestroyed = st.enemiesTotal
-                    st.enemiesSpawned = st.enemiesTotal
-                    st.status = 'won'
-                    syncUi(st)
-                  }}
-                >
-                  CLEAR_ENEMIES
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={shellBtn}
-                  onClick={() => {
-                    const st = stateRef.current
-                    st.status = st.status === 'paused' ? 'running' : 'paused'
-                    syncUi(st)
-                  }}
-                >
-                  TOGGLE_PAUSE
-                </Button>
-              </div>
-              <div className="sr-only">
-                DEBUG {eventsRef.current.length} {debugTick}
+          {debugEnabled ? (
+            <div
+              className={cn(
+                'rounded-xl border px-3 py-2 shadow-lg ring-1 ring-black/5 sm:px-4',
+                'border-black/10 bg-white/40 backdrop-blur-sm',
+                'dark:border-white/10 dark:bg-black/25 dark:ring-white/10',
+              )}
+            >
+              <div className="w-full">
+                <div className="flex flex-nowrap gap-2 overflow-x-auto">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={shellBtn}
+                    onClick={() => {
+                      const st = stateRef.current
+                      st.enemies.forEach((e) => (e.alive = false))
+                      st.enemiesDestroyed = st.enemiesTotal
+                      st.enemiesSpawned = st.enemiesTotal
+                      st.status = 'won'
+                      syncUi(st)
+                    }}
+                  >
+                    FORCE_WIN
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={shellBtn}
+                    onClick={() => {
+                      const st = stateRef.current
+                      st.base.alive = false
+                      st.player.alive = false
+                      st.status = 'lost'
+                      syncUi(st)
+                    }}
+                  >
+                    FORCE_LOSE
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={shellBtn}
+                    onClick={() => {
+                      const st = stateRef.current
+                      st.enemies.forEach((e) => (e.alive = false))
+                      st.enemiesDestroyed = st.enemiesTotal
+                      st.enemiesSpawned = st.enemiesTotal
+                      st.status = 'won'
+                      syncUi(st)
+                    }}
+                  >
+                    CLEAR_ENEMIES
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={shellBtn}
+                    onClick={() => {
+                      const st = stateRef.current
+                      st.status = st.status === 'paused' ? 'running' : 'paused'
+                      syncUi(st)
+                    }}
+                  >
+                    TOGGLE_PAUSE
+                  </Button>
+                </div>
+                <div className="sr-only">
+                  DEBUG {eventsRef.current.length} {debugTick}
+                </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
         <div
           className={cn(
-            'mt-4 rounded-xl border p-3 shadow-lg ring-1 ring-black/5',
+            'mt-4 rounded-xl border p-3 shadow-lg ring-1 ring-black/5 overflow-hidden',
             'border-black/10 bg-white/40 backdrop-blur-sm',
             'dark:border-white/10 dark:bg-black/25 dark:ring-white/10',
           )}
         >
-          <div className="relative mx-auto w-full max-w-[640px] aspect-square">
+          <div className="relative mx-auto w-full max-w-[640px]">
             <canvas
-              ref={canvasRef}
+              ref={spawnQueueCanvasRef}
               width={WORLD_W}
-              height={WORLD_H}
-              className="block h-full w-full rounded-md border-2 border-[#3d3428] bg-[#0d0e12] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:border-[#6b5a3e]"
-              data-testid="tank90-canvas"
-              aria-label="Tank battle playfield"
+              height={24}
+              className="block w-full aspect-[416/24] rounded-none border border-[#3d3428]/80 border-b-0 bg-[#1f2937] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] dark:border-[#6b5a3e]/70"
+              aria-label="Enemy spawn queue"
               role="img"
             />
+            <div className="relative mt-0 aspect-square">
+              <canvas
+                ref={canvasRef}
+                width={WORLD_W}
+                height={WORLD_H}
+                className="block h-full w-full rounded-none border border-[#3d3428] border-t-0 bg-[#0d0e12] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:border-[#6b5a3e]"
+                data-testid="tank90-canvas"
+                aria-label="Tank battle playfield"
+                role="img"
+              />
+            </div>
           </div>
         </div>
         {touchPrimary ? (
-          <TouchControls className="max-w-[640px] mx-auto" onMoveChange={(next) => Object.assign(inputRef.current, next)} onFireChange={(fire) => { inputRef.current.fire = fire }} onPauseToggle={() => { const st = stateRef.current; st.status = st.status === 'paused' ? 'running' : 'paused'; syncUi(st) }} />
+          <TouchControls
+            className="max-w-[640px] mx-auto"
+            onMoveChange={(next) => Object.assign(inputRef.current, next)}
+            onFireChange={(fire) => {
+              const st = stateRef.current
+              // Before start: pressing Touch FIRE should behave like clicking START.
+              if (fire && st.status === 'ready') {
+                startOrRestartFromStage1()
+              }
+              // 1) Mobile: after finishing a stage (WON), pressing FIRE should go to next stage.
+              if (fire && st.status === 'won') {
+                if (st.level >= 10) playAgainAfterFinal()
+                else nextStage()
+                // Prevent lingering "fire" state while stage changes.
+                inputRef.current.fire = false
+                return
+              }
+              inputRef.current.fire = fire
+            }}
+            onPauseToggle={() => {
+              const st = stateRef.current
+              st.status = st.status === 'paused' ? 'running' : 'paused'
+              syncUi(st)
+            }}
+          />
         ) : null}
-        <p className="mt-4 font-mono text-xs leading-relaxed text-[#5c4d3d] dark:text-[#9a8b72]">{ui.levelIntent}</p>
       </div>
     </main>
   )
 }
+
+export default observer(TankBattle90View)
