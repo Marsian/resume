@@ -37,7 +37,7 @@ test('tank90 main flow (debug assisted)', async ({ page }) => {
   await page.goto('/tank90?debug=1')
 
   await expect(page.getByText('90 TANK BATTLE')).toBeVisible()
-  await expect(page.getByText('KEYBOARD: WASD + ARROWS MOVE / SPACE FIRE / P PAUSE')).toBeVisible()
+  await expect(page.getByText('KEYBOARD: ARROWS MOVE / SPACE FIRE / P PAUSE')).toBeVisible()
 
   const hud = page.locator('main').getByText(/^STAGE /).first()
 

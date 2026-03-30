@@ -108,10 +108,10 @@ function TankBattle90View() {
       if (MOVEMENT_KEYS.has(code)) event.preventDefault()
 
       if (code === 'Space' && !isInteractiveTarget(event.target)) event.preventDefault()
-      if (code === 'KeyW' || code === 'ArrowUp') inputRef.current.up = true
-      if (code === 'KeyS' || code === 'ArrowDown') inputRef.current.down = true
-      if (code === 'KeyA' || code === 'ArrowLeft') inputRef.current.left = true
-      if (code === 'KeyD' || code === 'ArrowRight') inputRef.current.right = true
+      if (code === 'ArrowUp') inputRef.current.up = true
+      if (code === 'ArrowDown') inputRef.current.down = true
+      if (code === 'ArrowLeft') inputRef.current.left = true
+      if (code === 'ArrowRight') inputRef.current.right = true
       if (code === 'Space') inputRef.current.fire = true
       if (code === 'KeyP') {
         const st = stateRef.current
@@ -121,10 +121,10 @@ function TankBattle90View() {
     const onKeyUp = (event: KeyboardEvent) => {
       const code = event.code
       if (code === 'Space' && !isInteractiveTarget(event.target)) event.preventDefault()
-      if (code === 'KeyW' || code === 'ArrowUp') inputRef.current.up = false
-      if (code === 'KeyS' || code === 'ArrowDown') inputRef.current.down = false
-      if (code === 'KeyA' || code === 'ArrowLeft') inputRef.current.left = false
-      if (code === 'KeyD' || code === 'ArrowRight') inputRef.current.right = false
+      if (code === 'ArrowUp') inputRef.current.up = false
+      if (code === 'ArrowDown') inputRef.current.down = false
+      if (code === 'ArrowLeft') inputRef.current.left = false
+      if (code === 'ArrowRight') inputRef.current.right = false
       if (code === 'Space') inputRef.current.fire = false
     }
     window.addEventListener('keydown', onKeyDown, { passive: false })
@@ -239,7 +239,7 @@ function TankBattle90View() {
 
   const controlsHint = touchPrimary
     ? 'TOUCH: DRAG JOYSTICK MOVE / HOLD FIRE SHOOT / PAUSE TOGGLE'
-    : 'KEYBOARD: WASD + ARROWS MOVE / SPACE FIRE / P PAUSE'
+    : 'KEYBOARD: ARROWS MOVE / SPACE FIRE / P PAUSE'
 
   const showRetry = ui.status === 'lost'
   const showNext = ui.status === 'won' && ui.stage < 10
