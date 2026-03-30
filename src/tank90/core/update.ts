@@ -1,4 +1,4 @@
-import { ENEMY_ARCHETYPES, getLevelConfig, type Direction, type TerrainType } from '../levels'
+import { ENEMY_ARCHETYPES, getLevelConfig, terrainFromChar, TILE, type Direction, type TerrainType } from '../levels'
 import {
   EARLY_GAME_SAFETY_MS,
   SPAWN_POINTS,
@@ -106,20 +106,60 @@ function getEnemyFireChance(state: GameState, enemy: Tank) {
   return enemy.fireChance * STAGE1_EARLY_FIRE_CHANCE_SCALE
 }
 
+function spawnRectBlockedByTerrain(state: GameState, x: number, y: number) {
+  const config = getLevelConfig(state.level)
+  const x0 = Math.floor(x / TILE)
+  const x1 = Math.floor((x + TANK_SIZE - 1) / TILE)
+  const y0 = Math.floor(y / TILE)
+  const y1 = Math.floor((y + TANK_SIZE - 1) / TILE)
+  for (let ty = y0; ty <= y1; ty += 1) {
+    for (let tx = x0; tx <= x1; tx += 1) {
+      const ch = config.terrainRows[ty]?.[tx]
+      const t = terrainFromChar(ch ?? '.')
+      if (blocksTank(t)) return true
+    }
+  }
+  return false
+}
+
+function spawnRectBlockedByActors(state: GameState, x: number, y: number) {
+  const rect = { x, y, w: TANK_SIZE, h: TANK_SIZE }
+  if (state.player.alive && rectsOverlap(rect, tankRect(state.player))) return true
+  for (const e of state.enemies) {
+    if (e.alive && rectsOverlap(rect, tankRect(e))) return true
+  }
+  return false
+}
+
+function isSpawnFree(state: GameState, x: number, y: number) {
+  return !spawnRectBlockedByTerrain(state, x, y) && !spawnRectBlockedByActors(state, x, y)
+}
+
 function maybeSpawnEnemy(state: GameState, now: number) {
   if (state.spawnCooldown > 0) return
 
   const aliveEnemies = state.enemies.filter((e) => e.alive).length
   if (aliveEnemies >= getSpawnActiveEnemyCap(state) || state.enemiesSpawned >= state.enemiesTotal) return
 
-  const spawn = SPAWN_POINTS[state.enemiesSpawned % SPAWN_POINTS.length]
+  let spawnX = -1
+  let spawnY = -1
+  for (let tryIdx = 0; tryIdx < SPAWN_POINTS.length; tryIdx += 1) {
+    const sp = SPAWN_POINTS[(state.enemiesSpawned + tryIdx) % SPAWN_POINTS.length]
+    if (isSpawnFree(state, sp.x, sp.y)) {
+      spawnX = sp.x
+      spawnY = sp.y
+      break
+    }
+  }
+  if (spawnX < 0) return
+
   const queueIndex = state.enemiesSpawned % state.enemyQueue.length
   const archetypeId = state.enemyQueue[queueIndex] ?? 'grunt'
   const archetype = ENEMY_ARCHETYPES[archetypeId]
   state.enemies.push({
     id: `enemy-${state.level}-${state.enemiesSpawned}`,
-    x: spawn.x,
-    y: spawn.y,
+    x: spawnX,
+    y: spawnY,
     dir: 'down',
     speed: archetype.speed,
     reloadMs: archetype.reloadMs,
@@ -193,6 +233,7 @@ export function updateState(state: GameState, dt: number, now: number, input: In
       if (!bullet.alive || !rectsOverlap(circleBox(bullet), { x: tile.x, y: tile.y, w: tile.size, h: tile.size })) {
         continue
       }
+      if (tile.type === 'grass' || tile.type === 'ice') continue
       if (tile.type === 'brick') {
         tile.hp -= 1
         bullet.alive = false

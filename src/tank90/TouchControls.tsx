@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { cn } from '@/lib/utils'
 
 type DirectionInput = { up: boolean; down: boolean; left: boolean; right: boolean }
 
@@ -50,13 +51,18 @@ export function TouchControls({
 
   return (
     <div
-      className={`mt-4 rounded-xl border border-border bg-card px-3 pt-3 pb-2 shadow-sm sm:px-4 ${className ?? ''}`}
+      className={cn(
+        'mt-4 rounded-xl border px-3 pt-3 pb-2 shadow-sm sm:px-4',
+        'border-amber-900/20 bg-black/[0.12] shadow-inner backdrop-blur-sm',
+        'dark:border-amber-400/20 dark:bg-black/35',
+        className,
+      )}
       style={{ touchAction: 'none', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
       aria-label="Touch controls"
     >
       <div className="flex items-end justify-between gap-4">
         <div
-          className="relative shrink-0 rounded-full border border-border bg-muted/50"
+          className="relative shrink-0 rounded-full border border-amber-900/25 bg-white/30 dark:border-amber-400/25 dark:bg-white/5"
           style={{ width: JOY_SIZE, height: JOY_SIZE, touchAction: 'none' }}
           onPointerDown={(event) => {
             const el = event.currentTarget
@@ -84,7 +90,7 @@ export function TouchControls({
           aria-label="Virtual joystick"
         >
           <div
-            className="absolute rounded-full border border-border bg-muted"
+            className="absolute rounded-full border border-amber-900/20 bg-white/60 dark:border-white/15 dark:bg-white/10"
             style={{
               width: KNOB_SIZE,
               height: KNOB_SIZE,
@@ -97,7 +103,7 @@ export function TouchControls({
           {onPauseToggle ? (
             <button
               type="button"
-              className="h-11 min-w-20 rounded-full border border-border bg-secondary px-4 font-mono text-[11px] tracking-[0.06em] text-secondary-foreground"
+              className="h-11 min-w-20 rounded-full border border-amber-900/30 bg-white/40 px-4 font-mono text-[11px] tracking-[0.06em] text-[#2a2018] dark:border-amber-400/30 dark:bg-white/10 dark:text-[#f0e6d8]"
               onClick={onPauseToggle}
               aria-label="Pause game"
             >
@@ -106,7 +112,7 @@ export function TouchControls({
           ) : null}
           <button
             type="button"
-            className="h-20 min-w-20 rounded-full border border-border bg-primary px-4 font-mono text-xs tracking-[0.08em] text-primary-foreground"
+            className="h-20 min-w-20 rounded-full border border-amber-700/50 bg-gradient-to-b from-amber-500 to-amber-700 px-4 font-mono text-xs tracking-[0.08em] text-amber-950 shadow-md dark:from-amber-400 dark:to-amber-600 dark:text-amber-950"
             onPointerDown={(event) => {
               onFireChange(true)
             }}

@@ -1,6 +1,19 @@
+import {
+  NES_STAGE_01_ROWS,
+  NES_STAGE_02_ROWS,
+  NES_STAGE_03_ROWS,
+  NES_STAGE_04_ROWS,
+  NES_STAGE_05_ROWS,
+  NES_STAGE_06_ROWS,
+  NES_STAGE_07_ROWS,
+  NES_STAGE_08_ROWS,
+  NES_STAGE_09_ROWS,
+  NES_STAGE_10_ROWS,
+} from './nesTerrainStrings'
+
 export type Direction = 'up' | 'down' | 'left' | 'right'
 
-export type TerrainType = 'empty' | 'brick' | 'steel' | 'grass' | 'water'
+export type TerrainType = 'empty' | 'brick' | 'steel' | 'grass' | 'water' | 'ice'
 
 export type EnemyArchetypeId = 'grunt' | 'raider' | 'heavy' | 'sniper'
 
@@ -28,6 +41,44 @@ export interface LevelConfig {
 
 export const TILE = 16
 export const GRID = 26
+
+/** 2×2 tile clearing for eagle hitbox (same as `state.terrainToBlocks` / `levelValidation`). */
+const BASE_W_TILES = 2
+export const BASE_TILE_COL_START = GRID / 2 - BASE_W_TILES / 2
+/** Bottom two map rows — eagle hitbox is flush with `WORLD_H` (no extra margin row below). */
+export const BASE_TILE_ROW_START = GRID - BASE_W_TILES
+export const BASE_TILE_COL_END_EXCL = BASE_TILE_COL_START + BASE_W_TILES
+export const BASE_TILE_ROW_END_EXCL = BASE_TILE_ROW_START + BASE_W_TILES
+
+/**
+ * One-tile brick wall on top + left + right of the eagle square only (bottom stays open toward the
+ * player), matching NES Battle City layout.
+ */
+function buildBaseBrickRingCells(): { col: number; row: number }[] {
+  const L = BASE_TILE_COL_START - 1
+  const R = BASE_TILE_COL_END_EXCL
+  const top = BASE_TILE_ROW_START - 1
+  const out: { col: number; row: number }[] = []
+  for (let c = L; c <= R; c += 1) {
+    out.push({ col: c, row: top })
+  }
+  for (let r = BASE_TILE_ROW_START; r < BASE_TILE_ROW_END_EXCL; r += 1) {
+    out.push({ col: L, row: r }, { col: R, row: r })
+  }
+  return out
+}
+
+export const BASE_BRICK_RING_CELLS = buildBaseBrickRingCells()
+
+/** NES-import maps often gap the top wall; force brick on the U-shaped wall (not the bottom opening). */
+export function ensureBaseBrickRingTerrain(rows: readonly string[]): string[] {
+  const copy = rows.map((line) => line.split(''))
+  for (const { col, row } of BASE_BRICK_RING_CELLS) {
+    const line = copy[row]
+    if (line && col >= 0 && col < line.length) line[col] = 'B'
+  }
+  return copy.map((chars) => chars.join(''))
+}
 
 export const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetype> = {
   grunt: {
@@ -76,304 +127,8 @@ export const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetype> = {
   },
 }
 
-// Battle City Stage 01-10 base 26x26 grid extracted from an open Battle City JS clone.
-// Cell encoding:
-// - 0 brick -> 'B'
-// - 1 steel -> 'S'
-// - 2 water -> 'W'
-// - 3 tree/bush -> 'G'
-// - 5 blank -> '.'
-const STAGE_01_TERRAIN_ROWS: string[] = [
-  '..........................',
-  '..........................',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..BBSSBB..BB..BB..',
-  '..BB..BB..BBSSBB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..........BB..BB..',
-  '..BB..BB..........BB..BB..',
-  '..........BB..BB..........',
-  '..........BB..BB..........',
-  'BB..BBBB..........BBBB..BB',
-  'SS..BBBB..........BBBB..SS',
-  '..........BB..BB..........',
-  '..........BBBBBB..........',
-  '..BB..BB..BBBBBB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB..BB..BB..BB..BB..',
-  '..BB..BB...BB..BB.BB..BB..',
-  '..BB..BB...BB..BB.BB..BB..',
-  '..BB..BB...BBBB...BB..BB..',
-  '...........B..B...........',
-  '...........B..B...........',
-]
+// 26×26 terrain matches NES Battle City layouts from orn1983/battlecityjs (regenerate: npm run sync:tank90-maps).
 
-const STAGE_02_TERRAIN_ROWS: string[] = [
-  '......SS......SS..........',
-  '......SS......SS..........',
-  '..BB..SS......BB..BB..BB..',
-  '..BB..SS......BB..BB..BB..',
-  '..BB........BBBB..BBSSBB..',
-  '..BB........BBBB..BBSSBB..',
-  '......BB..........SS......',
-  '......BB..........SS......',
-  'GG....BB....SS....BBGGBBSS',
-  'GG....BB....SS....BBGGBBSS',
-  'GGGG......BB....SS..GG....',
-  'GGGG......BB....SS..GG....',
-  '..BBBBBBGGGGGGSS....GGBB..',
-  '..BBBBBBGGGGGGSS....GGBB..',
-  '......SSGGBB..BB..BB..BB..',
-  '......SSGGBB..BB..BB..BB..',
-  'SSBB..SS..BB..BB......BB..',
-  'SSBB..SS..BB..BB......BB..',
-  '..BB..BB..BBBBBB..BBSSBB..',
-  '..BB..BB..BBBBBB..BBSSBB..',
-  '..BB..BB..BBBBBB..........',
-  '..BB..BB..BBBBBB..........',
-  '..BB....BB........BB..BB..',
-  '..BB.......BBBB...BB..BB..',
-  '..BB..BB...B..B...BBBBBB..',
-  '..BB..BB...B..B...BBBBBB..',
-]
-
-const STAGE_03_TERRAIN_ROWS: string[] = [
-  '........BB......BB........',
-  '......BBBB......BBBB......',
-  '..GGGGGGBB................',
-  '..GGGGGGBB..........SSSSSS',
-  'BBGGGGGG..................',
-  'BBGGGGGG..................',
-  'GGGGGGGG......BB..BBBBBBB.',
-  'GGGGGGGG......BB..BBBBBBB.',
-  'GGGGGGGGBBBBBBBB..BB...B..',
-  'GGGGGGGGBBBBBB....BB...B..',
-  'GGGGGGGG....BB.........B..',
-  'GGGGGGGG....BB.........B..',
-  '..GG........SSSSSS....GG..',
-  '..GG........SSSSSS....GG..',
-  '..................GGGGGGGG',
-  '..BB..BB..........GGGGGGGG',
-  'BBB..BBBB..BBBBBBBGGGGGGGG',
-  'BBB..BBBB..B......GGGGGGGG',
-  '..........BB......GGGGGGGG',
-  '....BB....BB..BBBBGGGGGGGG',
-  'BB....S.......BBBBGGGGGG..',
-  'BB....S...........GGGGGG..',
-  'BBBB..S...........GGGGGG..',
-  'BBBB..S..BB.BBBB...GGGGG..',
-  'SSBBBB.....B..B...BB......',
-  'SSBBBB.....B..B...BB......',
-]
-
-const STAGE_04_TERRAIN_ROWS: string[] = [
-  '..GGGG................GG..',
-  '..GGGG................GG..',
-  'GGGG......BBBB..........GG',
-  'GGGG....BBBBBBBBBB......GG',
-  'GG.....BBBBBBBBBBBBB....SS',
-  'GG.....BBBBBBBBBBBBBBB....',
-  'SS....BBBBBBBBBBBBBBBBB...',
-  '......BBBBBBBBBBBBBBBBB...',
-  '.....BBB......BBBBBB..B...',
-  '.....B..........BBBB..B...',
-  'WW...B..S...S...BBB.......',
-  'WW...B..S...S...BBB.......',
-  '....BB..........BBB...WWWW',
-  '....BB..BBBB....BBB...WWWW',
-  '....BBBBBBBBBBBBBBBB......',
-  '....BBBBBBBBBBBBBBBB......',
-  '...BBBBBBBBBBBBBBBBBB.....',
-  '...BBBBBBBBBBBBBBBBBB.....',
-  '..BBBBBBBBBBBBBBBBBBBB....',
-  '......BBBBBBBBBBBB........',
-  '..BBBB..BBBBBBBB..BBBB..GG',
-  '..BBBBBB..BBBB..BBBBBB..GG',
-  'GG..BBBB........BBBB..GGGG',
-  'GG.........BBBB.......GGGG',
-  'SSGG.......B..B.....GGGGSS',
-  'SSGG.......B..B.....GGGGSS',
-]
-
-const STAGE_05_TERRAIN_ROWS: string[] = [
-  '........BBBB..............',
-  '........BBBB..............',
-  '........BB......SSSSSS....',
-  'SS..BB..BB..........SS....',
-  'SS..BB......BB............',
-  'SS..BB......BB............',
-  'BB..BBBBBB..BBBB..WWWW..WW',
-  'BB..BBBBBB..BBBB..WWWW..WW',
-  'BB......BB........WW......',
-  '..................WW......',
-  '........WWWW..WWWWWW..BBBB',
-  '....BB..WWWW..WWWWWW..BBBB',
-  'BBBB....WWBB..BBB.........',
-  'BBBB....WWBB..BBB.........',
-  '........WW...........SS...',
-  '........WW...........SS...',
-  'WWWWWW..WW..SS..BB...S....',
-  'WWWWWW..WW..SS..BB...S....',
-  '.....................SBBBB',
-  '......BBBB...........SBBBB',
-  '........BBBBBBBBBB........',
-  '........BB......BBBB......',
-  'BBBBBB............BBBB....',
-  'BBBB.......BBBB.....BB....',
-  'BB.........B..B...........',
-  '...........B..B...........',
-]
-
-const STAGE_06_TERRAIN_ROWS: string[] = [
-  '...........B..B.GGGG......',
-  '...........B..B.GGGG......',
-  '..B..S..B........BGGB..BGG',
-  '..B..S..B........BGGB..BGG',
-  '..B..S..B...BB...BGGB..BGG',
-  '..B..S..B...BB...BGGB..BGG',
-  '..BB....BB..SS..BBGG..BBGG',
-  '..BB....BB..SS..BBGG..BBGG',
-  '.......BSS..BB..BBS...GGGG',
-  '.......B....BB....S...GGGG',
-  'BBBBB.....GGBBGG.....BBBBB',
-  'BBBBB.....GGBBGG.....BBBBB',
-  '.........BGGGGGGB.........',
-  '.........BGGGGGGB.........',
-  'SSBBBB..BBGGGGGGBB.BBBBBSS',
-  'SSBBBB....GGGGGG...BBBBBSS',
-  'SSSSSS......GG......SSSSSS',
-  '........BB..GG..BB........',
-  '..BB....BB......BB........',
-  '..BB....BB......BB........',
-  '..BBB.....BB..BB.....BBBGG',
-  '..BBB................BBBGG',
-  '....BB..............GGGGGG',
-  '...........BBBB.....GGGGGG',
-  '...........B..B.......GGGG',
-  '....BB.....B..B.....BBGGGG',
-]
-
-const STAGE_07_TERRAIN_ROWS: string[] = [
-  '..............SSSS........',
-  '..........................',
-  '....SSSSSSSS........SS....',
-  '....SS..............SS....',
-  '....SS......GG..SSSSSS....',
-  '....SS......GG....SSSS....',
-  '..SS......GGSS......SS....',
-  '..SS......GGSS......SS....',
-  '........GGSSSS......SSSS..',
-  '........GGSSSS........SS..',
-  '..SS..GGSSSSSS..SS........',
-  '..SS..GGSSSSSS..SS........',
-  '...S..SSSS......SSSS......',
-  '...S..SSSS......SSSS......',
-  'S.......SS..SSSSSS.....S..',
-  'S.......SS..SSSSSS.....S..',
-  '...SSS......SSSSGG....SS..',
-  '...SSS......SSSSGG....SS..',
-  '..SS........SSGG....SSSS..',
-  '..SS........SSGG....SSSS..',
-  '..SSSSSS....GG....SS......',
-  '......SS....GG....SS......',
-  '..................SS....SS',
-  '...........BBBB.......SSSS',
-  '...........B..B...........',
-  'SSSS.......B..B...........',
-]
-
-const STAGE_08_TERRAIN_ROWS: string[] = [
-  '....BB....BB......BB......',
-  '....BB....BB..BB..BB......',
-  'GGBBBBBB..BB......BBB.....',
-  'GGBBBBBB..BB..SS..BBB.....',
-  'GGGGGG....BB..BB..BB...BB.',
-  'GGGGGG........BB.......BB.',
-  'GGWWWWWWWWWWWWWWWWWWWW..WW',
-  'GGWWWWWWWWWWWWWWWWWWWW..WW',
-  '..BB......................',
-  '..BB........BBBB..........',
-  '....BB.....BBBBBBBBBBBSSSS',
-  '....BB.....BBBBB..BB......',
-  'BBBB..BB...BBBBBGGBB....BB',
-  'BBBB..BB...BBBBBGGBBSSSSBB',
-  '......SS......GGGGGGGG....',
-  '......SS..SS..GGGGGGGG....',
-  'WWWW..WWWWWWWWWW..WWWWWWWW',
-  'WWWW..WWWWWWWWWW..WWWWWWWW',
-  'GGGG...B..................',
-  'GGGG...B....BBBB..........',
-  'GGGGBB..B......B......BB..',
-  'GGGGBB..B......B..SSBBBB..',
-  'GG..BB..B.........BB..BB..',
-  'GGSSBB..B..BBBB.......BB..',
-  '...........B..B.......BB..',
-  '...........B..B...BB......',
-]
-
-const STAGE_09_TERRAIN_ROWS: string[] = [
-  '......BB............GG....',
-  '......BB..........SSGG....',
-  'BB............GG.SSSS...BB',
-  'BB..........SSGG.SSSS...BB',
-  '........GG.SSSS...SSGG....',
-  '......SSGG.SSSS.....GG....',
-  '.....SSSS...SSGG..........',
-  '.....SSSS.....GG..........',
-  '......SSGG................',
-  '........GG................',
-  '......GG..GG..GG..GG......',
-  '......GGSSGG..GGSSGG......',
-  'SSBB...SSSS....SSSS...BBSS',
-  'SSBB...SSSS....SSSS...BBSS',
-  '......GGSSGG..GGSSGG......',
-  '......GG..GG..GG..GG......',
-  '..........................',
-  '........SS......SS........',
-  'BB.....SSSS....SSSS.....BB',
-  'BB.....SSSS....SSSS.....BB',
-  'BB....GGSSGG..GGSSGG....BB',
-  'BB....GG..GG..GG..GG....BB',
-  '..........................',
-  '....BB.....BBBB.....BB....',
-  '....BBBB...B..B...BBBB....',
-  '....BBBB...B..B...BBBB....',
-]
-
-const STAGE_10_TERRAIN_ROWS: string[] = [
-  '..........................',
-  '..........................',
-  '...BBBBB............BBBBB.',
-  '...B..BB............BB..B.',
-  '.BBB....BB..GGGG..BB.....B',
-  '.B......BB..GGGG..BB.....B',
-  'BB......BBGGGGGGGGBB.....B',
-  'BB......BBGGGGGGGGBB.....B',
-  'BB.....BBBGGSSSSGGBBB...BB',
-  'BB.....BBBGGSSSSGGBBB...BB',
-  '.B....BBWWWWWWWWWWWWBBBBBB',
-  '.BBBBBBBWWWWWWWWWWWWBBBBBB',
-  '..BBBBBBSSSSBBSSSSBBBBBB..',
-  '..BBBBBBSSSSBBSSSSBBBBBB..',
-  '....BBBBSS..BB..SSBBBBB...',
-  '....BBBBSS..BB..SSBBBBB...',
-  '....BBBBBBBBBBBBBBBBBBB...',
-  '....BBBBBBBBBBBBBBBBBBB...',
-  'BBGGBBBBBBSSSSBBBBBBBBGGBB',
-  'BBGG......SSSS........GGBB',
-  'BBGGGGGGGGGGGGGGGGGGGGGGBB',
-  'BBGGGGGGGGGGGGGGGGGGGGGGBB',
-  '....GGGGGG......GGGGGGGG..',
-  '....GGGGGG.BBBB.GGGGGGG...',
-  '......B....B..B.....B.....',
-  '......B....B..B.....B.....',
-]
-
-// Stage 1-10 terrain grids
 const levels: LevelConfig[] = [
   {
     id: 1,
@@ -382,7 +137,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 8,
     spawnDelaySec: 0.72,
     enemyQueue: ['grunt', 'grunt', 'raider', 'grunt', 'grunt', 'raider', 'grunt', 'heavy'],
-    terrainRows: STAGE_01_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_01_ROWS,
   },
   {
     id: 2,
@@ -391,7 +146,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 9,
     spawnDelaySec: 0.7,
     enemyQueue: ['grunt', 'raider', 'grunt', 'raider', 'heavy', 'grunt', 'raider', 'grunt', 'sniper'],
-    terrainRows: STAGE_02_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_02_ROWS,
   },
   {
     id: 3,
@@ -400,7 +155,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 10,
     spawnDelaySec: 0.68,
     enemyQueue: ['grunt', 'raider', 'sniper', 'grunt', 'heavy', 'raider', 'sniper', 'grunt', 'heavy', 'raider'],
-    terrainRows: STAGE_03_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_03_ROWS,
   },
   {
     id: 4,
@@ -409,7 +164,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 10,
     spawnDelaySec: 0.66,
     enemyQueue: ['raider', 'grunt', 'raider', 'heavy', 'grunt', 'sniper', 'raider', 'heavy', 'sniper', 'grunt'],
-    terrainRows: STAGE_04_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_04_ROWS,
   },
   {
     id: 5,
@@ -418,7 +173,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 11,
     spawnDelaySec: 0.64,
     enemyQueue: ['heavy', 'grunt', 'raider', 'heavy', 'sniper', 'grunt', 'heavy', 'raider', 'sniper', 'raider', 'heavy'],
-    terrainRows: STAGE_05_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_05_ROWS,
   },
   {
     id: 6,
@@ -427,7 +182,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 11,
     spawnDelaySec: 0.62,
     enemyQueue: ['raider', 'sniper', 'grunt', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'grunt', 'sniper', 'heavy'],
-    terrainRows: STAGE_06_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_06_ROWS,
   },
   {
     id: 7,
@@ -436,7 +191,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 12,
     spawnDelaySec: 0.6,
     enemyQueue: ['heavy', 'raider', 'sniper', 'heavy', 'raider', 'heavy', 'sniper', 'raider', 'grunt', 'sniper', 'heavy', 'raider'],
-    terrainRows: STAGE_07_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_07_ROWS,
   },
   {
     id: 8,
@@ -445,7 +200,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 12,
     spawnDelaySec: 0.58,
     enemyQueue: ['sniper', 'raider', 'sniper', 'heavy', 'grunt', 'sniper', 'raider', 'heavy', 'sniper', 'raider', 'heavy', 'sniper'],
-    terrainRows: STAGE_08_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_08_ROWS,
   },
   {
     id: 9,
@@ -454,7 +209,7 @@ const levels: LevelConfig[] = [
     enemiesTotal: 13,
     spawnDelaySec: 0.56,
     enemyQueue: ['heavy', 'sniper', 'raider', 'heavy', 'sniper', 'raider', 'heavy', 'sniper', 'grunt', 'raider', 'heavy', 'sniper', 'heavy'],
-    terrainRows: STAGE_09_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_09_ROWS,
   },
   {
     id: 10,
@@ -463,16 +218,16 @@ const levels: LevelConfig[] = [
     enemiesTotal: 14,
     spawnDelaySec: 0.54,
     enemyQueue: ['sniper', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'sniper', 'heavy'],
-    terrainRows: STAGE_10_TERRAIN_ROWS,
+    terrainRows: NES_STAGE_10_ROWS,
   },
 ]
 
 export const LEVELS = levels
 
 export function getLevelConfig(level: number): LevelConfig {
-  if (level <= 1) return LEVELS[0]
-  if (level > LEVELS.length) return LEVELS[LEVELS.length - 1]
-  return LEVELS[level - 1]
+  const n = Math.max(1, Math.min(level, LEVELS.length))
+  const raw = LEVELS[n - 1]
+  return { ...raw, terrainRows: ensureBaseBrickRingTerrain(raw.terrainRows) }
 }
 
 export function terrainFromChar(ch: string): TerrainType {
@@ -480,5 +235,6 @@ export function terrainFromChar(ch: string): TerrainType {
   if (ch === 'S') return 'steel'
   if (ch === 'G') return 'grass'
   if (ch === 'W') return 'water'
+  if (ch === 'I') return 'ice'
   return 'empty'
 }

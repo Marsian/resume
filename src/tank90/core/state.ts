@@ -1,19 +1,25 @@
-import { getLevelConfig, terrainFromChar, TILE, type Direction, type TerrainType } from '../levels'
-import { BASE_SIZE, PLAYER_BULLET_SPEED, PLAYER_SPEED, TANK_SIZE, WORLD_H, WORLD_W } from './constants'
+import { findDefaultPlayerSpawnPixels } from '../levelValidation'
+import {
+  BASE_TILE_COL_END_EXCL,
+  BASE_TILE_COL_START,
+  BASE_TILE_ROW_END_EXCL,
+  BASE_TILE_ROW_START,
+  getLevelConfig,
+  terrainFromChar,
+  TILE,
+  type Direction,
+  type TerrainType,
+} from '../levels'
+import { BASE_SIZE, BASE_TOP_Y, PLAYER_BULLET_SPEED, PLAYER_SPEED, TANK_SIZE, WORLD_H, WORLD_W } from './constants'
 import type { GameState, Tank, TileBlock } from './types'
 
-// Base hitbox in tile coordinates (26x26 grid, TILE=16)
-const BASE_TILE_COL_START = WORLD_W / TILE / 2 - BASE_SIZE / TILE / 2 // 12
-const BASE_TILE_ROW_START = WORLD_H / TILE - BASE_SIZE / TILE - 1 // 23
-const BASE_TILE_COL_END_EXCL = BASE_TILE_COL_START + BASE_SIZE / TILE // 14
-const BASE_TILE_ROW_END_EXCL = BASE_TILE_ROW_START + BASE_SIZE / TILE // 25
-
-function spawnPlayer(): Tank {
+function spawnPlayer(level: number): Tank {
+  const cfg = getLevelConfig(level)
+  const { x, y } = findDefaultPlayerSpawnPixels(cfg)
   return {
     id: 'player',
-    x: WORLD_W / 2 - TANK_SIZE / 2,
-    // Spawn two rows above base wall cap.
-    y: WORLD_H - TILE * 6,
+    x,
+    y,
     dir: 'up',
     speed: PLAYER_SPEED,
     reloadMs: 260,
@@ -61,13 +67,13 @@ export function createState(level: number): GameState {
     level,
     levelName: config.name,
     levelIntent: config.intent,
-    player: spawnPlayer(),
+    player: spawnPlayer(level),
     enemies: [],
     bullets: [],
     terrain: terrainToBlocks(level),
     base: {
       x: WORLD_W / 2 - BASE_SIZE / 2,
-      y: WORLD_H - BASE_SIZE - TILE,
+      y: BASE_TOP_Y,
       size: BASE_SIZE,
       alive: true,
     },
