@@ -25,6 +25,10 @@ import type { Base, Bullet, GameState, InputState, PowerUpKind, Tank, TileBlock 
 // Without it, early bullets can reach the player during the narrow spawn window.
 const ENEMY_FIRST_FIRE_GRACE_MS = 1200
 
+function pushSfx(state: GameState, type: 'fire' | 'destroyed' | 'powerup') {
+  state.sfxQueue.push({ type, atMs: state.elapsedMs })
+}
+
 function rectsOverlap(
   a: { x: number; y: number; w: number; h: number },
   b: { x: number; y: number; w: number; h: number },
@@ -335,6 +339,7 @@ function respawnPlayer(state: GameState) {
 }
 
 function killOrRespawnPlayer(state: GameState) {
+  pushSfx(state, 'destroyed')
   if (state.playerLivesReserve > 0) {
     state.playerLivesReserve -= 1
     respawnPlayer(state)
@@ -350,6 +355,7 @@ function maybePickupPowerUp(state: GameState) {
   if (!rectsOverlap(tankRect(state.player), powerUpRect(state.powerUp))) return
   const kind = state.powerUp.kind
   state.powerUp = null
+  pushSfx(state, 'powerup')
   state.powerUpToastUntilMs = state.elapsedMs + 1400
   if (kind === 'grenade') {
     state.powerUpToastText = 'CLEAR ENEMIES'
@@ -357,6 +363,7 @@ function maybePickupPowerUp(state: GameState) {
       if (!e.alive) continue
       e.alive = false
       state.enemiesDestroyed += 1
+      pushSfx(state, 'destroyed')
     }
     return
   }
@@ -411,6 +418,7 @@ export function updateState(state: GameState, dt: number, now: number, input: In
     if (input.fire && alivePlayerBullets < maxBullets && now - player.lastShotAt > player.reloadMs) {
       player.lastShotAt = now
       state.bullets.push(createBullet(player))
+      pushSfx(state, 'fire')
     }
   }
 
@@ -450,6 +458,7 @@ export function updateState(state: GameState, dt: number, now: number, input: In
       state.base.alive = false
       bullet.alive = false
       state.status = 'lost'
+      pushSfx(state, 'destroyed')
     }
 
     if (!bullet.alive) continue
@@ -467,6 +476,7 @@ export function updateState(state: GameState, dt: number, now: number, input: In
           if (enemy.hp <= 0) {
             enemy.alive = false
             state.enemiesDestroyed += 1
+            pushSfx(state, 'destroyed')
           }
         }
       }

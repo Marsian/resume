@@ -67,6 +67,7 @@ export function createState(level: number): GameState {
     level,
     levelName: config.name,
     levelIntent: config.intent,
+    sfxQueue: [],
     player: spawnPlayer(level),
     enemies: [],
     bullets: [],

@@ -4,6 +4,12 @@ export type GameStatus = 'ready' | 'running' | 'paused' | 'won' | 'lost'
 
 export type PowerUpKind = 'grenade' | 'helmet' | 'shovel' | 'star' | 'tank' | 'timer'
 
+export type SfxEventType = 'fire' | 'destroyed' | 'powerup'
+export interface SfxEvent {
+  type: SfxEventType
+  atMs: number
+}
+
 export interface Tank {
   id: string
   x: number
@@ -53,6 +59,7 @@ export interface GameState {
   level: number
   levelName: string
   levelIntent: string
+  sfxQueue: SfxEvent[]
   player: Tank
   enemies: Tank[]
   bullets: Bullet[]

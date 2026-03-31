@@ -10,6 +10,7 @@ import { draw } from './core/render'
 import { createState } from './core/state'
 import type { GameState, GameStatus, InputState, PowerUpKind } from './core/types'
 import { updateState } from './core/update'
+import { tank90Audio } from './audio'
 import { tank90DebugStore } from './debugStore'
 
 type GameEvent = { t: number; type: 'info' | 'warn' | 'state' | 'combat'; msg: string }
@@ -39,6 +40,7 @@ function TankBattle90View() {
 
   const stateRef = useRef<GameState>(createState(1))
   const inputRef = useRef<InputState>({ up: false, down: false, left: false, right: false, fire: false })
+  const playedEntryRef = useRef(false)
   const frameRef = useRef<number | null>(null)
   const lastTimeRef = useRef<number>(0)
   const eventsRef = useRef<GameEvent[]>([])
@@ -76,6 +78,10 @@ function TankBattle90View() {
       levelName: state.levelName,
       levelIntent: state.levelIntent,
     })
+
+  useEffect(() => {
+    tank90Audio.preload()
+  }, [])
 
   useEffect(() => {
     // Keep existing behavior: allow `?debug=1` only in dev builds.
@@ -221,6 +227,14 @@ function TankBattle90View() {
       lastTimeRef.current = t
       if (state.levelBannerUntil > 0) state.levelBannerUntil -= dt * 1000
       if (state.status === 'running') updateState(state, dt, t, inputRef.current)
+        if (state.sfxQueue.length) {
+          for (const ev of state.sfxQueue) {
+            if (ev.type === 'fire') tank90Audio.playSfx('fire', 0.7)
+            if (ev.type === 'destroyed') tank90Audio.playSfx('destroyed', 0.85)
+            if (ev.type === 'powerup') tank90Audio.playSfx('powerup', 0.85)
+          }
+          state.sfxQueue.length = 0
+        }
 
       // Draw enemy spawn queue preview (independent canvas).
       if (previewCtx) {
@@ -311,6 +325,10 @@ function TankBattle90View() {
   }
 
   const startOrRestartFromStage1 = () => {
+    if (!playedEntryRef.current) {
+      playedEntryRef.current = true
+      tank90Audio.playMusic('entry', { volume: 0.55, restart: true })
+    }
     const st = stateRef.current
     if (st.status === 'ready') {
       st.status = 'running'
