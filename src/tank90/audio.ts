@@ -1,14 +1,16 @@
 export type Tank90Sfx = 'fire' | 'destroyed' | 'powerup'
 export type Tank90Music = 'entry'
 
+const BASE_URL = import.meta.env.BASE_URL
+
 const SFX_URL: Record<Tank90Sfx, string> = {
-  fire: '/sounds/fire.mp3',
-  destroyed: '/sounds/destroyed.mp3',
-  powerup: '/sounds/powerup.mp3',
+  fire: `${BASE_URL}sounds/fire.mp3`,
+  destroyed: `${BASE_URL}sounds/destroyed.mp3`,
+  powerup: `${BASE_URL}sounds/powerup.mp3`,
 }
 
 const MUSIC_URL: Record<Tank90Music, string> = {
-  entry: '/sounds/entry-theme.mp3',
+  entry: `${BASE_URL}sounds/entry-theme.mp3`,
 }
 
 function tryPlay(a: HTMLAudioElement) {
