@@ -85,9 +85,18 @@ export function createState(level: number): GameState {
     enemiesTotal: config.enemiesTotal,
     levelBannerUntil: 1000,
     elapsedMs: 0,
+    playerLivesReserve: 3,
     // Spawn shield: long enough to guarantee the first enemy fire window doesn't cause
     // unavoidable early deaths.
     playerInvincibleUntil: 4000,
+    playerPowerTier: 0,
+    freezeEnemiesUntilMs: 0,
+    baseSteelUntilMs: 0,
+    powerUp: null,
+    // Power-up spawns periodically each stage (independent timer).
+    nextPowerUpAtMs: 4500 + Math.random() * 2500,
+    powerUpToastText: '',
+    powerUpToastUntilMs: 0,
     enemyQueue: [...config.enemyQueue],
   }
 }

@@ -15,7 +15,7 @@ export type Direction = 'up' | 'down' | 'left' | 'right'
 
 export type TerrainType = 'empty' | 'brick' | 'steel' | 'grass' | 'water' | 'ice'
 
-export type EnemyArchetypeId = 'grunt' | 'raider' | 'heavy' | 'sniper'
+export type EnemyArchetypeId = 'basic' | 'fast' | 'power' | 'armor'
 
 export interface EnemyArchetype {
   id: EnemyArchetypeId
@@ -81,49 +81,49 @@ export function ensureBaseBrickRingTerrain(rows: readonly string[]): string[] {
 }
 
 export const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetype> = {
-  grunt: {
-    id: 'grunt',
-    label: 'Grunt',
+  basic: {
+    id: 'basic',
+    label: 'Basic',
     speed: 70,
-    reloadMs: 1000,
+    reloadMs: 980,
     hp: 1,
     bulletSpeed: 210,
-    turnIntervalMs: 880,
-    fireChance: 0.018,
+    turnIntervalMs: 900,
+    fireChance: 0.02,
     chaseBias: 0.22,
   },
-  raider: {
-    id: 'raider',
-    label: 'Raider',
+  fast: {
+    id: 'fast',
+    label: 'Fast',
     speed: 98,
-    reloadMs: 900,
+    reloadMs: 920,
     hp: 1,
-    bulletSpeed: 230,
-    turnIntervalMs: 660,
-    fireChance: 0.024,
-    chaseBias: 0.35,
-  },
-  heavy: {
-    id: 'heavy',
-    label: 'Heavy',
-    speed: 62,
-    reloadMs: 840,
-    hp: 2,
     bulletSpeed: 220,
-    turnIntervalMs: 980,
-    fireChance: 0.02,
-    chaseBias: 0.28,
+    turnIntervalMs: 700,
+    fireChance: 0.022,
+    chaseBias: 0.34,
   },
-  sniper: {
-    id: 'sniper',
-    label: 'Sniper',
+  power: {
+    id: 'power',
+    label: 'Power',
     speed: 78,
-    reloadMs: 670,
+    reloadMs: 820,
     hp: 1,
     bulletSpeed: 280,
     turnIntervalMs: 760,
-    fireChance: 0.032,
-    chaseBias: 0.44,
+    fireChance: 0.03,
+    chaseBias: 0.42,
+  },
+  armor: {
+    id: 'armor',
+    label: 'Armor',
+    speed: 64,
+    reloadMs: 900,
+    hp: 4,
+    bulletSpeed: 230,
+    turnIntervalMs: 980,
+    fireChance: 0.02,
+    chaseBias: 0.28,
   },
 }
 
@@ -136,7 +136,7 @@ const levels: LevelConfig[] = [
     intent: 'Classic intro layout with broad lanes and light center pressure.',
     enemiesTotal: 8,
     spawnDelaySec: 0.72,
-    enemyQueue: ['grunt', 'grunt', 'raider', 'grunt', 'grunt', 'raider', 'grunt', 'heavy'],
+    enemyQueue: ['basic', 'basic', 'fast', 'basic', 'basic', 'fast', 'basic', 'armor'],
     terrainRows: NES_STAGE_01_ROWS,
   },
   {
@@ -145,7 +145,7 @@ const levels: LevelConfig[] = [
     intent: 'Twin water channels with brick chokepoints and flank pivots.',
     enemiesTotal: 9,
     spawnDelaySec: 0.7,
-    enemyQueue: ['grunt', 'raider', 'grunt', 'raider', 'heavy', 'grunt', 'raider', 'grunt', 'sniper'],
+    enemyQueue: ['basic', 'fast', 'basic', 'fast', 'armor', 'basic', 'fast', 'basic', 'power'],
     terrainRows: NES_STAGE_02_ROWS,
   },
   {
@@ -154,7 +154,7 @@ const levels: LevelConfig[] = [
     intent: 'Cross-style fortress pattern with mixed steel anchors.',
     enemiesTotal: 10,
     spawnDelaySec: 0.68,
-    enemyQueue: ['grunt', 'raider', 'sniper', 'grunt', 'heavy', 'raider', 'sniper', 'grunt', 'heavy', 'raider'],
+    enemyQueue: ['basic', 'fast', 'power', 'basic', 'armor', 'fast', 'power', 'basic', 'armor', 'fast'],
     terrainRows: NES_STAGE_03_ROWS,
   },
   {
@@ -163,7 +163,7 @@ const levels: LevelConfig[] = [
     intent: 'River split map with narrow bridge fights and grass cover.',
     enemiesTotal: 10,
     spawnDelaySec: 0.66,
-    enemyQueue: ['raider', 'grunt', 'raider', 'heavy', 'grunt', 'sniper', 'raider', 'heavy', 'sniper', 'grunt'],
+    enemyQueue: ['fast', 'basic', 'fast', 'armor', 'basic', 'power', 'fast', 'armor', 'power', 'basic'],
     terrainRows: NES_STAGE_04_ROWS,
   },
   {
@@ -172,7 +172,7 @@ const levels: LevelConfig[] = [
     intent: 'Steel-heavy blocks create classic bunker lanes.',
     enemiesTotal: 11,
     spawnDelaySec: 0.64,
-    enemyQueue: ['heavy', 'grunt', 'raider', 'heavy', 'sniper', 'grunt', 'heavy', 'raider', 'sniper', 'raider', 'heavy'],
+    enemyQueue: ['armor', 'basic', 'fast', 'armor', 'power', 'basic', 'armor', 'fast', 'power', 'fast', 'armor'],
     terrainRows: NES_STAGE_05_ROWS,
   },
   {
@@ -181,7 +181,7 @@ const levels: LevelConfig[] = [
     intent: 'Open split approach with alternating steel and river blocks.',
     enemiesTotal: 11,
     spawnDelaySec: 0.62,
-    enemyQueue: ['raider', 'sniper', 'grunt', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'grunt', 'sniper', 'heavy'],
+    enemyQueue: ['fast', 'power', 'basic', 'armor', 'fast', 'power', 'armor', 'fast', 'basic', 'power', 'armor'],
     terrainRows: NES_STAGE_06_ROWS,
   },
   {
@@ -190,7 +190,7 @@ const levels: LevelConfig[] = [
     intent: 'Dense steel corridors force disciplined peeking.',
     enemiesTotal: 12,
     spawnDelaySec: 0.6,
-    enemyQueue: ['heavy', 'raider', 'sniper', 'heavy', 'raider', 'heavy', 'sniper', 'raider', 'grunt', 'sniper', 'heavy', 'raider'],
+    enemyQueue: ['armor', 'fast', 'power', 'armor', 'fast', 'armor', 'power', 'fast', 'basic', 'power', 'armor', 'fast'],
     terrainRows: NES_STAGE_07_ROWS,
   },
   {
@@ -199,7 +199,7 @@ const levels: LevelConfig[] = [
     intent: 'Needle lanes and river seams amplify long-range pressure.',
     enemiesTotal: 12,
     spawnDelaySec: 0.58,
-    enemyQueue: ['sniper', 'raider', 'sniper', 'heavy', 'grunt', 'sniper', 'raider', 'heavy', 'sniper', 'raider', 'heavy', 'sniper'],
+    enemyQueue: ['power', 'fast', 'power', 'armor', 'basic', 'power', 'fast', 'armor', 'power', 'fast', 'armor', 'power'],
     terrainRows: NES_STAGE_08_ROWS,
   },
   {
@@ -208,7 +208,7 @@ const levels: LevelConfig[] = [
     intent: 'Fortress-style density with tight breaches and steel cores.',
     enemiesTotal: 13,
     spawnDelaySec: 0.56,
-    enemyQueue: ['heavy', 'sniper', 'raider', 'heavy', 'sniper', 'raider', 'heavy', 'sniper', 'grunt', 'raider', 'heavy', 'sniper', 'heavy'],
+    enemyQueue: ['armor', 'power', 'fast', 'armor', 'power', 'fast', 'armor', 'power', 'basic', 'fast', 'armor', 'power', 'armor'],
     terrainRows: NES_STAGE_09_ROWS,
   },
   {
@@ -217,7 +217,7 @@ const levels: LevelConfig[] = [
     intent: 'Gauntlet mix of steel, brick and river close to original finale feel.',
     enemiesTotal: 14,
     spawnDelaySec: 0.54,
-    enemyQueue: ['sniper', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'sniper', 'heavy', 'raider', 'sniper', 'heavy'],
+    enemyQueue: ['power', 'armor', 'fast', 'power', 'armor', 'fast', 'power', 'armor', 'fast', 'power', 'armor', 'fast', 'power', 'armor'],
     terrainRows: NES_STAGE_10_ROWS,
   },
 ]

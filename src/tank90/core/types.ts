@@ -2,6 +2,8 @@ import type { Direction, EnemyArchetypeId, TerrainType } from '../levels'
 
 export type GameStatus = 'ready' | 'running' | 'paused' | 'won' | 'lost'
 
+export type PowerUpKind = 'grenade' | 'helmet' | 'shovel' | 'star' | 'tank' | 'timer'
+
 export interface Tank {
   id: string
   x: number
@@ -62,7 +64,23 @@ export interface GameState {
   enemiesTotal: number
   levelBannerUntil: number
   elapsedMs: number
+  playerLivesReserve: number
   playerInvincibleUntil: number
+  playerPowerTier: 0 | 1 | 2 | 3
+  freezeEnemiesUntilMs: number
+  baseSteelUntilMs: number
+  powerUp:
+    | null
+    | {
+        kind: PowerUpKind
+        x: number
+        y: number
+        spawnedAtMs: number
+        despawnAtMs: number
+      }
+  nextPowerUpAtMs: number
+  powerUpToastText: string
+  powerUpToastUntilMs: number
   enemyQueue: EnemyArchetypeId[]
 }
 

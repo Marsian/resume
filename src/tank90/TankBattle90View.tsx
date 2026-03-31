@@ -8,7 +8,7 @@ import { WORLD_H, WORLD_W } from './core/constants'
 import { RENDER_PALETTE } from './core/palette'
 import { draw } from './core/render'
 import { createState } from './core/state'
-import type { GameState, GameStatus, InputState } from './core/types'
+import type { GameState, GameStatus, InputState, PowerUpKind } from './core/types'
 import { updateState } from './core/update'
 import { tank90DebugStore } from './debugStore'
 
@@ -36,6 +36,7 @@ function TankBattle90View() {
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const spawnQueueCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
   const stateRef = useRef<GameState>(createState(1))
   const inputRef = useRef<InputState>({ up: false, down: false, left: false, right: false, fire: false })
   const frameRef = useRef<number | null>(null)
@@ -53,6 +54,12 @@ function TankBattle90View() {
   const [debugTick, setDebugTick] = useState(0)
   const touchPrimary = useTouchPrimary()
   const debugEnabled = tank90DebugStore.enabled
+
+  const e2eEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const sp = new URL(window.location.href).searchParams
+    return sp.get('e2e') === '1' || sp.get('e2e') === 'true'
+  }, [])
 
   const reducedMotion = useMemo(() => {
     if (typeof window === 'undefined') return false
@@ -77,6 +84,72 @@ function TankBattle90View() {
     const flag = new URL(window.location.href).searchParams.get('debug')
     if (flag === '1' || flag === 'true') tank90DebugStore.enable()
   }, [])
+
+  useEffect(() => {
+    if (!e2eEnabled) return
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __tank90_e2e?: {
+        getSnapshot: () => unknown
+        injectEnemyBulletOnPlayer: () => void
+        placePowerUpOnPlayer: (kind: PowerUpKind) => void
+        setPowerTier: (tier: 0 | 1 | 2 | 3) => void
+        killAllEnemiesAndWin: () => void
+      }
+    }
+    w.__tank90_e2e = {
+      getSnapshot: () => {
+        const st = stateRef.current
+        return {
+          status: st.status,
+          level: st.level,
+          enemiesDestroyed: st.enemiesDestroyed,
+          enemiesTotal: st.enemiesTotal,
+          enemiesAlive: st.enemies.filter((e) => e.alive).length,
+          enemies: st.enemies.filter((e) => e.alive).map((e) => ({ id: e.id, x: e.x, y: e.y })),
+          player: { alive: st.player.alive, x: st.player.x, y: st.player.y },
+          livesReserve: st.playerLivesReserve,
+          powerTier: st.playerPowerTier,
+          powerUp: st.powerUp ? { kind: st.powerUp.kind, x: st.powerUp.x, y: st.powerUp.y } : null,
+          freezeMsLeft: Math.max(0, st.freezeEnemiesUntilMs - st.elapsedMs),
+          shovelMsLeft: Math.max(0, st.baseSteelUntilMs - st.elapsedMs),
+        }
+      },
+      injectEnemyBulletOnPlayer: () => {
+        const st = stateRef.current
+        st.playerInvincibleUntil = 0
+        st.bullets.push({
+          x: st.player.x + 8,
+          y: st.player.y + 8,
+          vx: 0,
+          vy: 0,
+          radius: 3,
+          owner: 'enemy',
+          alive: true,
+        })
+      },
+      placePowerUpOnPlayer: (kind: PowerUpKind) => {
+        const st = stateRef.current
+        const x = Math.max(0, Math.min(WORLD_W - 16, Math.floor(st.player.x / 16) * 16))
+        const y = Math.max(0, Math.min(WORLD_H - 16, Math.floor(st.player.y / 16) * 16))
+        st.powerUp = { kind, x, y, spawnedAtMs: st.elapsedMs, despawnAtMs: st.elapsedMs + 20000 }
+      },
+      setPowerTier: (tier: 0 | 1 | 2 | 3) => {
+        const st = stateRef.current
+        st.playerPowerTier = tier
+      },
+      killAllEnemiesAndWin: () => {
+        const st = stateRef.current
+        st.enemies.forEach((e) => (e.alive = false))
+        st.enemiesDestroyed = st.enemiesTotal
+        st.enemiesSpawned = st.enemiesTotal
+        st.status = 'won'
+      },
+    }
+    return () => {
+      delete w.__tank90_e2e
+    }
+  }, [e2eEnabled])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -157,30 +230,38 @@ function TankBattle90View() {
         previewCtx.fillStyle = '#1f2937'
         previewCtx.fillRect(0, 0, previewW, previewH)
 
-        const totalSlots = 14
+        const enemySlots = 14
         const remaining = Math.max(0, state.enemiesTotal - state.enemiesSpawned)
-        const iconsToDraw = Math.min(totalSlots, remaining)
-        const cell = Math.floor(previewW / totalSlots)
-        const padX = Math.floor((previewW - totalSlots * cell) / 2)
-        const iconSize = Math.max(10, Math.floor(cell * 0.45))
+        const enemyIconsToDraw = Math.min(enemySlots, remaining)
+        const livesTotal = Math.max(1, Math.max(0, state.playerLivesReserve) + 1)
+        const totalIcons = enemySlots + livesTotal
+        const cell = Math.max(1, Math.floor(previewW / totalIcons))
+        const padX = Math.floor((previewW - totalIcons * cell) / 2)
+        const iconSize = Math.max(6, Math.min(10, Math.floor(cell * 0.62)))
         const y = Math.floor((previewH - iconSize) / 2)
 
         const toColors = (archId: string) => {
-          if (archId === 'heavy') return RENDER_PALETTE.enemyHeavy
-          if (archId === 'sniper') return RENDER_PALETTE.enemySniper
-          if (archId === 'raider') return RENDER_PALETTE.enemyRaider
+          if (archId === 'armor') return RENDER_PALETTE.enemyHeavy
+          if (archId === 'power') return RENDER_PALETTE.enemySniper
+          if (archId === 'fast') return RENDER_PALETTE.enemyRaider
           return RENDER_PALETTE.enemyGrunt
         }
 
-        for (let i = 0; i < iconsToDraw; i += 1) {
+        for (let i = 0; i < enemyIconsToDraw; i += 1) {
           const idx = state.enemiesSpawned + i
-          const arch = state.enemyQueue[idx] ?? state.enemyQueue[0] ?? 'grunt'
+          const arch = state.enemyQueue[idx] ?? state.enemyQueue[0] ?? 'basic'
           const [body, trim, barrel] = toColors(arch)
           const x = padX + i * cell + Math.floor((cell - iconSize) / 2)
 
           // Outer body
           previewCtx.fillStyle = body
           previewCtx.fillRect(x, y, iconSize, iconSize)
+          if (arch === 'armor') {
+            // Armor: extra outline so it's recognizable in the queue.
+            previewCtx.strokeStyle = 'rgba(248,250,252,0.9)'
+            previewCtx.lineWidth = 1
+            previewCtx.strokeRect(x - 1, y - 1, iconSize + 2, iconSize + 2)
+          }
           // Inner trim
           previewCtx.fillStyle = body
           previewCtx.fillStyle = trim
@@ -190,6 +271,22 @@ function TankBattle90View() {
           // Barrel-ish accent (simple vertical line)
           previewCtx.fillStyle = barrel
           previewCtx.fillRect(x + Math.floor(iconSize / 2) - 1, y + Math.floor(iconSize * 0.35) + 2, 2, Math.max(3, Math.floor(iconSize * 0.45)))
+        }
+
+        // Lives (right side): draw N player mini-tanks (no "×4" text).
+        const [pBody, pTrim, pBarrel] = RENDER_PALETTE.playerTank
+        for (let i = 0; i < livesTotal; i += 1) {
+          const slot = enemySlots + i
+          const x = padX + slot * cell + Math.floor((cell - iconSize) / 2)
+          previewCtx.fillStyle = pTrim
+          previewCtx.fillRect(x, y, iconSize, iconSize)
+          previewCtx.fillStyle = pBody
+          previewCtx.fillRect(x + 2, y + 2, iconSize - 4, iconSize - 4)
+          previewCtx.fillStyle = pTrim
+          previewCtx.fillRect(x + Math.floor(iconSize / 2) - 1, y + Math.floor(iconSize * 0.45), 2, 2)
+          previewCtx.fillStyle = pBarrel
+          // Keep the barrel inside the icon box (no overhang).
+          previewCtx.fillRect(x + Math.floor(iconSize / 2) - 1, y + 1, 2, Math.max(3, Math.floor(iconSize * 0.35)))
         }
       }
 
@@ -209,6 +306,8 @@ function TankBattle90View() {
     stateRef.current = next
     inputRef.current = { up: false, down: false, left: false, right: false, fire: false }
     syncUi(next)
+    // Ensure keyboard focus follows gameplay, even in strict automation environments.
+    window.requestAnimationFrame(() => canvasRef.current?.focus({ preventScroll: true }))
   }
 
   const startOrRestartFromStage1 = () => {
@@ -216,6 +315,7 @@ function TankBattle90View() {
     if (st.status === 'ready') {
       st.status = 'running'
       syncUi(st)
+      window.requestAnimationFrame(() => canvasRef.current?.focus({ preventScroll: true }))
       return
     }
     beginRunFromLevel(1)
@@ -418,7 +518,7 @@ function TankBattle90View() {
               ref={spawnQueueCanvasRef}
               width={WORLD_W}
               height={24}
-              className="block w-full aspect-[416/24] rounded-none border border-[#3d3428]/80 border-b-0 bg-[#1f2937] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] dark:border-[#6b5a3e]/70"
+              className="block w-full aspect-[416/24] rounded-none border border-[#3d3428]/80 border-b-0 bg-[#1f2937] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] outline-none focus:outline-none focus-visible:outline-none dark:border-[#6b5a3e]/70"
               aria-label="Enemy spawn queue"
               role="img"
             />
@@ -427,7 +527,9 @@ function TankBattle90View() {
                 ref={canvasRef}
                 width={WORLD_W}
                 height={WORLD_H}
-                className="block h-full w-full rounded-none border border-[#3d3428] border-t-0 bg-[#0d0e12] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:border-[#6b5a3e]"
+                tabIndex={0}
+                onPointerDown={() => canvasRef.current?.focus({ preventScroll: true })}
+                className="block h-full w-full rounded-none border border-[#3d3428] border-t-0 bg-[#0d0e12] [image-rendering:pixelated] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] outline-none focus:outline-none focus-visible:outline-none dark:border-[#6b5a3e]"
                 data-testid="tank90-canvas"
                 aria-label="Tank battle playfield"
                 role="img"
