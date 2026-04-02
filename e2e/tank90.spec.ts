@@ -74,7 +74,7 @@ async function mockTouchPrimary(page: Page) {
 test('tank90 main flow (non-debug) + no runtime errors', async ({ page }) => {
   const runtimeErrors: string[] = []
   attachNoErrorGuards(page, runtimeErrors)
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
 
   await expect(page.getByText('90 TANK BATTLE')).toBeVisible()
   await expect(page.getByText('KEYBOARD: ARROWS MOVE / SPACE FIRE / P PAUSE')).toBeVisible()
@@ -149,7 +149,7 @@ test('tank90 keeps square canvas; page shell works with site light/dark toggle',
   attachNoErrorGuards(page, runtimeErrors)
 
   await page.setViewportSize({ width: 1280, height: 720 })
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
   const ratioWide = await page.locator('[data-testid="tank90-canvas"]').evaluate((el) => {
     const r = el.getBoundingClientRect()
     return r.width / r.height
@@ -181,7 +181,7 @@ test('tank90 mobile controls and menu-safe layout', async ({ page }) => {
   attachNoErrorGuards(page, runtimeErrors)
   await mockTouchPrimary(page)
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
   await page.getByRole('button', { name: 'START' }).click()
 
   await expect(page.getByText('TOUCH: DRAG JOYSTICK MOVE / HOLD FIRE SHOOT / PAUSE TOGGLE')).toBeVisible()
@@ -190,7 +190,7 @@ test('tank90 mobile controls and menu-safe layout', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Touch fire' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'RESTART' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '90 Tank Battle' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Game Center$/ })).toBeVisible()
   await expect(page.getByLabel('Touch controls')).toBeVisible()
 
   await page.getByRole('button', { name: 'Touch fire' }).dispatchEvent('pointerdown')
@@ -206,7 +206,7 @@ test('tank90 mobile controls and menu-safe layout', async ({ page }) => {
 test('tank90 progression loops without debug panel', async ({ page }) => {
   const runtimeErrors: string[] = []
   attachNoErrorGuards(page, runtimeErrors)
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
   const hud = page.locator('main').getByText(/^STAGE /).first()
 
   await page.getByRole('button', { name: 'START' }).click()
@@ -244,7 +244,7 @@ test('tank90 progression loops without debug panel', async ({ page }) => {
 test('tank90 stage 10 clear shows PLAY AGAIN not NEXT STAGE', async ({ page }) => {
   const runtimeErrors: string[] = []
   attachNoErrorGuards(page, runtimeErrors)
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
   const hud = page.locator('main').getByText(/^STAGE /).first()
 
   await page.getByRole('button', { name: 'START' }).click()
@@ -268,7 +268,7 @@ test('tank90 stage 10 clear shows PLAY AGAIN not NEXT STAGE', async ({ page }) =
 test('tank90 sustained soak input has no runtime errors', async ({ page }) => {
   const runtimeErrors: string[] = []
   attachNoErrorGuards(page, runtimeErrors)
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
   const hud = page.locator('main').getByText(/^STAGE /).first()
   await page.getByRole('button', { name: 'START' }).click()
   await expect(hud).toContainText(/RUNNING/i)
@@ -292,7 +292,7 @@ test('tank90 sustained soak input has no runtime errors', async ({ page }) => {
 test('tank90 power-ups: timer freezes enemies; star tier enables 2 bullets; steel break at tier 3', async ({ page }) => {
   const runtimeErrors: string[] = []
   attachNoErrorGuards(page, runtimeErrors)
-  await page.goto('/tank90?e2e=1')
+  await page.goto('/games/tank90?e2e=1')
   await page.getByRole('button', { name: 'START' }).click()
   // Wait until at least one enemy is alive so the freeze assertion is meaningful.
   for (let i = 0; i < 20; i += 1) {

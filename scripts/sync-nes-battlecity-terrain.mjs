@@ -1,13 +1,13 @@
 /**
  * Pulls stage_01..stage_10 from orn1983/battlecityjs (NES Battle City layout clone)
- * and writes src/tank90/nesTerrainStrings.ts — run after changing upstream reference.
+ * and writes src/game-center/tank90/nesTerrainStrings.ts — run after changing upstream reference.
  * Encoding: 0 brick, 1 steel, 2 water, 3 trees, 4 ice, 5 empty.
  */
 import fs from 'node:fs'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
-const OUT = fileURLToPath(new URL('../src/tank90/nesTerrainStrings.ts', import.meta.url))
+const OUT = fileURLToPath(new URL('../src/game-center/tank90/nesTerrainStrings.ts', import.meta.url))
 const SRC = 'https://raw.githubusercontent.com/orn1983/battlecityjs/master/levels.js'
 
 const numToChar = (n) => {

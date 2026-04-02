@@ -396,10 +396,10 @@ function TankBattle90View() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/games')}
             className={cn(backBtnClass)}
-            aria-label="Back to home"
-            title="Back to home"
+            aria-label="Back to game center"
+            title="Back to game center"
           >
             Back
           </Button>

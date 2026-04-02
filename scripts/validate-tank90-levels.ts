@@ -1,5 +1,5 @@
-import { findDefaultPlayerSpawnPixels, validateAllLevels } from '../src/tank90/levelValidation'
-import { getLevelConfig } from '../src/tank90/levels'
+import { findDefaultPlayerSpawnPixels, validateAllLevels } from '../src/game-center/tank90/levelValidation'
+import { getLevelConfig } from '../src/game-center/tank90/levels'
 
 validateAllLevels()
 for (let level = 2; level <= 10; level += 1) {

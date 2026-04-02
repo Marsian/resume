@@ -141,10 +141,10 @@ export function AppMenu() {
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/tank90')}
-            {...routeButtonProps('/tank90')}
-            aria-label="90 Tank Battle"
-            title="90 Tank Battle"
+            onClick={() => navigate('/games')}
+            {...routeButtonProps('/games')}
+            aria-label="Game Center"
+            title="Game Center"
           >
             <Gamepad2 aria-hidden="true" />
           </Button>
