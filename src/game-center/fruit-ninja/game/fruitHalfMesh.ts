@@ -1,15 +1,55 @@
 import * as THREE from 'three'
 
-import { disposeObject3D } from './meshes'
-
-/** Lighter “pulp” tone from skin color */
+/** Lighter “pulp” tone from skin color (fallback when spawn did not set flesh). */
 export function fleshColorFromSkin(skin: THREE.Color): THREE.Color {
   return new THREE.Color().copy(skin).lerp(new THREE.Color(0xfff5e8), 0.55)
+}
+
+// --- Shared GPU resources for fruit halves (avoid per-slice alloc + shader compile) ---
+
+const HEM_SEGMENTS = 16
+const HEM_RINGS = 12
+const sharedHemisphere = new THREE.SphereGeometry(1, HEM_SEGMENTS, HEM_RINGS, 0, Math.PI * 2, 0, Math.PI / 2)
+const sharedCap = new THREE.CircleGeometry(0.997, 20)
+
+const skinMatCache = new Map<number, THREE.MeshStandardMaterial>()
+const fleshMatCache = new Map<number, THREE.MeshStandardMaterial>()
+
+function getSkinMat(skin: THREE.Color): THREE.MeshStandardMaterial {
+  const h = skin.getHex()
+  let m = skinMatCache.get(h)
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({
+      color: skin.clone(),
+      roughness: 0.38,
+      metalness: 0.04,
+      emissive: skin.clone().multiplyScalar(0.04),
+    })
+    skinMatCache.set(h, m)
+  }
+  return m
+}
+
+function getFleshMat(flesh: THREE.Color): THREE.MeshStandardMaterial {
+  const h = flesh.getHex()
+  let m = fleshMatCache.get(h)
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({
+      color: flesh.clone(),
+      roughness: 0.52,
+      metalness: 0,
+      emissive: flesh.clone().multiplyScalar(0.05),
+      side: THREE.DoubleSide,
+    })
+    fleshMatCache.set(h, m)
+  }
+  return m
 }
 
 /**
  * One hemisphere of a sliced fruit: curved skin + flat circular cut face (flesh).
  * Local +Y is the outward normal of the cut (into this half’s interior / visible pulp).
+ * Geometries and materials are shared — do not dispose them in disposeFruitHalfRoot.
  */
 export function createFruitHalfMesh(
   radius: number,
@@ -20,42 +60,29 @@ export function createFruitHalfMesh(
   const g = new THREE.Group()
   const n = outwardNormal.clone().normalize()
 
-  const skinMat = new THREE.MeshPhysicalMaterial({
-    color: skinColor.clone(),
-    roughness: 0.22,
-    metalness: 0.05,
-    clearcoat: 0.55,
-    clearcoatRoughness: 0.35,
-    emissive: skinColor.clone().multiplyScalar(0.04),
-  })
-
-  // Upper spherical cap: north pole → equator; equator at y=0 is the cut ring
-  const curved = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 30, 20, 0, Math.PI * 2, 0, Math.PI / 2),
-    skinMat,
-  )
-  curved.castShadow = true
-  curved.receiveShadow = true
+  const curved = new THREE.Mesh(sharedHemisphere, getSkinMat(skinColor))
+  curved.scale.setScalar(radius)
+  curved.castShadow = false
+  curved.receiveShadow = false
+  curved.userData.sharedPool = true
   g.add(curved)
 
-  const fleshMat = new THREE.MeshStandardMaterial({
-    color: fleshColor,
-    roughness: 0.48,
-    metalness: 0,
-    emissive: fleshColor.clone().multiplyScalar(0.06),
-    side: THREE.DoubleSide,
-  })
-  const cap = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.997, 40), fleshMat)
+  const cap = new THREE.Mesh(sharedCap, getFleshMat(fleshColor))
+  cap.scale.setScalar(radius)
   cap.rotation.x = -Math.PI / 2
   cap.position.y = -0.003
-  cap.receiveShadow = true
   cap.castShadow = false
+  cap.receiveShadow = false
+  cap.userData.sharedPool = true
   g.add(cap)
 
   g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
   return g
 }
 
+/** Detach half meshes without disposing pooled geometry/materials. */
 export function disposeFruitHalfRoot(root: THREE.Group) {
-  disposeObject3D(root)
+  while (root.children.length > 0) {
+    root.remove(root.children[0]!)
+  }
 }

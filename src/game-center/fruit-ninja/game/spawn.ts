@@ -11,8 +11,8 @@ export const SPAWN = {
   /** Slight depth jitter along plane normal */
   spawnDepthJitter: 0.55,
   /** Main toss along screen-up on the play plane */
-  upVelMin: 15.0,
-  upVelMax: 19.2,
+  upVelMin: 11.5,
+  upVelMax: 15.0,
   sideVelRange: 3.0,
   /** Extra shove toward the camera along the plane normal — helps clear the lower rim and reach upper screen */
   normalPopMin: 2.8,
@@ -23,16 +23,25 @@ export const SPAWN = {
   cullY: -6.8,
 } as const
 
-export const FRUIT_PALETTE = [
-  { color: 0xff3355, name: 'Berry' },
-  { color: 0xff8c1a, name: 'Citrus' },
-  { color: 0xffe066, name: 'Lemon' },
-  { color: 0x5fe08a, name: 'Lime' },
-  { color: 0xb56bff, name: 'Grape' },
-] as const
+export type FruitArchetype = 'watermelon' | 'apple' | 'banana' | 'lemon'
 
-export function pickFruitKind() {
-  return FRUIT_PALETTE[(Math.random() * FRUIT_PALETTE.length) | 0]!
+export type FruitSpawnKind = {
+  kind: FruitArchetype
+  /** Skin / outer color for mesh and juice */
+  skin: number
+  /** Cut-surface / pulp tint for halves */
+  flesh: number
+}
+
+const FRUIT_KINDS: FruitSpawnKind[] = [
+  { kind: 'watermelon', skin: 0x1e5c2e, flesh: 0xff3a5c },
+  { kind: 'apple', skin: 0xc41e1e, flesh: 0xfff0ea },
+  { kind: 'banana', skin: 0xe8c840, flesh: 0xfff8dc },
+  { kind: 'lemon', skin: 0xf2e6a0, flesh: 0xfffacd },
+]
+
+export function pickFruitKind(): FruitSpawnKind {
+  return FRUIT_KINDS[(Math.random() * FRUIT_KINDS.length) | 0]!
 }
 
 export function randomAngularImpulse() {

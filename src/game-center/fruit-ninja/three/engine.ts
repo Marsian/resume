@@ -8,45 +8,89 @@ export type ThreeContext = {
 
 const DPR_CAP = 2
 
-function createWoodGrainTexture(): THREE.CanvasTexture {
+/** Pixel source drawn once; each material gets its own CanvasTexture so dispose stays safe. */
+let plankCanvasSource: HTMLCanvasElement | null = null
+
+function ensurePlankCanvas(): HTMLCanvasElement {
+  if (plankCanvasSource) return plankCanvasSource
+  const W = 512
+  const H = 512
   const c = document.createElement('canvas')
-  c.width = 512
-  c.height = 512
+  c.width = W
+  c.height = H
   const g = c.getContext('2d')!
-  const grd = g.createLinearGradient(0, 0, 512, 512)
-  grd.addColorStop(0, '#4a3020')
-  grd.addColorStop(0.35, '#6b4832')
-  grd.addColorStop(0.55, '#5a3d28')
-  grd.addColorStop(1, '#3d2618')
-  g.fillStyle = grd
-  g.fillRect(0, 0, 512, 512)
-  for (let i = 0; i < 90; i++) {
-    g.strokeStyle = `rgba(20,12,8,${0.04 + Math.random() * 0.08})`
-    g.lineWidth = 1 + Math.random() * 2
-    g.beginPath()
-    const x = Math.random() * 512
-    g.moveTo(x, 0)
-    g.bezierCurveTo(x + 30, 170, x - 20, 340, x + 10, 512)
-    g.stroke()
+  // Vertical wood grain with only 3–5 big streaks (no horizontal plank seams).
+  g.fillStyle = 'hsl(32, 40%, 43.5%)'
+  g.fillRect(0, 0, W, H)
+
+  const bigStreaks = 3 + Math.floor(Math.random() * 3) // 3..5
+  const centers: number[] = []
+  for (let i = 0; i < bigStreaks; i++) centers.push((i + 0.5) * (W / bigStreaks) + (Math.random() - 0.5) * 18)
+
+  for (let x = 0; x < W; x++) {
+    let influence = 0
+    for (let i = 0; i < centers.length; i++) {
+      const d = Math.abs(x - centers[i])
+      influence += Math.exp(-(d * d) / (2 * 70 * 70))
+    }
+    // Modulate brightness subtly; keep it low-contrast and organic.
+    const l = 43.5 + influence * 3.2 + (Math.random() - 0.5) * 0.9
+    g.fillStyle = `hsl(32, 40%, ${l}%)`
+    g.fillRect(x, 0, 1, H)
   }
+
+  // Thin vertical fibers for texture, but keep them subtle.
+  for (let i = 0; i < 140; i++) {
+    const x0 = Math.random() * W
+    const w = 0.8 + Math.random() * 1.6
+    g.fillStyle = `rgba(40,28,18,${0.03 + Math.random() * 0.05})`
+    g.fillRect(x0, 0, w, H)
+  }
+
+  // A few knots/imperfections.
+  for (let k = 0; k < 8; k++) {
+    const x = Math.random() * W
+    const y = Math.random() * H
+    const r = 2.2 + Math.random() * 4.2
+    g.fillStyle = 'rgba(35, 28, 22, 0.35)'
+    g.beginPath()
+    g.ellipse(x, y, r * (1.2 + Math.random()), r * (0.7 + Math.random() * 0.5), Math.random(), 0, Math.PI * 2)
+    g.fill()
+  }
+
+  // Gentle vignette to keep edges from feeling too flat.
+  const grd = g.createRadialGradient(W * 0.5, H * 0.55, W * 0.1, W * 0.5, H * 0.55, W * 0.8)
+  grd.addColorStop(0, 'rgba(0,0,0,0)')
+  grd.addColorStop(1, 'rgba(0,0,0,0.12)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, W, H)
+
+  plankCanvasSource = c
+  return c
+}
+
+/** New texture instance (shared canvas pixels); set repeat on the returned texture. */
+export function createPlankWoodTexture(): THREE.CanvasTexture {
+  const c = ensurePlankCanvas()
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(2.2, 2.2)
   return tex
 }
 
 export function createScene(): THREE.Scene {
   const scene = new THREE.Scene()
-  const wood = createWoodGrainTexture()
-  scene.background = wood
-  scene.fog = new THREE.FogExp2(0x2a1810, 0.045)
+  // Solid fill only — plank texture lives on the single backdrop wall (see addDojoBackdrop).
+  // Using the same texture on scene.background + a lit wall caused a visible “two-layer” seam.
+  scene.background = new THREE.Color(0x2a1810)
   return scene
 }
 
 export function createCamera(aspect: number): THREE.PerspectiveCamera {
   const camera = new THREE.PerspectiveCamera(46, aspect, 0.1, 120)
-  camera.position.set(0, 2.05, 11.4)
+  // Level the camera (no pitch) so vertical wood grain stays perfectly vertical on screen.
+  // Keep the view centered near the gameplay plane at y=0.55.
+  camera.position.set(0, 0.55, 11.4)
   camera.lookAt(0, 0.55, 0)
   return camera
 }
@@ -86,7 +130,7 @@ export function addDefaultLights(scene: THREE.Scene): void {
   const key = new THREE.DirectionalLight(0xfff6ee, 1.22)
   key.position.set(4.5, 15, 6)
   key.castShadow = true
-  key.shadow.mapSize.set(2048, 2048)
+  key.shadow.mapSize.set(1024, 1024)
   key.shadow.camera.near = 0.5
   key.shadow.camera.far = 42
   key.shadow.camera.left = -16
@@ -100,71 +144,20 @@ export function addDefaultLights(scene: THREE.Scene): void {
   scene.add(rim)
 }
 
-/** Vertical backdrop panel — reinforces “dojo wall” depth */
+/** Single full-frame wooden wall — only visible wood surface in the scene (no floor). */
 export function addDojoBackdrop(scene: THREE.Scene): THREE.Mesh {
-  const wood = createWoodGrainTexture()
-  wood.repeat.set(1.4, 1.4)
-  const geo = new THREE.PlaneGeometry(32, 18)
-  const mat = new THREE.MeshStandardMaterial({
-    map: wood,
-    roughness: 0.85,
-    metalness: 0,
-    color: 0xcccccc,
+  const planks = createPlankWoodTexture()
+  planks.repeat.set(3.2, 2.4)
+  const geo = new THREE.PlaneGeometry(44, 28)
+  // Basic material: lit StandardMaterial picks up hemi + directional and reads as a dark “upper”
+  // band vs lighter “lower” band on this large vertical plane. Unlit keeps one consistent wood read.
+  const mat = new THREE.MeshBasicMaterial({
+    map: planks,
+    color: 0xffffff,
   })
   const wall = new THREE.Mesh(geo, mat)
-  wall.position.set(0, 2.5, -9.5)
+  wall.position.set(0, 2.2, -9.5)
   wall.receiveShadow = true
   scene.add(wall)
   return wall
-}
-
-export function addStage(scene: THREE.Scene): THREE.Mesh {
-  const matTex = (() => {
-    const c = document.createElement('canvas')
-    c.width = 256
-    c.height = 256
-    const g = c.getContext('2d')!
-    g.fillStyle = '#c9b896'
-    g.fillRect(0, 0, 256, 256)
-    for (let i = 0; i < 400; i++) {
-      g.fillStyle = `rgba(90,70,50,${0.02 + Math.random() * 0.04})`
-      g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2)
-    }
-    const t = new THREE.CanvasTexture(c)
-    t.colorSpace = THREE.SRGBColorSpace
-    t.wrapS = t.wrapT = THREE.RepeatWrapping
-    t.repeat.set(8, 8)
-    return t
-  })()
-
-  const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(17, 72),
-    new THREE.MeshStandardMaterial({
-      map: matTex,
-      color: 0xe8dcc4,
-      roughness: 0.88,
-      metalness: 0,
-    }),
-  )
-  ground.rotation.x = -Math.PI / 2
-  ground.position.y = -5.15
-  ground.receiveShadow = true
-  scene.add(ground)
-
-  const rim = new THREE.Mesh(
-    new THREE.RingGeometry(5.5, 16.5, 64),
-    new THREE.MeshStandardMaterial({
-      color: 0x5c3d26,
-      roughness: 0.75,
-      metalness: 0.08,
-      transparent: true,
-      opacity: 0.92,
-    }),
-  )
-  rim.rotation.x = -Math.PI / 2
-  rim.position.y = -5.12
-  rim.receiveShadow = true
-  scene.add(rim)
-
-  return ground
 }

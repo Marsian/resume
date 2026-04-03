@@ -1,7 +1,6 @@
-/** Classic-arcade style tuning */
 export const GAME = {
-  livesStart: 3,
-  missesPerLife: 3,
+  /** Total misses before game over. */
+  missLimit: 3,
   bombSpawnChance: 0.16,
   maxWholeEntities: 8,
   comboWindowMs: 1400,

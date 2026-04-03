@@ -6,20 +6,20 @@ import { GAME } from './game/constants'
 import { createBombMesh, createFruitMesh, disposeObject3D } from './game/meshes'
 import { pickFruitKind, randomAngularImpulse, SPAWN } from './game/spawn'
 import { sampleSpawnKinematics } from './game/spawnPlane'
-import { createFruitHalfMesh, disposeFruitHalfRoot, fleshColorFromSkin } from './game/fruitHalfMesh'
+import { createFruitHalfMesh, disposeFruitHalfRoot } from './game/fruitHalfMesh'
 import {
   distPointSegmentSq2,
   projectWorldToScreen,
   screenSliceHitSqThreshold,
   screenToCameraFacingPlane,
 } from './game/slice'
+import { ComboOverlay2d } from './fx/comboOverlay2d'
 import { JuiceBurst } from './fx/juice'
 import { BladeTrailOverlay2d } from './fx/trailOverlay2d'
 import { createPhysicsWorld } from './physics/world'
 import {
   addDefaultLights,
   addDojoBackdrop,
-  addStage,
   createCamera,
   createRenderer,
   createScene,
@@ -28,9 +28,9 @@ import {
 
 export type GameUiState = {
   score: number
-  combo: number
   paused: boolean
-  lives: number
+  /** Total misses so far (0..GAME.missLimit). */
+  misses: number
   gameOver: boolean
   error?: string
 }
@@ -47,6 +47,8 @@ type WholeEntity = {
   body: CANNON.Body
   radius: number
   color: THREE.Color
+  /** Pulp color for sliced halves (may differ from skin, e.g. watermelon). */
+  fleshColor: THREE.Color
   kind: 'fruit' | 'bomb'
   /** True once we counted a “miss” for this fruit */
   missTracked: boolean
@@ -77,6 +79,7 @@ export class FruitNinjaGame {
   private world: CANNON.World | null = null
   private juice: JuiceBurst | null = null
   private trail: BladeTrailOverlay2d | null = null
+  private comboOverlay: ComboOverlay2d | null = null
 
   private entities: WholeEntity[] = []
   private halves: FruitHalf[] = []
@@ -91,8 +94,7 @@ export class FruitNinjaGame {
   private combo = 0
   private lastSliceAt = 0
   private paused = false
-  private lives: number = GAME.livesStart
-  private missStreak = 0
+  private misses = 0
   private gameOver = false
   private shakeUntil = 0
 
@@ -100,11 +102,18 @@ export class FruitNinjaGame {
   private stroke: Array<{ x: number; y: number }> = []
   private readonly scratchProj = new THREE.Vector3()
   private readonly scratchWorld = new THREE.Vector3()
+  private readonly sliceHitScratch: WholeEntity[] = []
+  private readonly sliceEdgeWorld0 = new THREE.Vector3()
+  private readonly sliceEdgeWorld1 = new THREE.Vector3()
+  private readonly sliceNormal = new THREE.Vector3(1, 0, 0)
+  private readonly scratchOrigin = new THREE.Vector3()
   /** Shared with trail: camera-facing plane anchor */
   private readonly playPlaneCenter = new THREE.Vector3(0, 0.55, 0)
   private resizeObserver: ResizeObserver | null = null
   /** Avoid getBoundingClientRect() on every coalesced pointer sample (forces layout). */
   private cachedLayoutRect: DOMRect | null = null
+  private uiDirty = false
+  private uiRaf: number | null = null
 
   constructor(container: HTMLElement, opts: FruitNinjaGameOptions) {
     this.container = container
@@ -113,13 +122,28 @@ export class FruitNinjaGame {
   }
 
   private emitUi() {
-    this.opts.onUi({
-      score: this.score,
-      combo: this.combo,
-      paused: this.paused,
-      lives: this.lives,
-      gameOver: this.gameOver,
+    this.uiDirty = true
+    if (this.uiRaf != null) return
+    this.uiRaf = requestAnimationFrame(() => {
+      this.uiRaf = null
+      if (!this.uiDirty) return
+      this.uiDirty = false
+      this.opts.onUi({
+        score: this.score,
+        paused: this.paused,
+        misses: this.misses,
+        gameOver: this.gameOver,
+      })
     })
+  }
+
+  private emitUiImmediate(payload: GameUiState) {
+    this.uiDirty = false
+    if (this.uiRaf != null) {
+      cancelAnimationFrame(this.uiRaf)
+      this.uiRaf = null
+    }
+    this.opts.onUi(payload)
   }
 
   bootstrap(): void {
@@ -138,7 +162,6 @@ export class FruitNinjaGame {
       this.scene = scene
       addDojoBackdrop(scene)
       addDefaultLights(scene)
-      addStage(scene)
 
       const { clientWidth, clientHeight } = this.container
       const camera = createCamera(clientWidth / Math.max(1, clientHeight))
@@ -152,7 +175,9 @@ export class FruitNinjaGame {
       const pMul = this.reducedMotion ? 0.45 : 1
       this.juice = new JuiceBurst(scene, { particleMul: pMul })
       this.trail = new BladeTrailOverlay2d(this.container)
+      this.comboOverlay = new ComboOverlay2d(this.container)
       this.trail.resize(clientWidth, clientHeight)
+      this.comboOverlay.resize(clientWidth, clientHeight)
 
       this.bindResize()
       this.bindPointer()
@@ -167,17 +192,17 @@ export class FruitNinjaGame {
         if (w > 2 && h > 2) {
           fitRendererToContainer(this.renderer, this.camera, w, h)
           this.trail?.resize(w, h)
+          this.comboOverlay?.resize(w, h)
         }
         this.syncCanvasLayout()
       })
       if (!this.disposed) this.raf = requestAnimationFrame(this.tick)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      this.opts.onUi({
+      this.emitUiImmediate({
         score: 0,
-        combo: 0,
         paused: false,
-        lives: GAME.livesStart,
+        misses: 0,
         gameOver: false,
         error: msg,
       })
@@ -192,16 +217,19 @@ export class FruitNinjaGame {
 
   restart() {
     if (!this.world || !this.scene) return
-    for (const e of [...this.entities]) this.removeWhole(e)
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      this.removeWhole(this.entities[i]!)
+    }
     this.entities = []
-    for (const h of [...this.halves]) this.removeHalf(h)
+    for (let i = this.halves.length - 1; i >= 0; i--) {
+      this.removeHalf(this.halves[i]!)
+    }
     this.halves = []
     this.score = 0
     this.combo = 0
     this.lastSliceAt = 0
     this.spawnAcc = 0
-    this.lives = GAME.livesStart
-    this.missStreak = 0
+    this.misses = 0
     this.gameOver = false
     this.shakeUntil = 0
     this.paused = false
@@ -214,6 +242,8 @@ export class FruitNinjaGame {
     this.disposed = true
     if (this.raf != null) cancelAnimationFrame(this.raf)
     this.raf = null
+    if (this.uiRaf != null) cancelAnimationFrame(this.uiRaf)
+    this.uiRaf = null
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
 
@@ -225,13 +255,19 @@ export class FruitNinjaGame {
       this.canvas.removeEventListener('pointerleave', this.onPointerLeave)
     }
 
-    for (const e of [...this.entities]) this.removeWhole(e)
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      this.removeWhole(this.entities[i]!)
+    }
     this.entities = []
-    for (const h of [...this.halves]) this.removeHalf(h)
+    for (let i = this.halves.length - 1; i >= 0; i--) {
+      this.removeHalf(this.halves[i]!)
+    }
     this.halves = []
 
     this.trail?.dispose()
     this.trail = null
+    this.comboOverlay?.dispose()
+    this.comboOverlay = null
     this.juice?.dispose()
     this.juice = null
 
@@ -274,6 +310,7 @@ export class FruitNinjaGame {
     const r = this.canvas.getBoundingClientRect()
     this.cachedLayoutRect = r
     this.trail?.setLayoutRect(r)
+    this.comboOverlay?.setLayoutRect(r)
   }
 
   private bindResize() {
@@ -284,6 +321,7 @@ export class FruitNinjaGame {
       const h = this.container.clientHeight
       fitRendererToContainer(this.renderer, this.camera, w, h)
       this.trail.resize(w, h)
+      this.comboOverlay?.resize(w, h)
       this.syncCanvasLayout()
     })
     this.resizeObserver.observe(this.container)
@@ -357,8 +395,10 @@ export class FruitNinjaGame {
     const h = this.renderer.domElement.clientHeight
     const threshBase = screenSliceHitSqThreshold(0.45)
 
-    const hit: WholeEntity[] = []
-    for (const ent of [...this.entities]) {
+    const hit = this.sliceHitScratch
+    hit.length = 0
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const ent = this.entities[i]!
       const t = ent.body.position
       this.scratchWorld.set(t.x, t.y, t.z)
       projectWorldToScreen(this.scratchWorld, this.camera, w, h, this.scratchProj)
@@ -372,8 +412,8 @@ export class FruitNinjaGame {
     if (hit.length === 0) return
 
     const rect = this.cachedLayoutRect ?? this.canvas!.getBoundingClientRect()
-    const p0 = new THREE.Vector3()
-    const p1 = new THREE.Vector3()
+    const p0 = this.sliceEdgeWorld0
+    const p1 = this.sliceEdgeWorld1
     const okA = this.camera && rect.width > 0 && this.projectEdgeToPlayPlane(a, rect, p0)
     const okB = this.camera && rect.width > 0 && this.projectEdgeToPlayPlane(b, rect, p1)
     let nx = 1
@@ -389,20 +429,36 @@ export class FruitNinjaGame {
         nz /= len
       }
     }
-    const normal = new THREE.Vector3(nx, 0, nz)
+    const normal = this.sliceNormal
+    normal.set(nx, 0, nz)
 
-    const bombs = hit.filter((e) => e.kind === 'bomb')
-    const fruits = hit.filter((e) => e.kind === 'fruit')
+    // Performance: avoid per-slice allocations from `hit.filter(...)`.
+    // Important: bombs must update combo/score/lives before fruits.
+    for (let i = 0; i < hit.length; i++) {
+      const ent = hit[i]!
+      if (ent.kind === 'bomb') this.sliceBomb(ent)
+    }
 
-    for (const b of bombs) this.sliceBomb(b)
-    for (const f of fruits) {
+    for (let i = 0; i < hit.length; i++) {
+      const f = hit[i]!
+      if (f.kind !== 'fruit') continue
+
       const now = performance.now()
       if (now - this.lastSliceAt < GAME.comboWindowMs) this.combo = Math.min(GAME.comboCap, this.combo + 1)
       else this.combo = 1
       this.lastSliceAt = now
       this.audio.playSlice()
+
+      // Capture screen-projection inputs before `sliceFruit` removes the entity.
+      const { x: fx, y: fy, z: fz } = f.body.position
       this.sliceFruit(f, normal)
       this.score += GAME.sliceScoreBase * Math.min(this.combo, GAME.scoreComboMultCap)
+
+      if (this.combo > 1 && this.camera && this.renderer) {
+        this.scratchWorld.set(fx, fy, fz)
+        projectWorldToScreen(this.scratchWorld, this.camera, w, h, this.scratchProj)
+        this.comboOverlay?.pushCombo(this.scratchProj.x, this.scratchProj.y, this.combo, now)
+      }
     }
 
     this.emitUi()
@@ -424,16 +480,18 @@ export class FruitNinjaGame {
   private sliceBomb(ent: WholeEntity) {
     if (!this.world || !this.scene || !this.juice) return
     const t = ent.body.position
-    const origin = new THREE.Vector3(t.x, t.y, t.z)
+    const origin = this.scratchOrigin
+    origin.set(t.x, t.y, t.z)
     this.juice.burstAt(origin, new THREE.Color(0xff4400), 72)
     this.removeWhole(ent)
     this.audio.playBomb()
     this.combo = 0
     this.lastSliceAt = 0
     this.score = Math.max(0, this.score - GAME.bombPenaltyScore)
-    this.lives = Math.max(0, this.lives - 1)
+    // Bomb counts as a single miss.
+    this.misses = Math.min(GAME.missLimit, this.misses + 1)
     this.shakeUntil = performance.now() + 240
-    if (this.lives <= 0) {
+    if (this.misses >= GAME.missLimit) {
       this.gameOver = true
       this.paused = true
       this.audio.playGameOver()
@@ -443,17 +501,18 @@ export class FruitNinjaGame {
   private sliceFruit(ent: WholeEntity, normal: THREE.Vector3) {
     if (!this.world || !this.scene || !this.juice) return
     const t = ent.body.position
-    const origin = new THREE.Vector3(t.x, t.y, t.z)
-    this.juice.burstAt(origin, ent.color, this.reducedMotion ? 32 : 56)
+    const origin = this.scratchOrigin
+    origin.set(t.x, t.y, t.z)
+    this.juice.burstAt(origin, ent.color, this.reducedMotion ? 26 : 44)
     this.removeWhole(ent)
 
-    const n = normal.clone()
+    const n = normal
     if (n.lengthSq() < 1e-6) n.set(1, 0, 0)
     n.y = 0
     n.normalize()
 
     const r = ent.radius
-    const flesh = fleshColorFromSkin(ent.color)
+    const flesh = ent.fleshColor
     const phyR = r * 0.52
     const impulse = 5.5 + Math.random() * 3.2
     const now = performance.now()
@@ -510,19 +569,15 @@ export class FruitNinjaGame {
 
   private registerMiss() {
     if (this.gameOver) return
-    this.missStreak++
     this.audio.playMiss()
-    if (this.missStreak >= GAME.missesPerLife) {
-      this.missStreak = 0
-      this.combo = 0
-      this.lives = Math.max(0, this.lives - 1)
-      this.audio.playLifeLost()
-      this.shakeUntil = performance.now() + 160
-      if (this.lives <= 0) {
-        this.gameOver = true
-        this.paused = true
-        this.audio.playGameOver()
-      }
+    this.misses = Math.min(GAME.missLimit, this.misses + 1)
+    this.combo = 0
+    this.audio.playLifeLost()
+    this.shakeUntil = performance.now() + 160
+    if (this.misses >= GAME.missLimit) {
+      this.gameOver = true
+      this.paused = true
+      this.audio.playGameOver()
     }
     this.emitUi()
   }
@@ -541,16 +596,19 @@ export class FruitNinjaGame {
 
     let root: THREE.Group
     let color: THREE.Color
+    let fleshColor: THREE.Color
     let kind: 'fruit' | 'bomb'
 
     if (isBomb) {
       root = createBombMesh(radius)
       color = new THREE.Color(0xff3300)
+      fleshColor = color.clone()
       kind = 'bomb'
     } else {
       const k = pickFruitKind()
-      root = createFruitMesh(radius, k.color)
-      color = new THREE.Color(k.color)
+      root = createFruitMesh(radius, k.kind, k.skin)
+      color = new THREE.Color(k.skin)
+      fleshColor = new THREE.Color(k.flesh)
       kind = 'fruit'
     }
 
@@ -574,6 +632,7 @@ export class FruitNinjaGame {
       body,
       radius,
       color,
+      fleshColor,
       kind,
       missTracked: false,
     })
@@ -636,5 +695,6 @@ export class FruitNinjaGame {
     }
 
     this.renderer.render(this.scene, this.camera)
+    this.comboOverlay?.tick(now)
   }
 }

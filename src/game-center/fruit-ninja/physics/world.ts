@@ -7,7 +7,7 @@ export type PhysicsBundle = {
 /** Synchronous physics setup (no WASM init) — avoids Rapier browser aliasing issues in this stack. */
 export function createPhysicsWorld(): PhysicsBundle {
   const world = new CANNON.World()
-  world.gravity.set(0, -30, 0)
+  world.gravity.set(0, -22, 0)
   world.defaultContactMaterial.friction = 0.42
   world.defaultContactMaterial.restitution = 0.08
   return { world }

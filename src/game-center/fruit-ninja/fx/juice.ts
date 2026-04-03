@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-const MAX_PARTICLES = 720
+const MAX_PARTICLES = 560
 const LIFE_MS = 560
 
 export class JuiceBurst {
