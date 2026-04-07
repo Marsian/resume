@@ -205,6 +205,17 @@ function HomeOverlay() {
   // Strictly independent UI layer (no HUD). All pointer events go to the canvas below.
   return (
     <div className="pointer-events-none absolute inset-0 z-[30]">
+      {/* Faux perspective planks overlay to match Classic menu mood (no bitmap). */}
+      <div
+        className="absolute inset-[-12%] opacity-55"
+        style={{
+          transform: 'skewX(-12deg) rotate(-6deg)',
+          transformOrigin: '50% 50%',
+          background:
+            'repeating-linear-gradient(90deg, rgba(0,0,0,0.0) 0px, rgba(0,0,0,0.0) 56px, rgba(30,18,10,0.22) 58px, rgba(0,0,0,0.0) 62px), radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.18) 62%, rgba(0,0,0,0.42) 100%)',
+          mixBlendMode: 'multiply',
+        }}
+      />
       {/* top logo */}
       <div className="absolute left-[6%] top-[5%]">
         <FruitNinjaLogo />
@@ -365,6 +376,7 @@ export default function FruitNinjaView() {
 
   const { score, paused, misses, gameOver, phase, error } = ui
   const showHud = phase === 'playing' && !gameOver
+  const inMenu = phase === 'home' || gameOver
 
   return (
     <main
@@ -374,7 +386,7 @@ export default function FruitNinjaView() {
         'text-[#14221a]',
         'dark:from-[#0a1210] dark:via-[#060d0a] dark:to-[#050a08]',
         'dark:text-[#d8ebe0]',
-        'px-4 py-8 pb-28 sm:px-6 sm:pb-12 sm:pl-24',
+        inMenu ? 'px-0 py-0' : 'px-4 py-8 pb-28 sm:px-6 sm:pb-12 sm:pl-24',
       )}
     >
       <div
@@ -382,7 +394,7 @@ export default function FruitNinjaView() {
         aria-hidden
       />
 
-      <div className="relative z-[1] mx-auto max-w-4xl">
+      <div className={cn('relative z-[1] mx-auto', inMenu ? 'max-w-none' : 'max-w-4xl')}>
         {phase === 'playing' ? (
           <div className="flex flex-wrap items-start justify-between gap-4">
             <h1 className="font-serif text-2xl font-bold uppercase tracking-[0.12em] sm:text-3xl">Fruit Ninja</h1>
@@ -412,12 +424,12 @@ export default function FruitNinjaView() {
 
         <div
           className={cn(
-            'relative mt-6 w-full overflow-hidden rounded-xl border border-emerald-900/40',
-            'bg-[#0d0806] shadow-xl ring-1 ring-black/40',
-            'dark:border-emerald-800/35',
+            'relative w-full overflow-hidden',
+            inMenu ? 'rounded-none border-0 shadow-none ring-0' : 'mt-6 rounded-xl border border-emerald-900/40 shadow-xl ring-1 ring-black/40 dark:border-emerald-800/35',
+            'bg-[#0d0806]',
           )}
         >
-          <div className="relative aspect-[16/10] w-full min-h-[200px]">
+          <div className={cn('relative w-full', inMenu ? 'aspect-[16/9] min-h-[420px]' : 'aspect-[16/10] min-h-[200px]')}>
             <div ref={hostRef} className="absolute inset-0" aria-label="Fruit Ninja playfield" />
 
             {/* vignette for classic menu mood */}
