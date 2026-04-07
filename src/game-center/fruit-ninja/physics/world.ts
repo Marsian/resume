@@ -1,5 +1,7 @@
 import * as CANNON from 'cannon-es'
 
+import { PHYSICS } from '../game/constants'
+
 export type PhysicsBundle = {
   world: CANNON.World
 }
@@ -7,7 +9,7 @@ export type PhysicsBundle = {
 /** Synchronous physics setup (no WASM init) — avoids Rapier browser aliasing issues in this stack. */
 export function createPhysicsWorld(): PhysicsBundle {
   const world = new CANNON.World()
-  world.gravity.set(0, -22, 0)
+  world.gravity.set(0, PHYSICS.gravityY, 0)
   world.defaultContactMaterial.friction = 0.42
   world.defaultContactMaterial.restitution = 0.08
   return { world }

@@ -2,10 +2,10 @@ import * as CANNON from 'cannon-es'
 import * as THREE from 'three'
 
 import { GameAudio } from './audio/gameAudio'
-import { GAME } from './game/constants'
+import { GAME, SLICE } from './game/constants'
 import { createBombMesh, createFruitMesh, disposeObject3D } from './game/meshes'
-import { pickFruitKind, randomAngularImpulse, SPAWN } from './game/spawn'
-import { sampleSpawnKinematics } from './game/spawnPlane'
+import { pickFruitKind, randomAngularImpulse, sampleBurstSpawnCount, SPAWN } from './game/spawn'
+import { fillPlayPlaneBasis, sampleSpawnKinematics } from './game/spawnPlane'
 import { createFruitHalfMesh, disposeFruitHalfRoot } from './game/fruitHalfMesh'
 import {
   distPointSegmentSq2,
@@ -106,6 +106,14 @@ export class FruitNinjaGame {
   private readonly sliceEdgeWorld0 = new THREE.Vector3()
   private readonly sliceEdgeWorld1 = new THREE.Vector3()
   private readonly sliceNormal = new THREE.Vector3(1, 0, 0)
+  private readonly slicePlaneN = new THREE.Vector3()
+  private readonly slicePlaneUp = new THREE.Vector3()
+  private readonly slicePlaneRight = new THREE.Vector3()
+  private readonly sliceCutTan = new THREE.Vector3()
+  private readonly sliceSepDir = new THREE.Vector3()
+  private readonly sliceImpulseVec = new THREE.Vector3()
+  private readonly sliceAngVel = new THREE.Vector3()
+  private readonly sliceHalfOutward = new THREE.Vector3()
   private readonly scratchOrigin = new THREE.Vector3()
   /** Shared with trail: camera-facing plane anchor */
   private readonly playPlaneCenter = new THREE.Vector3(0, 0.55, 0)
@@ -451,7 +459,7 @@ export class FruitNinjaGame {
 
       // Capture screen-projection inputs before `sliceFruit` removes the entity.
       const { x: fx, y: fy, z: fz } = f.body.position
-      this.sliceFruit(f, normal)
+      this.sliceFruit(f, okA && okB ? p0 : null, okA && okB ? p1 : null, normal)
       this.score += GAME.sliceScoreBase * Math.min(this.combo, GAME.scoreComboMultCap)
 
       if (this.combo > 1 && this.camera && this.renderer) {
@@ -498,54 +506,126 @@ export class FruitNinjaGame {
     }
   }
 
-  private sliceFruit(ent: WholeEntity, normal: THREE.Vector3) {
-    if (!this.world || !this.scene || !this.juice) return
+  private sliceFruit(
+    ent: WholeEntity,
+    cutP0: THREE.Vector3 | null,
+    cutP1: THREE.Vector3 | null,
+    fallbackNormal: THREE.Vector3,
+  ) {
+    if (!this.world || !this.scene || !this.juice || !this.camera) return
     const t = ent.body.position
     const origin = this.scratchOrigin
     origin.set(t.x, t.y, t.z)
     this.juice.burstAt(origin, ent.color, this.reducedMotion ? 26 : 44)
     this.removeWhole(ent)
 
-    const n = normal
-    if (n.lengthSq() < 1e-6) n.set(1, 0, 0)
-    n.y = 0
-    n.normalize()
+    fillPlayPlaneBasis(
+      this.camera,
+      this.playPlaneCenter,
+      this.slicePlaneN,
+      this.slicePlaneUp,
+      this.slicePlaneRight,
+    )
+    const planeN = this.slicePlaneN
+    const planeUp = this.slicePlaneUp
+    const sep = this.sliceSepDir
+    const cutTan = this.sliceCutTan
+
+    let haveEdge = false
+    if (cutP0 && cutP1) {
+      cutTan.copy(cutP1).sub(cutP0)
+      cutTan.addScaledVector(planeN, -planeN.dot(cutTan))
+      if (cutTan.lengthSq() > 1e-6) {
+        cutTan.normalize()
+        sep.crossVectors(planeN, cutTan).normalize()
+        haveEdge = true
+      }
+    }
+    if (!haveEdge) {
+      sep.copy(fallbackNormal)
+      if (sep.lengthSq() < 1e-6) sep.copy(this.slicePlaneRight)
+      sep.addScaledVector(planeN, -planeN.dot(sep))
+      if (sep.lengthSq() < 1e-6) sep.copy(this.slicePlaneRight)
+      else sep.normalize()
+      cutTan.crossVectors(sep, planeN).normalize()
+    }
+
+    const j = (Math.random() - 0.5) * 2 * SLICE.sepAngleJitter
+    const cj = Math.cos(j)
+    const sj = Math.sin(j)
+    this.scratchWorld.copy(sep)
+    this.scratchProj.copy(cutTan)
+    sep.copy(this.scratchWorld).multiplyScalar(cj).addScaledVector(this.scratchProj, sj)
+    cutTan.copy(this.scratchProj).multiplyScalar(cj).addScaledVector(this.scratchWorld, -sj)
 
     const r = ent.radius
     const flesh = ent.fleshColor
     const phyR = r * 0.52
-    const impulse = 5.5 + Math.random() * 3.2
+    const impSep = SLICE.sepImpulseMin + Math.random() * (SLICE.sepImpulseMax - SLICE.sepImpulseMin)
+    const impVertDiff =
+      SLICE.vertDiffImpulseMin + Math.random() * (SLICE.vertDiffImpulseMax - SLICE.vertDiffImpulseMin)
+    const impSharedUp =
+      SLICE.sharedUpImpulseMin + Math.random() * (SLICE.sharedUpImpulseMax - SLICE.sharedUpImpulseMin)
+    const spinBase =
+      SLICE.cutAxisSpinMin + Math.random() * (SLICE.cutAxisSpinMax - SLICE.cutAxisSpinMin)
+    const spinJitter = (Math.random() - 0.5) * 2 * (SLICE.cutAxisSpinMax - SLICE.cutAxisSpinMin) * 0.35
     const now = performance.now()
+    const off = r * 0.48
+    const lift = 0.034
+
+    const bv = ent.body.velocity
+    const planeRight = this.slicePlaneRight
 
     for (const sign of [-1, 1] as const) {
-      const outward = n.clone().multiplyScalar(sign)
-      const x = t.x + n.x * sign * r * 0.48
-      const y = t.y + 0.04
-      const z = t.z + n.z * sign * r * 0.48
+      this.sliceHalfOutward.copy(sep).multiplyScalar(sign)
 
-      const root = createFruitHalfMesh(r, outward, ent.color, flesh)
+      const x = t.x + sep.x * sign * off + planeUp.x * lift
+      const y = t.y + sep.y * sign * off + planeUp.y * lift
+      const z = t.z + sep.z * sign * off + planeUp.z * lift
+
+      const root = createFruitHalfMesh(r, this.sliceHalfOutward, ent.color, flesh)
       root.position.set(x, y, z)
       this.scene.add(root)
+
+      const spin = (spinBase + spinJitter * sign) * (0.88 + Math.random() * 0.28)
+      this.sliceAngVel.copy(cutTan).multiplyScalar(spin * sign)
+      this.sliceAngVel.addScaledVector(sep, (Math.random() - 0.5) * 2 * SLICE.angNoiseInPlane)
+      this.sliceAngVel.addScaledVector(planeN, (Math.random() - 0.5) * 2 * SLICE.angNoiseDepth)
+      this.sliceAngVel.addScaledVector(planeUp, (Math.random() - 0.5) * SLICE.angNoiseInPlane * 0.45)
 
       const mass = fruitMassFromRadius(phyR) * 0.58
       const body = new CANNON.Body({
         mass,
         shape: new CANNON.Sphere(phyR),
         position: new CANNON.Vec3(x, y, z),
-        angularVelocity: new CANNON.Vec3(
-          (Math.random() - 0.5) * 8,
-          (Math.random() - 0.5) * 8,
-          (Math.random() - 0.5) * 8,
-        ),
+        velocity: new CANNON.Vec3(bv.x, bv.y, bv.z),
+        angularVelocity: new CANNON.Vec3(this.sliceAngVel.x, this.sliceAngVel.y, this.sliceAngVel.z),
+        collisionFilterGroup: 0,
+        collisionFilterMask: 0,
       })
       const q = root.quaternion
       body.quaternion.set(q.x, q.y, q.z, q.w)
       this.world.addBody(body)
 
-      const ix = n.x * sign * impulse
-      const iy = 1.8 + Math.random() * 1.2
-      const iz = n.z * sign * impulse
-      body.applyImpulse(new CANNON.Vec3(ix, iy, iz), new CANNON.Vec3(0, 0, 0))
+      const halfSep =
+        impSep *
+        (SLICE.halfSepScaleMin + Math.random() * (SLICE.halfSepScaleMax - SLICE.halfSepScaleMin))
+      const vertKick =
+        impSharedUp +
+        sign * impVertDiff +
+        (Math.random() - 0.5) * 2 * SLICE.vertImpulseNoise
+      const rightKick = (Math.random() - 0.5) * 2 * SLICE.planarRightJitter
+      const depthKick = (Math.random() - 0.5) * 2 * SLICE.planarDepthJitter
+
+      this.sliceImpulseVec.copy(sep).multiplyScalar(sign * halfSep)
+      this.sliceImpulseVec.addScaledVector(planeUp, vertKick)
+      this.sliceImpulseVec.addScaledVector(planeRight, rightKick)
+      this.sliceImpulseVec.addScaledVector(planeN, depthKick)
+
+      body.applyImpulse(
+        new CANNON.Vec3(this.sliceImpulseVec.x, this.sliceImpulseVec.y, this.sliceImpulseVec.z),
+        new CANNON.Vec3(0, 0, 0),
+      )
 
       this.halves.push({ root, body, removeAt: now + 2800 })
     }
@@ -589,7 +669,11 @@ export class FruitNinjaGame {
     const isBomb = Math.random() < GAME.bombSpawnChance
     const radius =
       SPAWN.radiusMin + Math.random() * (SPAWN.radiusMax - SPAWN.radiusMin)
-    const { position: p0, velocity: v0 } = sampleSpawnKinematics(this.camera)
+    const { position: p0, velocity: v0 } = sampleSpawnKinematics(
+      this.camera,
+      this.playPlaneCenter,
+      this.cachedLayoutRect,
+    )
     const x = p0.x
     const y = p0.y
     const z = p0.z
@@ -664,7 +748,10 @@ export class FruitNinjaGame {
       if (this.spawnAcc >= this.nextSpawnIn) {
         this.spawnAcc = 0
         this.scheduleNextSpawn()
-        this.spawnEntity()
+        let n = sampleBurstSpawnCount()
+        while (n-- > 0 && this.entities.length < GAME.maxWholeEntities) {
+          this.spawnEntity()
+        }
       }
     }
 
