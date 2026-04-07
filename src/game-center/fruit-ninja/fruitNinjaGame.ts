@@ -56,6 +56,10 @@ type WholeEntity = {
   missTracked: boolean
   /** Opening watermelon — slice once to leave `home` phase; never counts as a miss. */
   isStarter?: boolean
+  /** Decorative fruit used only on the home screen (never counts as miss / score). */
+  isHomeDecor?: boolean
+  /** Anchor in screen space (0..1) for home decor placement. */
+  homeAnchor?: { u: number; v: number }
 }
 
 type FruitHalf = {
@@ -198,7 +202,8 @@ export class FruitNinjaGame {
       this.lastT = performance.now()
       this.spawnAcc = 0
       this.phase = 'home'
-      this.spawnStartWatermelon()
+      // Spawn home-screen decor once we have a layout rect; also safe to call now (it will fallback).
+      this.spawnHomeDecor()
       this.emitUi()
       requestAnimationFrame(() => {
         if (this.disposed || !this.renderer || !this.camera) return
@@ -210,6 +215,8 @@ export class FruitNinjaGame {
           this.comboOverlay?.resize(w, h)
         }
         this.syncCanvasLayout()
+        // Ensure decor is placed correctly after first layout sync.
+        if (this.phase === 'home') this.spawnHomeDecor(true)
       })
       if (!this.disposed) this.raf = requestAnimationFrame(this.tick)
     } catch (e) {
@@ -277,7 +284,7 @@ export class FruitNinjaGame {
     this.paused = false
     this.phase = 'home'
     if (this.camera) this.camera.position.copy(this.cameraHome)
-    this.spawnStartWatermelon()
+    this.spawnHomeDecor()
     this.emitUi()
   }
 
@@ -348,35 +355,89 @@ export class FruitNinjaGame {
       SPAWN.intervalMinMs + Math.random() * (SPAWN.intervalMaxMs - SPAWN.intervalMinMs)
   }
 
-  private spawnStartWatermelon() {
+  private clearHomeDecor() {
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const e = this.entities[i]!
+      if (e.isHomeDecor) this.removeWhole(e)
+    }
+  }
+
+  private spawnHomeDecor(forceRelayout = false) {
     if (!this.world || !this.scene) return
-    const radius = 0.86
-    const x = this.playPlaneCenter.x
-    const y = this.playPlaneCenter.y + 0.35
-    const z = this.playPlaneCenter.z
-    const root = createFruitMesh(radius, 'watermelon', 0x1e5c2e)
-    root.position.set(x, y, z)
-    this.scene.add(root)
-    const ang = randomAngularImpulse()
-    const mass = fruitMassFromRadius(radius)
-    const body = new CANNON.Body({
-      mass,
-      shape: new CANNON.Sphere(radius),
-      position: new CANNON.Vec3(x, y, z),
-      velocity: new CANNON.Vec3(0, 3.2, 0),
-      angularVelocity: new CANNON.Vec3(ang.ax * 0.35, ang.ay * 0.35, ang.az * 0.35),
+    if (!forceRelayout) {
+      // If decor already exists, don't respawn.
+      if (this.entities.some((e) => e.isHomeDecor)) return
+    }
+    this.clearHomeDecor()
+
+    const rect = this.cachedLayoutRect
+    const placeOnPlayPlane = (u: number, v: number, out: THREE.Vector3) => {
+      if (!this.camera || !rect) return false
+      const clientX = rect.left + rect.width * u
+      const clientY = rect.top + rect.height * v
+      return screenToCameraFacingPlane(clientX, clientY, rect, this.camera, this.playPlaneCenter, out) != null
+    }
+
+    // Center start ring: watermelon (slice to start).
+    const wmRadius = 0.78
+    const wmPos = new THREE.Vector3()
+    const okWm = placeOnPlayPlane(0.55, 0.62, wmPos)
+    if (!okWm) {
+      wmPos.set(this.playPlaneCenter.x, this.playPlaneCenter.y + 0.25, this.playPlaneCenter.z)
+    }
+    const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x1e5c2e)
+    wmRoot.position.copy(wmPos)
+    this.scene.add(wmRoot)
+    const wmBody = new CANNON.Body({
+      mass: 0,
+      type: CANNON.Body.STATIC,
+      shape: new CANNON.Sphere(wmRadius),
+      position: new CANNON.Vec3(wmPos.x, wmPos.y, wmPos.z),
     })
-    this.world.addBody(body)
+    this.world.addBody(wmBody)
     this.entities.push({
       id: this.nextId++,
-      root,
-      body,
-      radius,
+      root: wmRoot,
+      body: wmBody,
+      radius: wmRadius,
       color: new THREE.Color(0x1e5c2e),
       fleshColor: new THREE.Color(0xff3a5c),
       kind: 'fruit',
-      missTracked: false,
+      missTracked: true,
       isStarter: true,
+      isHomeDecor: true,
+      homeAnchor: { u: 0.55, v: 0.62 },
+    })
+
+    // Right settings ring: green apple (decorative).
+    const apRadius = 0.44
+    const apPos = new THREE.Vector3()
+    const okAp = placeOnPlayPlane(0.78, 0.50, apPos)
+    if (!okAp) {
+      apPos.set(this.playPlaneCenter.x + 1.85, this.playPlaneCenter.y + 0.18, this.playPlaneCenter.z)
+    }
+    const apSkin = 0x77c83c
+    const apRoot = createFruitMesh(apRadius, 'apple', apSkin)
+    apRoot.position.copy(apPos)
+    this.scene.add(apRoot)
+    const apBody = new CANNON.Body({
+      mass: 0,
+      type: CANNON.Body.STATIC,
+      shape: new CANNON.Sphere(apRadius),
+      position: new CANNON.Vec3(apPos.x, apPos.y, apPos.z),
+    })
+    this.world.addBody(apBody)
+    this.entities.push({
+      id: this.nextId++,
+      root: apRoot,
+      body: apBody,
+      radius: apRadius,
+      color: new THREE.Color(apSkin),
+      fleshColor: new THREE.Color(0xfff0ea),
+      kind: 'fruit',
+      missTracked: true,
+      isHomeDecor: true,
+      homeAnchor: { u: 0.78, v: 0.5 },
     })
   }
 
@@ -517,14 +578,18 @@ export class FruitNinjaGame {
 
     // Performance: avoid per-slice allocations from `hit.filter(...)`.
     // Important: bombs must update combo/score/lives before fruits.
-    for (let i = 0; i < hit.length; i++) {
-      const ent = hit[i]!
-      if (ent.kind === 'bomb') this.sliceBomb(ent)
+    if (this.phase === 'playing') {
+      for (let i = 0; i < hit.length; i++) {
+        const ent = hit[i]!
+        if (ent.kind === 'bomb') this.sliceBomb(ent)
+      }
     }
 
     for (let i = 0; i < hit.length; i++) {
       const f = hit[i]!
       if (f.kind !== 'fruit') continue
+      // On home screen, only the starter watermelon is sliceable to begin.
+      if (this.phase === 'home' && !f.isStarter) continue
 
       const now = performance.now()
       const wasStarter = f.isStarter === true
@@ -844,13 +909,37 @@ export class FruitNinjaGame {
 
     for (const ent of [...this.entities]) {
       const { x: fx, y: fy, z: fz } = ent.body.position
-      ent.root.position.set(fx, fy, fz)
+      if (this.phase === 'home' && ent.isHomeDecor && ent.homeAnchor && this.camera && this.cachedLayoutRect) {
+        // Keep home fruits anchored in screen space with a gentle bob/tilt (no physics).
+        const anchor = ent.homeAnchor
+        const pos = this.scratchWorld
+        const ok = screenToCameraFacingPlane(
+          this.cachedLayoutRect.left + this.cachedLayoutRect.width * anchor.u,
+          this.cachedLayoutRect.top + this.cachedLayoutRect.height * anchor.v,
+          this.cachedLayoutRect,
+          this.camera,
+          this.playPlaneCenter,
+          pos,
+        )
+        const bob = Math.sin(t * 0.004 + ent.id * 0.7) * 0.06
+        if (ok) {
+          ent.root.position.set(pos.x, pos.y + bob, pos.z)
+          ent.body.position.set(pos.x, pos.y + bob, pos.z)
+        } else {
+          ent.root.position.set(fx, fy + bob, fz)
+          ent.body.position.set(fx, fy + bob, fz)
+        }
+        ent.root.rotation.y += 0.004
+      } else {
+        ent.root.position.set(fx, fy, fz)
+      }
       const q = ent.body.quaternion
       ent.root.quaternion.set(q.x, q.y, q.z, q.w)
 
       if (
         ent.kind === 'fruit' &&
         !ent.isStarter &&
+        !ent.isHomeDecor &&
         !ent.missTracked &&
         ent.body.velocity.y < -0.35 &&
         fy < GAME.missY
