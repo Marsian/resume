@@ -47,7 +47,15 @@ function StartRing({ className }: { className?: string }) {
         strokeWidth="10"
       />
       <circle cx="160" cy="160" r="125" fill="url(#fnStartRingGlow)" />
-      <circle cx="160" cy="160" r="92" fill="rgba(0,0,0,0.40)" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
+      {/* Inner hole: keep transparent so the 3D starter watermelon stays visible & sliceable. */}
+      <circle
+        cx="160"
+        cy="160"
+        r="92"
+        fill="transparent"
+        stroke="rgba(255,255,255,0.10)"
+        strokeWidth="6"
+      />
       <text
         fill="rgba(232,248,255,0.92)"
         fontSize="18"
