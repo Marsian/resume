@@ -12,6 +12,7 @@ const initialUi: GameUiState = {
   paused: false,
   misses: 0,
   gameOver: false,
+  phase: 'home',
 }
 
 const backBtnClass =
@@ -49,7 +50,7 @@ export default function FruitNinjaView() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.code === 'KeyP') {
         e.preventDefault()
-        if (!ui.gameOver) gameRef.current?.setPaused(!ui.paused)
+        if (!ui.gameOver && ui.phase === 'playing') gameRef.current?.setPaused(!ui.paused)
       }
       if (e.code === 'KeyR') {
         e.preventDefault()
@@ -58,9 +59,9 @@ export default function FruitNinjaView() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [ui.paused, ui.gameOver])
+  }, [ui.paused, ui.gameOver, ui.phase])
 
-  const { score, paused, misses, gameOver, error } = ui
+  const { score, paused, misses, gameOver, phase, error } = ui
 
   return (
     <main
@@ -103,7 +104,10 @@ export default function FruitNinjaView() {
             <div ref={hostRef} className="absolute inset-0" aria-label="Fruit Ninja playfield" />
 
             <div
-              className="pointer-events-none absolute left-2 top-2 z-10 sm:left-3 sm:top-3"
+              className={cn(
+                'pointer-events-none absolute left-2 top-2 z-10 sm:left-3 sm:top-3 transition-opacity',
+                phase === 'home' && !gameOver ? 'opacity-35' : 'opacity-100',
+              )}
               aria-live="polite"
               aria-label={`Score: ${score}`}
             >
@@ -116,7 +120,10 @@ export default function FruitNinjaView() {
             </div>
 
             <div
-              className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1.5 sm:right-3 sm:top-3"
+              className={cn(
+                'pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1.5 sm:right-3 sm:top-3 transition-opacity',
+                phase === 'home' && !gameOver ? 'opacity-35' : 'opacity-100',
+              )}
               aria-label={`Misses: ${misses} of ${GAME.missLimit}`}
             >
               {Array.from({ length: GAME.missLimit }).map((_, i) => (
@@ -134,6 +141,21 @@ export default function FruitNinjaView() {
                 </span>
               ))}
             </div>
+
+            {phase === 'home' && !gameOver ? (
+              <div
+                className="pointer-events-none absolute inset-0 z-[12] flex flex-col items-center justify-center gap-3 px-6 text-center"
+              >
+                <div className="max-w-sm rounded-2xl border border-emerald-700/40 bg-black/55 px-6 py-5 shadow-lg backdrop-blur-sm ring-1 ring-white/10">
+                  <p className="font-serif text-lg font-semibold tracking-wide text-emerald-50 sm:text-xl">
+                    经典模式
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-emerald-100/85">
+                    切开中央的大西瓜开始游戏
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             {paused && !gameOver ? (
               <div
@@ -169,10 +191,10 @@ export default function FruitNinjaView() {
                   <p className="mt-1 font-mono text-4xl font-bold tabular-nums text-white">{score}</p>
                   <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
                     <Button type="button" onClick={() => gameRef.current?.restart()}>
-                      Play again
+                      再玩一次
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => navigate('/games')}>
-                      Game Center
+                    <Button type="button" variant="secondary" onClick={() => gameRef.current?.goToHomeScreen()}>
+                      返回首页
                     </Button>
                   </div>
                 </div>

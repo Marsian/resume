@@ -42,7 +42,23 @@ export const SPAWN = {
   cullY: -6.8,
 } as const
 
-export type FruitArchetype = 'watermelon' | 'apple' | 'banana' | 'lemon'
+export type FruitArchetype =
+  | 'watermelon'
+  | 'apple'
+  | 'banana'
+  | 'lemon'
+  | 'lime'
+  | 'mango'
+  | 'pineapple'
+  | 'coconut'
+  | 'strawberry'
+  | 'kiwi'
+  | 'orange'
+  | 'plum'
+  | 'pear'
+  | 'peach'
+  | 'passionfruit'
+  | 'cherry'
 
 export type FruitSpawnKind = {
   kind: FruitArchetype
@@ -57,6 +73,18 @@ const FRUIT_KINDS: FruitSpawnKind[] = [
   { kind: 'apple', skin: 0xc41e1e, flesh: 0xfff0ea },
   { kind: 'banana', skin: 0xe8c840, flesh: 0xfff8dc },
   { kind: 'lemon', skin: 0xf2e6a0, flesh: 0xfffacd },
+  { kind: 'lime', skin: 0x6b9e3d, flesh: 0xe8f5b8 },
+  { kind: 'mango', skin: 0xff9f40, flesh: 0xffd699 },
+  { kind: 'pineapple', skin: 0xc9a227, flesh: 0xfff3c4 },
+  { kind: 'coconut', skin: 0x4a3728, flesh: 0xf5f0e6 },
+  { kind: 'strawberry', skin: 0xd81e35, flesh: 0xffb7c5 },
+  { kind: 'kiwi', skin: 0x7a5c1e, flesh: 0xc8e86c },
+  { kind: 'orange', skin: 0xff7f00, flesh: 0xffa64d },
+  { kind: 'plum', skin: 0x5c1a6b, flesh: 0xe8c8e8 },
+  { kind: 'pear', skin: 0xb8c94a, flesh: 0xfffef0 },
+  { kind: 'peach', skin: 0xffa07a, flesh: 0xffdcc8 },
+  { kind: 'passionfruit', skin: 0x3d2a5c, flesh: 0xf4e6b8 },
+  { kind: 'cherry', skin: 0xb01030, flesh: 0xff3050 },
 ]
 
 export function pickFruitKind(): FruitSpawnKind {

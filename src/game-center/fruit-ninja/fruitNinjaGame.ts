@@ -32,6 +32,8 @@ export type GameUiState = {
   /** Total misses so far (0..GAME.missLimit). */
   misses: number
   gameOver: boolean
+  /** `home`: slice the starter watermelon to begin; `playing`: normal waves. */
+  phase: 'home' | 'playing'
   error?: string
 }
 
@@ -52,6 +54,8 @@ type WholeEntity = {
   kind: 'fruit' | 'bomb'
   /** True once we counted a “miss” for this fruit */
   missTracked: boolean
+  /** Opening watermelon — slice once to leave `home` phase; never counts as a miss. */
+  isStarter?: boolean
 }
 
 type FruitHalf = {
@@ -97,6 +101,7 @@ export class FruitNinjaGame {
   private misses = 0
   private gameOver = false
   private shakeUntil = 0
+  private phase: 'home' | 'playing' = 'home'
 
   private pointerDown = false
   private stroke: Array<{ x: number; y: number }> = []
@@ -141,6 +146,7 @@ export class FruitNinjaGame {
         paused: this.paused,
         misses: this.misses,
         gameOver: this.gameOver,
+        phase: this.phase,
       })
     })
   }
@@ -191,7 +197,8 @@ export class FruitNinjaGame {
       this.bindPointer()
       this.lastT = performance.now()
       this.spawnAcc = 0
-      this.scheduleNextSpawn()
+      this.phase = 'home'
+      this.spawnStartWatermelon()
       this.emitUi()
       requestAnimationFrame(() => {
         if (this.disposed || !this.renderer || !this.camera) return
@@ -212,6 +219,7 @@ export class FruitNinjaGame {
         paused: false,
         misses: 0,
         gameOver: false,
+        phase: 'home',
         error: msg,
       })
     }
@@ -219,6 +227,7 @@ export class FruitNinjaGame {
 
   setPaused(p: boolean) {
     if (this.gameOver) return
+    if (this.phase === 'home') return
     this.paused = p
     this.emitUi()
   }
@@ -241,8 +250,34 @@ export class FruitNinjaGame {
     this.gameOver = false
     this.shakeUntil = 0
     this.paused = false
+    this.phase = 'playing'
     if (this.camera) this.camera.position.copy(this.cameraHome)
     this.scheduleNextSpawn()
+    this.emitUi()
+  }
+
+  /** Reset to the in-game home screen (starter watermelon), not the site game center. */
+  goToHomeScreen() {
+    if (!this.world || !this.scene) return
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      this.removeWhole(this.entities[i]!)
+    }
+    this.entities = []
+    for (let i = this.halves.length - 1; i >= 0; i--) {
+      this.removeHalf(this.halves[i]!)
+    }
+    this.halves = []
+    this.score = 0
+    this.combo = 0
+    this.lastSliceAt = 0
+    this.spawnAcc = 0
+    this.misses = 0
+    this.gameOver = false
+    this.shakeUntil = 0
+    this.paused = false
+    this.phase = 'home'
+    if (this.camera) this.camera.position.copy(this.cameraHome)
+    this.spawnStartWatermelon()
     this.emitUi()
   }
 
@@ -311,6 +346,46 @@ export class FruitNinjaGame {
   private scheduleNextSpawn() {
     this.nextSpawnIn =
       SPAWN.intervalMinMs + Math.random() * (SPAWN.intervalMaxMs - SPAWN.intervalMinMs)
+  }
+
+  private spawnStartWatermelon() {
+    if (!this.world || !this.scene) return
+    const radius = 0.86
+    const x = this.playPlaneCenter.x
+    const y = this.playPlaneCenter.y + 0.35
+    const z = this.playPlaneCenter.z
+    const root = createFruitMesh(radius, 'watermelon', 0x1e5c2e)
+    root.position.set(x, y, z)
+    this.scene.add(root)
+    const ang = randomAngularImpulse()
+    const mass = fruitMassFromRadius(radius)
+    const body = new CANNON.Body({
+      mass,
+      shape: new CANNON.Sphere(radius),
+      position: new CANNON.Vec3(x, y, z),
+      velocity: new CANNON.Vec3(0, 3.2, 0),
+      angularVelocity: new CANNON.Vec3(ang.ax * 0.35, ang.ay * 0.35, ang.az * 0.35),
+    })
+    this.world.addBody(body)
+    this.entities.push({
+      id: this.nextId++,
+      root,
+      body,
+      radius,
+      color: new THREE.Color(0x1e5c2e),
+      fleshColor: new THREE.Color(0xff3a5c),
+      kind: 'fruit',
+      missTracked: false,
+      isStarter: true,
+    })
+  }
+
+  private beginGameplayFromHome() {
+    if (this.phase !== 'home') return
+    this.phase = 'playing'
+    this.spawnAcc = 0
+    this.scheduleNextSpawn()
+    this.emitUi()
   }
 
   private syncCanvasLayout() {
@@ -452,21 +527,31 @@ export class FruitNinjaGame {
       if (f.kind !== 'fruit') continue
 
       const now = performance.now()
-      if (now - this.lastSliceAt < GAME.comboWindowMs) this.combo = Math.min(GAME.comboCap, this.combo + 1)
-      else this.combo = 1
-      this.lastSliceAt = now
+      const wasStarter = f.isStarter === true
+      if (wasStarter) {
+        this.combo = 0
+        this.lastSliceAt = 0
+      } else {
+        if (now - this.lastSliceAt < GAME.comboWindowMs) this.combo = Math.min(GAME.comboCap, this.combo + 1)
+        else this.combo = 1
+        this.lastSliceAt = now
+      }
       this.audio.playSlice()
 
       // Capture screen-projection inputs before `sliceFruit` removes the entity.
       const { x: fx, y: fy, z: fz } = f.body.position
       this.sliceFruit(f, okA && okB ? p0 : null, okA && okB ? p1 : null, normal)
-      this.score += GAME.sliceScoreBase * Math.min(this.combo, GAME.scoreComboMultCap)
+      if (!wasStarter) {
+        this.score += GAME.sliceScoreBase * Math.min(this.combo, GAME.scoreComboMultCap)
+      }
 
-      if (this.combo > 1 && this.camera && this.renderer) {
+      if (!wasStarter && this.combo > 1 && this.camera && this.renderer) {
         this.scratchWorld.set(fx, fy, fz)
         projectWorldToScreen(this.scratchWorld, this.camera, w, h, this.scratchProj)
         this.comboOverlay?.pushCombo(this.scratchProj.x, this.scratchProj.y, this.combo, now)
       }
+
+      if (wasStarter) this.beginGameplayFromHome()
     }
 
     this.emitUi()
@@ -663,7 +748,7 @@ export class FruitNinjaGame {
   }
 
   private spawnEntity() {
-    if (!this.world || !this.scene || !this.camera || this.gameOver) return
+    if (!this.world || !this.scene || !this.camera || this.gameOver || this.phase !== 'playing') return
     if (this.entities.length >= GAME.maxWholeEntities) return
 
     const isBomb = Math.random() < GAME.bombSpawnChance
@@ -744,13 +829,15 @@ export class FruitNinjaGame {
 
     if (!this.paused && !this.gameOver) {
       this.world.step(1 / 60, dt, 3)
-      this.spawnAcc += dt * 1000
-      if (this.spawnAcc >= this.nextSpawnIn) {
-        this.spawnAcc = 0
-        this.scheduleNextSpawn()
-        let n = sampleBurstSpawnCount()
-        while (n-- > 0 && this.entities.length < GAME.maxWholeEntities) {
-          this.spawnEntity()
+      if (this.phase === 'playing') {
+        this.spawnAcc += dt * 1000
+        if (this.spawnAcc >= this.nextSpawnIn) {
+          this.spawnAcc = 0
+          this.scheduleNextSpawn()
+          let n = sampleBurstSpawnCount()
+          while (n-- > 0 && this.entities.length < GAME.maxWholeEntities) {
+            this.spawnEntity()
+          }
         }
       }
     }
@@ -761,7 +848,13 @@ export class FruitNinjaGame {
       const q = ent.body.quaternion
       ent.root.quaternion.set(q.x, q.y, q.z, q.w)
 
-      if (ent.kind === 'fruit' && !ent.missTracked && ent.body.velocity.y < -0.35 && fy < GAME.missY) {
+      if (
+        ent.kind === 'fruit' &&
+        !ent.isStarter &&
+        !ent.missTracked &&
+        ent.body.velocity.y < -0.35 &&
+        fy < GAME.missY
+      ) {
         ent.missTracked = true
         this.registerMiss()
       }
