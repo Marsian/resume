@@ -225,16 +225,28 @@ function HomeOverlay() {
       <WoodSign className="absolute left-[6.5%] top-[26%] rotate-[-6deg]" />
 
       {/* center start ring */}
-      <div className="absolute left-[58%] top-[60%] -translate-x-1/2 -translate-y-1/2">
-        <div className="relative h-[42%] w-[42%] min-h-[220px] min-w-[220px] max-h-[320px] max-w-[320px]">
+      <div className="absolute left-[56%] top-[60%] -translate-x-1/2 -translate-y-1/2 sm:left-[58%]">
+        <div
+          className="relative"
+          style={{
+            width: 'clamp(180px, 36vw, 260px)',
+            height: 'clamp(180px, 36vw, 260px)',
+          }}
+        >
           <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite]" />
           <div className="absolute inset-0 rounded-full shadow-[0_30px_70px_rgba(0,0,0,0.55)]" />
         </div>
       </div>
 
       {/* right settings ring */}
-      <div className="absolute left-[82%] top-[46%] -translate-x-1/2 -translate-y-1/2">
-        <div className="relative h-[28%] w-[28%] min-h-[140px] min-w-[140px] max-h-[220px] max-w-[220px]">
+      <div className="absolute left-[88%] top-[46%] -translate-x-1/2 -translate-y-1/2 sm:left-[82%]">
+        <div
+          className="relative"
+          style={{
+            width: 'clamp(120px, 26vw, 200px)',
+            height: 'clamp(120px, 26vw, 200px)',
+          }}
+        >
           <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
         </div>
       </div>

@@ -379,9 +379,10 @@ export class FruitNinjaGame {
     }
 
     // Anchors match `HomeOverlay` (percent-based, responsive).
-    const uStart = 0.58
+    const isNarrow = (rect?.width ?? 9999) <= 560
+    const uStart = isNarrow ? 0.56 : 0.58
     const vStart = 0.60
-    const uSettings = 0.82
+    const uSettings = isNarrow ? 0.88 : 0.82
     const vSettings = 0.46
 
     // Convert an on-screen pixel radius to a world-space radius at the play plane.
@@ -410,8 +411,9 @@ export class FruitNinjaGame {
     }
 
     // Ring sizes follow overlay sizing (as fraction of rect width, clamped).
-    const startRingPx = Math.max(220, Math.min(320, rect ? rect.width * 0.42 : 260))
-    const settingsRingPx = Math.max(140, Math.min(220, rect ? rect.width * 0.28 : 170))
+    // Match `HomeOverlay` sizing clamps.
+    const startRingPx = Math.max(180, Math.min(260, rect ? rect.width * 0.36 : 220))
+    const settingsRingPx = Math.max(120, Math.min(200, rect ? rect.width * 0.26 : 160))
     // Inner hole radius in the SVG: 92 on a 320 viewbox.
     const innerHoleRatio = 92 / 320
     // Fruits should be clearly smaller than the ring hole (match Classic menu proportions).
