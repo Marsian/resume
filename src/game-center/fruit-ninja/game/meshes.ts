@@ -35,10 +35,11 @@ function watermelonStripeTexture(): THREE.CanvasTexture {
   c.width = 64
   c.height = 64
   const g = c.getContext('2d')!
-  g.fillStyle = '#1a4d28'
+  // Brighter stripes so the starter watermelon reads like Classic menu.
+  g.fillStyle = '#2f8c3f'
   g.fillRect(0, 0, 64, 64)
   for (let x = 0; x < 64; x += 8) {
-    g.fillStyle = x % 16 === 0 ? '#143d22' : '#2a6b38'
+    g.fillStyle = x % 16 === 0 ? '#1c6f2d' : '#4fbf5d'
     g.fillRect(x, 0, 4, 64)
   }
   const tex = new THREE.CanvasTexture(c)
@@ -58,6 +59,8 @@ function watermelonBodyMaterial(): THREE.MeshStandardMaterial {
       color: 0x4a8f55,
       roughness: 0.45,
       metalness: 0,
+      emissive: new THREE.Color(0x1a5c2a),
+      emissiveIntensity: 0.35,
     })
   }
   return watermelonBodyMat

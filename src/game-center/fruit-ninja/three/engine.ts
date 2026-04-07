@@ -124,7 +124,8 @@ export function fitRendererToContainer(
 }
 
 export function addDefaultLights(scene: THREE.Scene): void {
-  const hemi = new THREE.HemisphereLight(0xffe8d0, 0x2a1810, 0.62)
+  // Slightly stronger ambient so menu fruits don't read as silhouettes.
+  const hemi = new THREE.HemisphereLight(0xffe8d0, 0x2a1810, 0.92)
   scene.add(hemi)
 
   const key = new THREE.DirectionalLight(0xfff6ee, 1.22)
