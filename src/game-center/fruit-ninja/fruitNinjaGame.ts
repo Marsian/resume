@@ -378,14 +378,21 @@ export class FruitNinjaGame {
       return screenToCameraFacingPlane(clientX, clientY, rect, this.camera, this.playPlaneCenter, out) != null
     }
 
+    // Use the same pixel placements as `HomeOverlay` for 1:1 alignment.
+    const uStart = 370 / Math.max(1, rect?.width ?? 1000)
+    const vStart = 238 / Math.max(1, rect?.height ?? 625)
+    const uSettings = 590 / Math.max(1, rect?.width ?? 1000)
+    const vSettings = 205 / Math.max(1, rect?.height ?? 625)
+
     // Center start ring: watermelon (slice to start).
-    const wmRadius = 0.78
+    const wmRadius = 0.64
     const wmPos = new THREE.Vector3()
-    const okWm = placeOnPlayPlane(0.55, 0.62, wmPos)
+    const okWm = placeOnPlayPlane(uStart, vStart, wmPos)
     if (!okWm) {
       wmPos.set(this.playPlaneCenter.x, this.playPlaneCenter.y + 0.25, this.playPlaneCenter.z)
     }
-    const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x1e5c2e)
+    // Brighter skin so it reads like the Classic menu watermelon.
+    const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x3aa44a)
     wmRoot.position.copy(wmPos)
     this.scene.add(wmRoot)
     const wmBody = new CANNON.Body({
@@ -400,19 +407,19 @@ export class FruitNinjaGame {
       root: wmRoot,
       body: wmBody,
       radius: wmRadius,
-      color: new THREE.Color(0x1e5c2e),
+      color: new THREE.Color(0x3aa44a),
       fleshColor: new THREE.Color(0xff3a5c),
       kind: 'fruit',
       missTracked: true,
       isStarter: true,
       isHomeDecor: true,
-      homeAnchor: { u: 0.55, v: 0.62 },
+      homeAnchor: { u: uStart, v: vStart },
     })
 
     // Right settings ring: green apple (decorative).
-    const apRadius = 0.44
+    const apRadius = 0.35
     const apPos = new THREE.Vector3()
-    const okAp = placeOnPlayPlane(0.78, 0.50, apPos)
+    const okAp = placeOnPlayPlane(uSettings, vSettings, apPos)
     if (!okAp) {
       apPos.set(this.playPlaneCenter.x + 1.85, this.playPlaneCenter.y + 0.18, this.playPlaneCenter.z)
     }
@@ -437,7 +444,7 @@ export class FruitNinjaGame {
       kind: 'fruit',
       missTracked: true,
       isHomeDecor: true,
-      homeAnchor: { u: 0.78, v: 0.5 },
+      homeAnchor: { u: uSettings, v: vSettings },
     })
   }
 

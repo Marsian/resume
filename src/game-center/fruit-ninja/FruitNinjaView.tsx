@@ -337,18 +337,32 @@ export default function FruitNinjaView() {
       />
 
       <div className="relative z-[1] mx-auto max-w-4xl">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <h1 className="font-serif text-2xl font-bold uppercase tracking-[0.12em] sm:text-3xl">Fruit Ninja</h1>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate('/games')}
-            className={cn(backBtnClass, 'shrink-0')}
-            aria-label="Back to game center"
-          >
-            Back
-          </Button>
-        </div>
+        {phase === 'playing' ? (
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <h1 className="font-serif text-2xl font-bold uppercase tracking-[0.12em] sm:text-3xl">Fruit Ninja</h1>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/games')}
+              className={cn(backBtnClass, 'shrink-0')}
+              aria-label="Back to game center"
+            >
+              Back
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/games')}
+              className={cn(backBtnClass, 'shrink-0')}
+              aria-label="Back to game center"
+            >
+              Back
+            </Button>
+          </div>
+        )}
 
         <div
           className={cn(
@@ -359,6 +373,17 @@ export default function FruitNinjaView() {
         >
           <div className="relative aspect-[16/10] w-full min-h-[200px]">
             <div ref={hostRef} className="absolute inset-0" aria-label="Fruit Ninja playfield" />
+
+            {/* vignette for classic menu mood */}
+            {(phase === 'home' || gameOver) && (
+              <div
+                className="pointer-events-none absolute inset-0 z-[20]"
+                style={{
+                  background:
+                    'radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.28) 65%, rgba(0,0,0,0.52) 100%)',
+                }}
+              />
+            )}
 
             {showHud ? (
               <>
