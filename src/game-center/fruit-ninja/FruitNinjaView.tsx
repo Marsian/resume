@@ -72,36 +72,76 @@ function StartRing({ className }: { className?: string }) {
   )
 }
 
-function SettingsRing({ className }: { className?: string }) {
+function DonutRing({
+  className,
+  gradientId,
+  textPathId,
+  maskId,
+  label,
+  stops,
+}: {
+  className?: string
+  gradientId: string
+  maskId: string
+  textPathId: string
+  label: string
+  stops: Array<{ o: number; c: string }>
+}) {
   return (
-    <svg viewBox="0 0 240 240" className={className} aria-hidden="true">
+    <svg viewBox="0 0 320 320" className={className} aria-hidden="true">
       <defs>
-        <linearGradient id="fnSettingsRing" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#b051ff" />
-          <stop offset="55%" stopColor="#6b2cff" />
-          <stop offset="100%" stopColor="#3a0bb2" />
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+          {stops.map((s) => (
+            <stop key={s.o} offset={`${s.o}%`} stopColor={s.c} />
+          ))}
         </linearGradient>
-        <path
-          id="fnSettingsRingPath"
-          d="M 120, 120 m -78, 0 a 78,78 0 1,1 156,0 a 78,78 0 1,1 -156,0"
-        />
+        <radialGradient id={`${gradientId}-glow`} cx="45%" cy="35%" r="70%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.28)" />
+          <stop offset="60%" stopColor="rgba(255,255,255,0.0)" />
+          <stop offset="100%" stopColor="rgba(0,0,0,0.22)" />
+        </radialGradient>
+        <mask id={maskId}>
+          <rect x="0" y="0" width="320" height="320" fill="black" />
+          <circle cx="160" cy="160" r="125" fill="white" />
+          <circle cx="160" cy="160" r="92" fill="black" />
+        </mask>
+        <path id={textPathId} d="M 160, 160 m -108, 0 a 108,108 0 1,1 216,0 a 108,108 0 1,1 -216,0" />
       </defs>
-      <circle cx="120" cy="120" r="96" fill="rgba(0,0,0,0.14)" />
+      <circle cx="160" cy="160" r="146" fill="rgba(0,0,0,0.16)" />
       <circle
-        cx="120"
-        cy="120"
-        r="82"
-        fill="url(#fnSettingsRing)"
-        stroke="rgba(255,255,255,0.18)"
+        cx="160"
+        cy="160"
+        r="125"
+        fill={`url(#${gradientId})`}
+        stroke="rgba(255,255,255,0.22)"
         strokeWidth="10"
+        mask={`url(#${maskId})`}
       />
-      <circle cx="120" cy="120" r="58" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
-      <text fill="rgba(245,236,255,0.88)" fontSize="16" fontWeight="800" letterSpacing="2">
-        <textPath href="#fnSettingsRingPath" startOffset="10%">
-          SETTINGS • SETTINGS • SETTINGS • SETTINGS •
+      <circle cx="160" cy="160" r="125" fill={`url(#${gradientId}-glow)`} mask={`url(#${maskId})`} />
+      <circle cx="160" cy="160" r="92" fill="transparent" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
+      <text fill="rgba(245,245,255,0.88)" fontSize="18" fontWeight="900" letterSpacing="2.4" style={{ textTransform: 'uppercase' }}>
+        <textPath href={`#${textPathId}`} startOffset="8%">
+          {label}
         </textPath>
       </text>
     </svg>
+  )
+}
+
+function SettingsRing({ className }: { className?: string }) {
+  return (
+    <DonutRing
+      className={className}
+      gradientId="fnSettingsRing"
+      maskId="fnSettingsMask"
+      textPathId="fnSettingsPath"
+      label="SETTINGS • SETTINGS • SETTINGS • SETTINGS • "
+      stops={[
+        { o: 0, c: '#b051ff' },
+        { o: 55, c: '#6b2cff' },
+        { o: 100, c: '#3a0bb2' },
+      ]}
+    />
   )
 }
 
@@ -160,24 +200,24 @@ function HomeOverlay() {
   return (
     <div className="pointer-events-none absolute inset-0 z-[30]">
       {/* top logo */}
-      <div className="absolute left-[60px] top-[18px]">
+      <div className="absolute left-[7%] top-[4%]">
         <FruitNinjaLogo />
       </div>
 
       {/* left sign */}
-      <WoodSign className="absolute left-[64px] top-[132px] rotate-[-6deg]" />
+      <WoodSign className="absolute left-[9%] top-[22%] rotate-[-6deg]" />
 
       {/* center start ring */}
-      <div className="absolute left-[370px] top-[238px] -translate-x-1/2 -translate-y-1/2">
-        <div className="relative h-[260px] w-[260px]">
+      <div className="absolute left-[55%] top-[62%] -translate-x-1/2 -translate-y-1/2">
+        <div className="relative h-[42%] w-[42%] min-h-[220px] min-w-[220px] max-h-[320px] max-w-[320px]">
           <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite]" />
           <div className="absolute inset-0 rounded-full shadow-[0_30px_70px_rgba(0,0,0,0.55)]" />
         </div>
       </div>
 
       {/* right settings ring */}
-      <div className="absolute left-[590px] top-[205px] -translate-x-1/2 -translate-y-1/2">
-        <div className="relative h-[170px] w-[170px]">
+      <div className="absolute left-[78%] top-[50%] -translate-x-1/2 -translate-y-1/2">
+        <div className="relative h-[28%] w-[28%] min-h-[140px] min-w-[140px] max-h-[220px] max-w-[220px]">
           <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
         </div>
       </div>

@@ -378,14 +378,46 @@ export class FruitNinjaGame {
       return screenToCameraFacingPlane(clientX, clientY, rect, this.camera, this.playPlaneCenter, out) != null
     }
 
-    // Use the same pixel placements as `HomeOverlay` for 1:1 alignment.
-    const uStart = 370 / Math.max(1, rect?.width ?? 1000)
-    const vStart = 238 / Math.max(1, rect?.height ?? 625)
-    const uSettings = 590 / Math.max(1, rect?.width ?? 1000)
-    const vSettings = 205 / Math.max(1, rect?.height ?? 625)
+    // Anchors match `HomeOverlay` (percent-based, responsive).
+    const uStart = 0.55
+    const vStart = 0.62
+    const uSettings = 0.78
+    const vSettings = 0.5
+
+    // Convert an on-screen pixel radius to a world-space radius at the play plane.
+    const worldRadiusAt = (u: number, v: number, px: number): number => {
+      if (!this.camera || !rect) return 0.6
+      const c = new THREE.Vector3()
+      const p = new THREE.Vector3()
+      const okC = screenToCameraFacingPlane(
+        rect.left + rect.width * u,
+        rect.top + rect.height * v,
+        rect,
+        this.camera,
+        this.playPlaneCenter,
+        c,
+      )
+      const okP = screenToCameraFacingPlane(
+        rect.left + rect.width * u + px,
+        rect.top + rect.height * v,
+        rect,
+        this.camera,
+        this.playPlaneCenter,
+        p,
+      )
+      if (!okC || !okP) return 0.6
+      return c.distanceTo(p)
+    }
+
+    // Ring sizes follow overlay sizing (as fraction of rect width, clamped).
+    const startRingPx = Math.max(220, Math.min(320, rect ? rect.width * 0.42 : 260))
+    const settingsRingPx = Math.max(140, Math.min(220, rect ? rect.width * 0.28 : 170))
+    // Inner hole radius in the SVG: 92 on a 320 viewbox.
+    const innerHoleRatio = 92 / 320
+    const wmRadius = worldRadiusAt(uStart, vStart, (startRingPx * innerHoleRatio) * 0.92)
+    const apRadius = worldRadiusAt(uSettings, vSettings, (settingsRingPx * innerHoleRatio) * 0.92)
 
     // Center start ring: watermelon (slice to start).
-    const wmRadius = 0.64
     const wmPos = new THREE.Vector3()
     const okWm = placeOnPlayPlane(uStart, vStart, wmPos)
     if (!okWm) {
@@ -417,7 +449,6 @@ export class FruitNinjaGame {
     })
 
     // Right settings ring: green apple (decorative).
-    const apRadius = 0.35
     const apPos = new THREE.Vector3()
     const okAp = placeOnPlayPlane(uSettings, vSettings, apPos)
     if (!okAp) {
@@ -450,6 +481,8 @@ export class FruitNinjaGame {
 
   private beginGameplayFromHome() {
     if (this.phase !== 'home') return
+    // clear the remaining home fruit immediately when we begin.
+    this.clearHomeDecor()
     this.phase = 'playing'
     this.spawnAcc = 0
     this.scheduleNextSpawn()
@@ -474,6 +507,7 @@ export class FruitNinjaGame {
       this.trail.resize(w, h)
       this.comboOverlay?.resize(w, h)
       this.syncCanvasLayout()
+      if (this.phase === 'home') this.spawnHomeDecor(true)
     })
     this.resizeObserver.observe(this.container)
     queueMicrotask(() => {
@@ -595,8 +629,8 @@ export class FruitNinjaGame {
     for (let i = 0; i < hit.length; i++) {
       const f = hit[i]!
       if (f.kind !== 'fruit') continue
-      // On home screen, only the starter watermelon is sliceable to begin.
-      if (this.phase === 'home' && !f.isStarter) continue
+      // On home screen: slicing ANY displayed fruit begins the game and clears both fruits.
+      const homeSlice = this.phase === 'home' && f.isHomeDecor
 
       const now = performance.now()
       const wasStarter = f.isStarter === true
@@ -623,7 +657,11 @@ export class FruitNinjaGame {
         this.comboOverlay?.pushCombo(this.scratchProj.x, this.scratchProj.y, this.combo, now)
       }
 
-      if (wasStarter) this.beginGameplayFromHome()
+      if (homeSlice || wasStarter) {
+        // Clear the other home fruit at the same time.
+        this.clearHomeDecor()
+        this.beginGameplayFromHome()
+      }
     }
 
     this.emitUi()
@@ -917,7 +955,7 @@ export class FruitNinjaGame {
     for (const ent of [...this.entities]) {
       const { x: fx, y: fy, z: fz } = ent.body.position
       if (this.phase === 'home' && ent.isHomeDecor && ent.homeAnchor && this.camera && this.cachedLayoutRect) {
-        // Keep home fruits anchored in screen space with a gentle bob/tilt (no physics).
+        // Keep home fruits anchored in screen space; slow rotation only (no bob).
         const anchor = ent.homeAnchor
         const pos = this.scratchWorld
         const ok = screenToCameraFacingPlane(
@@ -928,15 +966,14 @@ export class FruitNinjaGame {
           this.playPlaneCenter,
           pos,
         )
-        const bob = Math.sin(t * 0.004 + ent.id * 0.7) * 0.06
         if (ok) {
-          ent.root.position.set(pos.x, pos.y + bob, pos.z)
-          ent.body.position.set(pos.x, pos.y + bob, pos.z)
+          ent.root.position.set(pos.x, pos.y, pos.z)
+          ent.body.position.set(pos.x, pos.y, pos.z)
         } else {
-          ent.root.position.set(fx, fy + bob, fz)
-          ent.body.position.set(fx, fy + bob, fz)
+          ent.root.position.set(fx, fy, fz)
+          ent.body.position.set(fx, fy, fz)
         }
-        ent.root.rotation.y += 0.004
+        ent.root.rotation.y += 0.0018
       } else {
         ent.root.position.set(fx, fy, fz)
       }
