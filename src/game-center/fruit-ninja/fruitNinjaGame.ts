@@ -414,8 +414,9 @@ export class FruitNinjaGame {
     const settingsRingPx = Math.max(140, Math.min(220, rect ? rect.width * 0.28 : 170))
     // Inner hole radius in the SVG: 92 on a 320 viewbox.
     const innerHoleRatio = 92 / 320
-    const wmRadius = worldRadiusAt(uStart, vStart, (startRingPx * innerHoleRatio) * 0.92)
-    const apRadius = worldRadiusAt(uSettings, vSettings, (settingsRingPx * innerHoleRatio) * 0.92)
+    // Fruits should be clearly smaller than the ring hole (match Classic menu proportions).
+    const wmRadius = worldRadiusAt(uStart, vStart, (startRingPx * innerHoleRatio) * 0.74)
+    const apRadius = worldRadiusAt(uSettings, vSettings, (settingsRingPx * innerHoleRatio) * 0.70)
 
     // Center start ring: watermelon (slice to start).
     const wmPos = new THREE.Vector3()
@@ -973,12 +974,15 @@ export class FruitNinjaGame {
           ent.root.position.set(fx, fy, fz)
           ent.body.position.set(fx, fy, fz)
         }
-        ent.root.rotation.y += 0.0018
+        // Important: don't let body.quaternion overwrite this rotation later.
+        const ry = (t * 0.00055 + ent.id * 0.8) % (Math.PI * 2)
+        ent.root.rotation.set(0, ry, 0)
+        ent.body.quaternion.setFromEuler(0, ry, 0, 'XYZ')
       } else {
         ent.root.position.set(fx, fy, fz)
+        const q = ent.body.quaternion
+        ent.root.quaternion.set(q.x, q.y, q.z, q.w)
       }
-      const q = ent.body.quaternion
-      ent.root.quaternion.set(q.x, q.y, q.z, q.w)
 
       if (
         ent.kind === 'fruit' &&
