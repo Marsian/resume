@@ -379,10 +379,10 @@ export class FruitNinjaGame {
     }
 
     // Anchors match `HomeOverlay` (percent-based, responsive).
-    const uStart = 0.55
-    const vStart = 0.62
-    const uSettings = 0.78
-    const vSettings = 0.5
+    const uStart = 0.58
+    const vStart = 0.60
+    const uSettings = 0.82
+    const vSettings = 0.46
 
     // Convert an on-screen pixel radius to a world-space radius at the play plane.
     const worldRadiusAt = (u: number, v: number, px: number): number => {

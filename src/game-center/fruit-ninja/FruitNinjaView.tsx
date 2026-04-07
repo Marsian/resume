@@ -150,7 +150,10 @@ function FruitNinjaLogo({ className }: { className?: string }) {
   return (
     <div className={cn('pointer-events-none select-none', className)} aria-hidden="true">
       <div className="flex items-end gap-3">
-        <div className="text-[56px] font-black tracking-[0.14em] drop-shadow-[0_12px_24px_rgba(0,0,0,0.55)]">
+        <div
+          className="font-black tracking-[0.14em] drop-shadow-[0_14px_26px_rgba(0,0,0,0.55)]"
+          style={{ fontSize: 'clamp(44px, 6.2vw, 78px)' }}
+        >
           <span className="bg-gradient-to-b from-[#b85cff] via-[#7b45ff] to-[#3a18c9] bg-clip-text text-transparent">
             F
           </span>
@@ -167,7 +170,10 @@ function FruitNinjaLogo({ className }: { className?: string }) {
             T
           </span>
         </div>
-        <div className="text-[48px] font-black tracking-[0.18em] drop-shadow-[0_12px_24px_rgba(0,0,0,0.55)]">
+        <div
+          className="font-black tracking-[0.18em] drop-shadow-[0_14px_26px_rgba(0,0,0,0.55)]"
+          style={{ fontSize: 'clamp(38px, 5.2vw, 66px)' }}
+        >
           <span className="bg-gradient-to-b from-[#f8fbff] via-[#c8d3e0] to-[#6f7d8f] bg-clip-text text-transparent">
             NINJA
           </span>
@@ -200,15 +206,15 @@ function HomeOverlay() {
   return (
     <div className="pointer-events-none absolute inset-0 z-[30]">
       {/* top logo */}
-      <div className="absolute left-[7%] top-[4%]">
+      <div className="absolute left-[6%] top-[5%]">
         <FruitNinjaLogo />
       </div>
 
       {/* left sign */}
-      <WoodSign className="absolute left-[9%] top-[22%] rotate-[-6deg]" />
+      <WoodSign className="absolute left-[6.5%] top-[26%] rotate-[-6deg]" />
 
       {/* center start ring */}
-      <div className="absolute left-[55%] top-[62%] -translate-x-1/2 -translate-y-1/2">
+      <div className="absolute left-[58%] top-[60%] -translate-x-1/2 -translate-y-1/2">
         <div className="relative h-[42%] w-[42%] min-h-[220px] min-w-[220px] max-h-[320px] max-w-[320px]">
           <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite]" />
           <div className="absolute inset-0 rounded-full shadow-[0_30px_70px_rgba(0,0,0,0.55)]" />
@@ -216,7 +222,7 @@ function HomeOverlay() {
       </div>
 
       {/* right settings ring */}
-      <div className="absolute left-[78%] top-[50%] -translate-x-1/2 -translate-y-1/2">
+      <div className="absolute left-[82%] top-[46%] -translate-x-1/2 -translate-y-1/2">
         <div className="relative h-[28%] w-[28%] min-h-[140px] min-w-[140px] max-h-[220px] max-w-[220px]">
           <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
         </div>
