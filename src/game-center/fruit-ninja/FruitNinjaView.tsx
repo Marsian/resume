@@ -105,6 +105,175 @@ function SettingsRing({ className }: { className?: string }) {
   )
 }
 
+function FruitNinjaLogo({ className }: { className?: string }) {
+  // Pixel-ish logo: colored FRUIT + metallic NINJA with heavy drop shadows
+  return (
+    <div className={cn('pointer-events-none select-none', className)} aria-hidden="true">
+      <div className="flex items-end gap-3">
+        <div className="text-[56px] font-black tracking-[0.14em] drop-shadow-[0_12px_24px_rgba(0,0,0,0.55)]">
+          <span className="bg-gradient-to-b from-[#b85cff] via-[#7b45ff] to-[#3a18c9] bg-clip-text text-transparent">
+            F
+          </span>
+          <span className="bg-gradient-to-b from-[#ff4a4a] via-[#ff8a2a] to-[#b60d1b] bg-clip-text text-transparent">
+            R
+          </span>
+          <span className="bg-gradient-to-b from-[#ffd24a] via-[#ffb300] to-[#a36500] bg-clip-text text-transparent">
+            U
+          </span>
+          <span className="bg-gradient-to-b from-[#ffb31a] via-[#ff7a2a] to-[#9a3000] bg-clip-text text-transparent">
+            I
+          </span>
+          <span className="bg-gradient-to-b from-[#6dff5d] via-[#25c95a] to-[#0a6b3c] bg-clip-text text-transparent">
+            T
+          </span>
+        </div>
+        <div className="text-[48px] font-black tracking-[0.18em] drop-shadow-[0_12px_24px_rgba(0,0,0,0.55)]">
+          <span className="bg-gradient-to-b from-[#f8fbff] via-[#c8d3e0] to-[#6f7d8f] bg-clip-text text-transparent">
+            NINJA
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function WoodSign({ className }: { className?: string }) {
+  return (
+    <div className={cn('pointer-events-none select-none', className)} aria-hidden="true">
+      <div
+        className={cn(
+          'rounded-[10px] border border-[#3a250f]/85',
+          'bg-gradient-to-b from-[#f1d2a3] via-[#cc9a5f] to-[#7a4e23]',
+          'px-6 py-5',
+          'shadow-[0_18px_40px_rgba(0,0,0,0.45)]',
+        )}
+      >
+        <div className="text-[12px] font-black tracking-[0.2em] text-[#2a1a09]/90">TAP FRUIT</div>
+        <div className="mt-1 text-[12px] font-black tracking-[0.2em] text-[#2a1a09]/90">TO BEGIN</div>
+      </div>
+    </div>
+  )
+}
+
+function HomeOverlay() {
+  // Strictly independent UI layer (no HUD). All pointer events go to the canvas below.
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[30]">
+      {/* top logo */}
+      <div className="absolute left-[60px] top-[18px]">
+        <FruitNinjaLogo />
+      </div>
+
+      {/* left sign */}
+      <WoodSign className="absolute left-[64px] top-[132px] rotate-[-6deg]" />
+
+      {/* center start ring */}
+      <div className="absolute left-[370px] top-[238px] -translate-x-1/2 -translate-y-1/2">
+        <div className="relative h-[260px] w-[260px]">
+          <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite]" />
+          <div className="absolute inset-0 rounded-full shadow-[0_30px_70px_rgba(0,0,0,0.55)]" />
+        </div>
+      </div>
+
+      {/* right settings ring */}
+      <div className="absolute left-[590px] top-[205px] -translate-x-1/2 -translate-y-1/2">
+        <div className="relative h-[170px] w-[170px]">
+          <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GameOverOverlay({
+  score,
+  onRetry,
+  onQuit,
+}: {
+  score: number
+  onRetry: () => void
+  onQuit: () => void
+}) {
+  // Strict independent layer (no HUD). Click only on the two round buttons.
+  return (
+    <div className="absolute inset-0 z-[60]">
+      {/* parchment board */}
+      <div className="absolute left-1/2 top-[34px] w-[86%] -translate-x-1/2">
+        <div className="relative rounded-[10px] border border-[#6a4a1d]/70 bg-gradient-to-b from-[#f3e3be] via-[#e7d1a4] to-[#d7b77f] shadow-[0_22px_60px_rgba(0,0,0,0.55)]">
+          <div className="py-[28px] text-center">
+            <div
+              className="mx-auto text-[44px] font-black tracking-[0.12em] text-[#e4b54a]"
+              style={{ WebkitTextStroke: '8px rgba(90,60,18,0.92)' }}
+            >
+              SCORE
+            </div>
+            <div
+              className="mt-[-6px] text-[140px] font-black tabular-nums text-[#f2c24a]"
+              style={{
+                WebkitTextStroke: '12px rgba(90,60,18,0.92)',
+                textShadow: '0 10px 0 rgba(0,0,0,0.20)',
+                lineHeight: 1,
+              }}
+            >
+              {score}
+            </div>
+            <div
+              className="mt-[-10px] text-[36px] font-black tracking-[0.08em] text-[#e36b2f]"
+              style={{ WebkitTextStroke: '8px rgba(90,40,10,0.92)' }}
+            >
+              NEW BEST!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* retry button */}
+      <button
+        type="button"
+        aria-label="再玩一次"
+        onClick={onRetry}
+        className="absolute left-[36%] top-[78%] h-[140px] w-[140px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      />
+      <div className="pointer-events-none absolute left-[36%] top-[78%] h-[170px] w-[170px] -translate-x-1/2 -translate-y-1/2">
+        <StartRing className="absolute inset-0 opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" />
+      </div>
+
+      {/* quit button */}
+      <button
+        type="button"
+        aria-label="返回首页"
+        onClick={onQuit}
+        className="absolute left-[64%] top-[78%] h-[140px] w-[140px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      />
+      <div className="pointer-events-none absolute left-[64%] top-[78%] h-[170px] w-[170px] -translate-x-1/2 -translate-y-1/2">
+        <svg viewBox="0 0 320 320" className="absolute inset-0 opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" aria-hidden="true">
+          <defs>
+            <linearGradient id="fnQuitRing" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ff2a2a" />
+              <stop offset="55%" stopColor="#c01010" />
+              <stop offset="100%" stopColor="#6a0000" />
+            </linearGradient>
+            <mask id="fnQuitMask">
+              <rect x="0" y="0" width="320" height="320" fill="black" />
+              <circle cx="160" cy="160" r="125" fill="white" />
+              <circle cx="160" cy="160" r="92" fill="black" />
+            </mask>
+            <path id="fnQuitPath" d="M 160, 160 m -108, 0 a 108,108 0 1,1 216,0 a 108,108 0 1,1 -216,0" />
+          </defs>
+          <circle cx="160" cy="160" r="146" fill="rgba(0,0,0,0.18)" />
+          <circle cx="160" cy="160" r="125" fill="url(#fnQuitRing)" stroke="rgba(255,255,255,0.18)" strokeWidth="10" mask="url(#fnQuitMask)" />
+          <circle cx="160" cy="160" r="92" fill="transparent" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
+          <text fill="rgba(255,240,240,0.92)" fontSize="18" fontWeight="900" letterSpacing="2.4" style={{ textTransform: 'uppercase' }}>
+            <textPath href="#fnQuitPath" startOffset="10%">
+              QUIT • QUIT • QUIT • QUIT • QUIT •
+            </textPath>
+          </text>
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 export default function FruitNinjaView() {
   const navigate = useNavigate()
   const hostRef = useRef<HTMLDivElement>(null)
@@ -149,6 +318,7 @@ export default function FruitNinjaView() {
   }, [ui.paused, ui.gameOver, ui.phase])
 
   const { score, paused, misses, gameOver, phase, error } = ui
+  const showHud = phase === 'playing' && !gameOver
 
   return (
     <main
@@ -190,127 +360,44 @@ export default function FruitNinjaView() {
           <div className="relative aspect-[16/10] w-full min-h-[200px]">
             <div ref={hostRef} className="absolute inset-0" aria-label="Fruit Ninja playfield" />
 
-            <div
-              className={cn(
-                'pointer-events-none absolute left-2 top-2 z-10 sm:left-3 sm:top-3 transition-opacity',
-                phase === 'home' && !gameOver ? 'opacity-35' : 'opacity-100',
-              )}
-              aria-live="polite"
-              aria-label={`Score: ${score}`}
-            >
-              <div
-                className="font-mono text-2xl font-bold tabular-nums leading-tight text-white/95 drop-shadow-[0_0_4px_rgba(0,0,0,0.9)] sm:text-3xl"
-                data-testid="fruit-ninja-score"
-              >
-                {score}
-              </div>
-            </div>
-
-            <div
-              className={cn(
-                'pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1.5 sm:right-3 sm:top-3 transition-opacity',
-                phase === 'home' && !gameOver ? 'opacity-35' : 'opacity-100',
-              )}
-              aria-label={`Misses: ${misses} of ${GAME.missLimit}`}
-            >
-              {Array.from({ length: GAME.missLimit }).map((_, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    'font-black leading-none text-2xl sm:text-3xl',
-                    i < misses
-                      ? 'text-red-500 drop-shadow-[0_0_4px_rgba(0,0,0,0.9)]'
-                      : 'text-white/20 drop-shadow-[0_0_3px_rgba(0,0,0,0.7)]',
-                  )}
-                  aria-hidden="true"
+            {showHud ? (
+              <>
+                <div
+                  className="pointer-events-none absolute left-2 top-2 z-10 sm:left-3 sm:top-3"
+                  aria-live="polite"
+                  aria-label={`Score: ${score}`}
                 >
-                  ✕
-                </span>
-              ))}
-            </div>
-
-            {phase === 'home' && !gameOver ? (
-              <div className="pointer-events-none absolute inset-0 z-[12]">
-                {/* Top logo */}
-                <div className="absolute left-1/2 top-6 w-[min(92%,720px)] -translate-x-1/2 text-center sm:top-7">
-                  <div className="inline-flex items-end gap-3">
-                    <div
-                      className={cn(
-                        'select-none font-black tracking-[0.14em] drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)]',
-                        'text-4xl sm:text-5xl md:text-6xl',
-                      )}
-                      aria-hidden="true"
-                    >
-                      <span className="bg-gradient-to-b from-[#b85cff] via-[#7b45ff] to-[#3a18c9] bg-clip-text text-transparent">
-                        F
-                      </span>
-                      <span className="bg-gradient-to-b from-[#ff4a4a] via-[#ff8a2a] to-[#b60d1b] bg-clip-text text-transparent">
-                        R
-                      </span>
-                      <span className="bg-gradient-to-b from-[#ffd24a] via-[#ffb300] to-[#a36500] bg-clip-text text-transparent">
-                        U
-                      </span>
-                      <span className="bg-gradient-to-b from-[#ffb31a] via-[#ff7a2a] to-[#9a3000] bg-clip-text text-transparent">
-                        I
-                      </span>
-                      <span className="bg-gradient-to-b from-[#6dff5d] via-[#25c95a] to-[#0a6b3c] bg-clip-text text-transparent">
-                        T
-                      </span>
-                    </div>
-                    <div
-                      className={cn(
-                        'select-none font-black tracking-[0.18em]',
-                        'text-3xl sm:text-4xl md:text-5xl',
-                        'text-transparent bg-clip-text bg-gradient-to-b from-[#f8fbff] via-[#c8d3e0] to-[#6f7d8f]',
-                        'drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)]',
-                      )}
-                      aria-hidden="true"
-                    >
-                      NINJA
-                    </div>
-                  </div>
-                </div>
-
-                {/* Left wood sign */}
-                <div className="absolute left-6 top-[34%] -translate-y-1/2 rotate-[-6deg] sm:left-8">
                   <div
-                    className={cn(
-                      'rounded-lg border border-[#3a250f]/80 bg-gradient-to-b from-[#e3c08c] via-[#c9975a] to-[#7a4e23]',
-                      'px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.45)]',
-                    )}
+                    className="font-mono text-2xl font-bold tabular-nums leading-tight text-white/95 drop-shadow-[0_0_4px_rgba(0,0,0,0.9)] sm:text-3xl"
+                    data-testid="fruit-ninja-score"
                   >
-                    <div className="text-xs font-black tracking-[0.18em] text-[#2a1a09]/90 sm:text-sm">
-                      TAP FRUIT
-                    </div>
-                    <div className="mt-1 text-xs font-black tracking-[0.18em] text-[#2a1a09]/90 sm:text-sm">
-                      TO BEGIN
-                    </div>
+                    {score}
                   </div>
                 </div>
 
-                {/* Center start ring (watermelon rendered by 3D) */}
-                <div className="absolute left-1/2 top-[58%] -translate-x-1/2 -translate-y-1/2">
-                  <div className="relative h-[min(58vw,360px)] w-[min(58vw,360px)]">
-                    <StartRing className={cn('absolute inset-0', 'animate-[spin_18s_linear_infinite]')} />
-                    <div className="absolute inset-0 rounded-full shadow-[0_30px_70px_rgba(0,0,0,0.55)]" />
-                  </div>
+                <div
+                  className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1.5 sm:right-3 sm:top-3"
+                  aria-label={`Misses: ${misses} of ${GAME.missLimit}`}
+                >
+                  {Array.from({ length: GAME.missLimit }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        'font-black leading-none text-2xl sm:text-3xl',
+                        i < misses
+                          ? 'text-red-500 drop-shadow-[0_0_4px_rgba(0,0,0,0.9)]'
+                          : 'text-white/20 drop-shadow-[0_0_3px_rgba(0,0,0,0.7)]',
+                      )}
+                      aria-hidden="true"
+                    >
+                      ✕
+                    </span>
+                  ))}
                 </div>
-
-                {/* Right settings ring (decorative) */}
-                <div className="absolute right-8 top-[54%] hidden -translate-y-1/2 sm:block">
-                  <div className="relative h-[150px] w-[150px] opacity-95">
-                    <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
-                  </div>
-                </div>
-
-                {/* Bottom hint */}
-                <div className="absolute inset-x-0 bottom-5 flex justify-center px-6">
-                  <div className="rounded-full bg-black/35 px-4 py-2 text-xs font-semibold tracking-wide text-white/85 ring-1 ring-white/10 backdrop-blur-sm">
-                    切开中央大西瓜开始游戏
-                  </div>
-                </div>
-              </div>
+              </>
             ) : null}
+
+            {phase === 'home' && !gameOver ? <HomeOverlay /> : null}
 
             {paused && !gameOver ? (
               <div
@@ -337,23 +424,11 @@ export default function FruitNinjaView() {
               </div>
             ) : null}
             {gameOver ? (
-              <div className="pointer-events-none absolute inset-0 z-[40] flex items-center justify-center">
-                <div className="pointer-events-auto max-w-sm rounded-2xl border border-emerald-800/45 bg-gradient-to-b from-emerald-950/95 to-black/95 p-8 text-center shadow-2xl ring-2 ring-red-900/25">
-                  <div className="font-serif text-2xl font-bold uppercase tracking-[0.15em] text-emerald-50">
-                    Game Over
-                  </div>
-                  <p className="mt-3 text-sm text-emerald-200/75">Final score</p>
-                  <p className="mt-1 font-mono text-4xl font-bold tabular-nums text-white">{score}</p>
-                  <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-                    <Button type="button" onClick={() => gameRef.current?.restart()}>
-                      再玩一次
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => gameRef.current?.goToHomeScreen()}>
-                      返回首页
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <GameOverOverlay
+                score={score}
+                onRetry={() => gameRef.current?.restart()}
+                onQuit={() => gameRef.current?.goToHomeScreen()}
+              />
             ) : null}
           </div>
         </div>

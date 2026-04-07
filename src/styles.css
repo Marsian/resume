@@ -14,6 +14,7 @@
 /* 仅项目自用：首页标题动画（简历样式见 resume/resume.css） */
 @theme {
   --animate-fade-in-down-home: fade-in-down-home 0.6s ease both;
+  --animate-fn-pop: fn-pop 1.75s ease-in-out infinite;
 
   @keyframes fade-in-down-home {
     0% {
@@ -23,6 +24,21 @@
     100% {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  @keyframes fn-pop {
+    0% {
+      transform: translateY(10px) scale(0.96);
+      opacity: 0.92;
+    }
+    50% {
+      transform: translateY(-6px) scale(1.04);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(10px) scale(0.96);
+      opacity: 0.92;
     }
   }
 }
