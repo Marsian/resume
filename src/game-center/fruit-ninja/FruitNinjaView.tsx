@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,12 @@ import { cn } from '@/lib/utils'
 
 import { GAME } from './game/constants'
 import { type GameUiState, FruitNinjaGame } from './fruitNinjaGame'
+import {
+  computeGameOverLayout,
+  computeHomeRingLayout,
+  type GameOverLayout,
+  type HomeRingLayout,
+} from './homeMenuLayout'
 
 const initialUi: GameUiState = {
   score: 0,
@@ -201,7 +207,7 @@ function WoodSign({ className }: { className?: string }) {
   )
 }
 
-function HomeOverlay() {
+function HomeOverlay({ layout }: { layout: HomeRingLayout }) {
   // Strictly independent UI layer (no HUD). All pointer events go to the canvas below.
   return (
     <div className="pointer-events-none absolute inset-0 z-[30]">
@@ -224,13 +230,20 @@ function HomeOverlay() {
       {/* left sign */}
       <WoodSign className="absolute left-[6.5%] top-[26%] rotate-[-6deg]" />
 
-      {/* center start ring */}
-      <div className="absolute left-[54%] top-[60%] -translate-x-1/2 -translate-y-1/2 sm:left-[58%]">
+      {/* center start ring — position/size from `computeHomeRingLayout(playfield)` (matches 3D decor). */}
+      <div
+        className="absolute -translate-x-1/2 -translate-y-1/2"
+        style={{
+          left: `${layout.uStart * 100}%`,
+          top: `${layout.vStart * 100}%`,
+        }}
+      >
         <div
           className="relative"
+          data-testid="fruit-ninja-home-start-ring"
           style={{
-            width: 'clamp(160px, 32vw, 260px)',
-            height: 'clamp(160px, 32vw, 260px)',
+            width: layout.startRingPx,
+            height: layout.startRingPx,
           }}
         >
           <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite]" />
@@ -239,12 +252,19 @@ function HomeOverlay() {
       </div>
 
       {/* right settings ring */}
-      <div className="absolute left-[92%] top-[46%] -translate-x-1/2 -translate-y-1/2 sm:left-[82%]">
+      <div
+        className="absolute -translate-x-1/2 -translate-y-1/2"
+        style={{
+          left: `${layout.uSettings * 100}%`,
+          top: `${layout.vSettings * 100}%`,
+        }}
+      >
         <div
           className="relative"
+          data-testid="fruit-ninja-home-settings-ring"
           style={{
-            width: 'clamp(104px, 22vw, 200px)',
-            height: 'clamp(104px, 22vw, 200px)',
+            width: layout.settingsRingPx,
+            height: layout.settingsRingPx,
           }}
         >
           <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
@@ -258,39 +278,46 @@ function GameOverOverlay({
   score,
   onRetry,
   onQuit,
+  layout,
 }: {
   score: number
   onRetry: () => void
   onQuit: () => void
+  layout: GameOverLayout
 }) {
-  // Strict independent layer (no HUD). Click only on the two round buttons.
+  // Strict independent layer (no HUD). Pointer events must go to the canvas (slice-to-select).
   return (
-    <div className="absolute inset-0 z-[60]">
-      {/* parchment board */}
-      <div className="absolute left-1/2 top-[34px] w-[86%] -translate-x-1/2">
+    <div className="pointer-events-none absolute inset-0 z-[60]">
+      {/* parchment board — compact; sized in `computeGameOverLayout` to clear the bottom rings */}
+      <div
+        data-testid="fruit-ninja-gameover-score-board"
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          top: layout.scoreBoardTopPx,
+          width: `${layout.scoreBoardWidthPct}%`,
+        }}
+      >
         <div className="relative rounded-[10px] border border-[#6a4a1d]/70 bg-gradient-to-b from-[#f3e3be] via-[#e7d1a4] to-[#d7b77f] shadow-[0_22px_60px_rgba(0,0,0,0.55)]">
-          <div className="py-[28px] text-center">
+          <div className="text-center" style={{ paddingTop: layout.scoreBoardPaddingY, paddingBottom: layout.scoreBoardPaddingY }}>
             <div
-              className="mx-auto text-[44px] font-black tracking-[0.12em] text-[#e4b54a]"
-              style={{ WebkitTextStroke: '8px rgba(90,60,18,0.92)' }}
+              className="mx-auto font-black tracking-[0.12em] text-[#e4b54a]"
+              style={{
+                fontSize: layout.scoreTitlePx,
+                WebkitTextStroke: `${layout.scoreStrokeTitle}px rgba(90,60,18,0.92)`,
+              }}
             >
               SCORE
             </div>
             <div
-              className="mt-[-6px] text-[140px] font-black tabular-nums text-[#f2c24a]"
+              className="mx-auto mt-[-2px] font-black tabular-nums text-[#f2c24a]"
               style={{
-                WebkitTextStroke: '12px rgba(90,60,18,0.92)',
-                textShadow: '0 10px 0 rgba(0,0,0,0.20)',
+                fontSize: layout.scoreNumberPx,
+                WebkitTextStroke: `${layout.scoreStrokeNumber}px rgba(90,60,18,0.92)`,
+                textShadow: '0 6px 0 rgba(0,0,0,0.18)',
                 lineHeight: 1,
               }}
             >
               {score}
-            </div>
-            <div
-              className="mt-[-10px] text-[36px] font-black tracking-[0.08em] text-[#e36b2f]"
-              style={{ WebkitTextStroke: '8px rgba(90,40,10,0.92)' }}
-            >
-              NEW BEST!
             </div>
           </div>
         </div>
@@ -301,9 +328,25 @@ function GameOverOverlay({
         type="button"
         aria-label="再玩一次"
         onClick={onRetry}
-        className="absolute left-[36%] top-[78%] h-[140px] w-[140px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        data-testid="fruit-ninja-gameover-retry"
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          left: `${layout.uRetry * 100}%`,
+          top: `${layout.vButtons * 100}%`,
+          width: layout.buttonPx,
+          height: layout.buttonPx,
+        }}
       />
-      <div className="pointer-events-none absolute left-[36%] top-[78%] h-[170px] w-[170px] -translate-x-1/2 -translate-y-1/2">
+      <div
+        data-testid="fruit-ninja-gameover-retry-ring"
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+        style={{
+          left: `${layout.uRetry * 100}%`,
+          top: `${layout.vButtons * 100}%`,
+          width: layout.ringPx,
+          height: layout.ringPx,
+        }}
+      >
         <StartRing className="absolute inset-0 opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" />
       </div>
 
@@ -312,9 +355,25 @@ function GameOverOverlay({
         type="button"
         aria-label="返回首页"
         onClick={onQuit}
-        className="absolute left-[64%] top-[78%] h-[140px] w-[140px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        data-testid="fruit-ninja-gameover-quit"
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          left: `${layout.uQuit * 100}%`,
+          top: `${layout.vButtons * 100}%`,
+          width: layout.buttonPx,
+          height: layout.buttonPx,
+        }}
       />
-      <div className="pointer-events-none absolute left-[64%] top-[78%] h-[170px] w-[170px] -translate-x-1/2 -translate-y-1/2">
+      <div
+        data-testid="fruit-ninja-gameover-quit-ring"
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+        style={{
+          left: `${layout.uQuit * 100}%`,
+          top: `${layout.vButtons * 100}%`,
+          width: layout.ringPx,
+          height: layout.ringPx,
+        }}
+      >
         <svg viewBox="0 0 320 320" className="absolute inset-0 opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" aria-hidden="true">
           <defs>
             <linearGradient id="fnQuitRing" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -345,9 +404,12 @@ function GameOverOverlay({
 
 export default function FruitNinjaView() {
   const navigate = useNavigate()
+  const playfieldRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<FruitNinjaGame | null>(null)
   const [ui, setUi] = useState<GameUiState>(initialUi)
+  const [homeRingLayout, setHomeRingLayout] = useState<HomeRingLayout>(() => computeHomeRingLayout(720, 450))
+  const [gameOverLayout, setGameOverLayout] = useState<GameOverLayout>(() => computeGameOverLayout(720, 450))
 
   const reducedMotion = useMemo(() => {
     if (typeof window === 'undefined') return false
@@ -358,12 +420,35 @@ export default function FruitNinjaView() {
     setUi(s)
   }, [])
 
+  useLayoutEffect(() => {
+    const shell = playfieldRef.current
+    if (!shell) return
+    const update = () => {
+      const r = shell.getBoundingClientRect()
+      setHomeRingLayout(computeHomeRingLayout(r.width, r.height))
+      setGameOverLayout(computeGameOverLayout(r.width, r.height))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(shell)
+    return () => ro.disconnect()
+  }, [])
+
   useEffect(() => {
     const el = hostRef.current
     if (!el) return
     const game = new FruitNinjaGame(el, { onUi, reducedMotion })
     gameRef.current = game
     game.bootstrap()
+    // Debug helper for responsive sweeps.
+    try {
+      const qs = new URLSearchParams(window.location.search)
+      if (qs.get('debugGameOver') === '1') {
+        requestAnimationFrame(() => game.debugForceGameOver())
+      }
+    } catch {
+      /* ignore */
+    }
     return () => {
       game.dispose()
       gameRef.current = null
@@ -440,7 +525,11 @@ export default function FruitNinjaView() {
             'dark:border-emerald-800/35',
           )}
         >
-          <div className="relative aspect-[16/10] w-full min-h-[200px]">
+          <div
+            ref={playfieldRef}
+            data-testid="fruit-ninja-playfield"
+            className="relative aspect-[16/10] w-full min-h-[200px]"
+          >
             <div ref={hostRef} className="absolute inset-0" aria-label="Fruit Ninja playfield" />
 
             {/* vignette for classic menu mood */}
@@ -491,7 +580,7 @@ export default function FruitNinjaView() {
               </>
             ) : null}
 
-            {phase === 'home' && !gameOver ? <HomeOverlay /> : null}
+            {phase === 'home' && !gameOver ? <HomeOverlay layout={homeRingLayout} /> : null}
 
             {paused && !gameOver ? (
               <div
@@ -522,6 +611,7 @@ export default function FruitNinjaView() {
                 score={score}
                 onRetry={() => gameRef.current?.restart()}
                 onQuit={() => gameRef.current?.goToHomeScreen()}
+                layout={gameOverLayout}
               />
             ) : null}
           </div>

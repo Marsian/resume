@@ -25,6 +25,7 @@ import {
   createScene,
   fitRendererToContainer,
 } from './three/engine'
+import { computeGameOverLayout, computeHomeRingLayout } from './homeMenuLayout'
 
 export type GameUiState = {
   score: number
@@ -58,6 +59,8 @@ type WholeEntity = {
   isStarter?: boolean
   /** Decorative fruit used only on the home screen (never counts as miss / score). */
   isHomeDecor?: boolean
+  /** Decorative objects on the game-over screen (watermelon + bomb); not sliceable while overlay is up. */
+  isGameOverDecor?: boolean
   /** Anchor in screen space (0..1) for home decor placement. */
   homeAnchor?: { u: number; v: number }
 }
@@ -104,6 +107,8 @@ export class FruitNinjaGame {
   private paused = false
   private misses = 0
   private gameOver = false
+  private menuActionPending = false
+  private menuSliceCandidate: WholeEntity | null = null
   private shakeUntil = 0
   private phase: 'home' | 'playing' = 'home'
 
@@ -241,6 +246,7 @@ export class FruitNinjaGame {
 
   restart() {
     if (!this.world || !this.scene) return
+    this.menuActionPending = false
     for (let i = this.entities.length - 1; i >= 0; i--) {
       this.removeWhole(this.entities[i]!)
     }
@@ -266,6 +272,7 @@ export class FruitNinjaGame {
   /** Reset to the in-game home screen (starter watermelon), not the site game center. */
   goToHomeScreen() {
     if (!this.world || !this.scene) return
+    this.menuActionPending = false
     for (let i = this.entities.length - 1; i >= 0; i--) {
       this.removeWhole(this.entities[i]!)
     }
@@ -285,6 +292,17 @@ export class FruitNinjaGame {
     this.phase = 'home'
     if (this.camera) this.camera.position.copy(this.cameraHome)
     this.spawnHomeDecor()
+    this.emitUi()
+  }
+
+  /** Test-only helper (used by Playwright sweep via query param in `FruitNinjaView`). */
+  debugForceGameOver() {
+    if (this.disposed) return
+    if (this.phase !== 'playing') this.phase = 'playing'
+    this.gameOver = true
+    this.paused = true
+    this.misses = GAME.missLimit
+    this.clearGameplayAndSpawnGameOverDecor()
     this.emitUi()
   }
 
@@ -362,6 +380,147 @@ export class FruitNinjaGame {
     }
   }
 
+  private clearGameOverDecor() {
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const e = this.entities[i]!
+      if (e.isGameOverDecor) this.removeWhole(e)
+    }
+  }
+
+  /** Clear flying fruit/bombs/halves and show game-over ring props (Classic-style). */
+  private clearGameplayAndSpawnGameOverDecor() {
+    this.clearGameOverDecor()
+    for (const h of [...this.halves]) {
+      this.removeHalf(h)
+    }
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      this.removeWhole(this.entities[i]!)
+    }
+    // Ensure we have a fresh layout rect so props don't spawn at fallback positions then “fly in”.
+    this.syncCanvasLayout()
+    this.spawnGameOverDecor(true)
+  }
+
+  private spawnGameOverDecor(forceRelayout = false) {
+    if (!this.world || !this.scene || !this.gameOver) return
+    if (!forceRelayout && this.entities.some((e) => e.isGameOverDecor)) return
+    this.clearGameOverDecor()
+
+    const rect = this.cachedLayoutRect
+    if (!rect || !this.camera) {
+      // We'll retry on the next resize/layout sync.
+      requestAnimationFrame(() => {
+        if (this.disposed) return
+        this.syncCanvasLayout()
+        this.spawnGameOverDecor(true)
+      })
+      return
+    }
+    const camera = this.camera
+    const placeOnPlayPlane = (u: number, v: number, out: THREE.Vector3) => {
+      const clientX = rect.left + rect.width * u
+      const clientY = rect.top + rect.height * v
+      return screenToCameraFacingPlane(clientX, clientY, rect, camera, this.playPlaneCenter, out) != null
+    }
+
+    const { uRetry, uQuit, vButtons, ringPx } = computeGameOverLayout(rect?.width ?? 800, rect?.height ?? 500)
+
+    const worldRadiusAt = (u: number, v: number, px: number): number => {
+      const c = new THREE.Vector3()
+      const p = new THREE.Vector3()
+      const okC = screenToCameraFacingPlane(
+        rect.left + rect.width * u,
+        rect.top + rect.height * v,
+        rect,
+        camera,
+        this.playPlaneCenter,
+        c,
+      )
+      const okP = screenToCameraFacingPlane(
+        rect.left + rect.width * u + px,
+        rect.top + rect.height * v,
+        rect,
+        camera,
+        this.playPlaneCenter,
+        p,
+      )
+      if (!okC || !okP) return 0.6
+      return c.distanceTo(p)
+    }
+
+    const innerHoleRatio = 92 / 320
+    const wmRadius = worldRadiusAt(uRetry, vButtons, (ringPx * innerHoleRatio) * 0.62)
+    const bombRadius = worldRadiusAt(uQuit, vButtons, (ringPx * innerHoleRatio) * 0.52)
+
+    const wmPos = new THREE.Vector3()
+    const okWm = placeOnPlayPlane(uRetry, vButtons, wmPos)
+    if (!okWm) {
+      wmPos.set(this.playPlaneCenter.x - 0.9, this.playPlaneCenter.y - 0.1, this.playPlaneCenter.z)
+    }
+    const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x3aa44a)
+    wmRoot.position.copy(wmPos)
+    this.scene.add(wmRoot)
+    const wmBody = new CANNON.Body({
+      mass: 0,
+      type: CANNON.Body.STATIC,
+      shape: new CANNON.Sphere(wmRadius),
+      position: new CANNON.Vec3(wmPos.x, wmPos.y, wmPos.z),
+    })
+    this.world.addBody(wmBody)
+    this.entities.push({
+      id: this.nextId++,
+      root: wmRoot,
+      body: wmBody,
+      radius: wmRadius,
+      color: new THREE.Color(0x3aa44a),
+      fleshColor: new THREE.Color(0xff3a5c),
+      kind: 'fruit',
+      missTracked: true,
+      isStarter: false,
+      isGameOverDecor: true,
+      homeAnchor: { u: uRetry, v: vButtons },
+    })
+
+    const bombPos = new THREE.Vector3()
+    const okB = placeOnPlayPlane(uQuit, vButtons, bombPos)
+    if (!okB) {
+      bombPos.set(this.playPlaneCenter.x + 0.9, this.playPlaneCenter.y - 0.1, this.playPlaneCenter.z)
+    }
+    const bombRoot = createBombMesh(bombRadius)
+    bombRoot.position.copy(bombPos)
+    this.scene.add(bombRoot)
+    const bombBody = new CANNON.Body({
+      mass: 0,
+      type: CANNON.Body.STATIC,
+      shape: new CANNON.Sphere(bombRadius),
+      position: new CANNON.Vec3(bombPos.x, bombPos.y, bombPos.z),
+    })
+    this.world.addBody(bombBody)
+    this.entities.push({
+      id: this.nextId++,
+      root: bombRoot,
+      body: bombBody,
+      radius: bombRadius,
+      color: new THREE.Color(0xff3300),
+      fleshColor: new THREE.Color(0xff3300),
+      kind: 'bomb',
+      missTracked: true,
+      isGameOverDecor: true,
+      homeAnchor: { u: uQuit, v: vButtons },
+    })
+
+    // Debug aid for automated tests / diagnosis.
+    try {
+      ;(globalThis as any).__fnGameOverDecor = {
+        at: performance.now(),
+        watermelon: { u: uRetry, v: vButtons, r: wmRadius, ok: okWm, pos: { x: wmPos.x, y: wmPos.y, z: wmPos.z } },
+        bomb: { u: uQuit, v: vButtons, r: bombRadius, ok: okB, pos: { x: bombPos.x, y: bombPos.y, z: bombPos.z } },
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   private spawnHomeDecor(forceRelayout = false) {
     if (!this.world || !this.scene) return
     if (!forceRelayout) {
@@ -378,12 +537,10 @@ export class FruitNinjaGame {
       return screenToCameraFacingPlane(clientX, clientY, rect, this.camera, this.playPlaneCenter, out) != null
     }
 
-    // Anchors match `HomeOverlay` (percent-based, responsive).
-    const isNarrow = (rect?.width ?? 9999) <= 560
-    const uStart = isNarrow ? 0.54 : 0.58
-    const vStart = 0.60
-    const uSettings = isNarrow ? 0.92 : 0.82
-    const vSettings = 0.46
+    const { uStart, uSettings, vStart, vSettings, startRingPx, settingsRingPx } = computeHomeRingLayout(
+      rect?.width ?? 800,
+      rect?.height ?? 500,
+    )
 
     // Convert an on-screen pixel radius to a world-space radius at the play plane.
     const worldRadiusAt = (u: number, v: number, px: number): number => {
@@ -410,10 +567,6 @@ export class FruitNinjaGame {
       return c.distanceTo(p)
     }
 
-    // Ring sizes follow overlay sizing (as fraction of rect width, clamped).
-    // Match `HomeOverlay` sizing clamps.
-    const startRingPx = Math.max(160, Math.min(260, rect ? rect.width * 0.32 : 220))
-    const settingsRingPx = Math.max(104, Math.min(200, rect ? rect.width * 0.22 : 160))
     // Inner hole radius in the SVG: 92 on a 320 viewbox.
     const innerHoleRatio = 92 / 320
     // Fruits should be clearly smaller than the ring hole (match Classic menu proportions).
@@ -511,6 +664,7 @@ export class FruitNinjaGame {
       this.comboOverlay?.resize(w, h)
       this.syncCanvasLayout()
       if (this.phase === 'home') this.spawnHomeDecor(true)
+      if (this.gameOver) this.spawnGameOverDecor(true)
     })
     this.resizeObserver.observe(this.container)
     queueMicrotask(() => {
@@ -529,8 +683,10 @@ export class FruitNinjaGame {
 
   private readonly onPointerDown = (e: PointerEvent) => {
     this.audio.resumeFromGesture()
-    if (this.paused || this.gameOver || !this.canvas) return
+    // Allow slicing to select actions on the game-over screen.
+    if ((!this.gameOver && this.paused) || !this.canvas) return
     this.pointerDown = true
+    this.menuSliceCandidate = null
     this.stroke.length = 0
     this.syncCanvasLayout()
     this.canvas.setPointerCapture(e.pointerId)
@@ -540,7 +696,8 @@ export class FruitNinjaGame {
   }
 
   private readonly onPointerMove = (e: PointerEvent) => {
-    if (!this.pointerDown || this.paused || this.gameOver) return
+    if (!this.pointerDown) return
+    if (!this.gameOver && this.paused) return
     const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [e]
     for (const ev of coalesced) {
       this.appendStroke(ev.clientX, ev.clientY)
@@ -551,6 +708,9 @@ export class FruitNinjaGame {
 
   private readonly onPointerUp = (e: PointerEvent) => {
     this.pointerDown = false
+    if (this.gameOver) {
+      this.commitGameOverMenuSelection()
+    }
     this.stroke.length = 0
     try {
       this.canvas?.releasePointerCapture(e.pointerId)
@@ -560,50 +720,132 @@ export class FruitNinjaGame {
     this.trail?.fade()
   }
 
+  private commitGameOverMenuSelection() {
+    if (!this.gameOver) return
+    if (this.menuActionPending) return
+    const cand = this.menuSliceCandidate
+    this.menuSliceCandidate = null
+    if (!cand || !cand.isGameOverDecor) return
+    if (this.stroke.length < 2) return
+    const a0 = this.stroke[0]!
+    const b0 = this.stroke[this.stroke.length - 1]!
+    const { hits, okPlane, p0, p1 } = this.collectHitsForStrokeSegment(a0, b0)
+    if (!okPlane || !p0 || !p1) return
+    if (!hits.includes(cand)) return
+
+    // Stable cut normal from the stroke direction on the play plane.
+    const dx = p1.x - p0.x
+    const dz = p1.z - p0.z
+    let nx = -dz
+    let nz = dx
+    const nLen = Math.hypot(nx, nz) || 1
+    nx /= nLen
+    nz /= nLen
+    this.sliceNormal.set(nx, 0, nz)
+
+    this.menuActionPending = true
+    if (cand.kind === 'fruit') {
+      this.audio.playSlice()
+      this.sliceFruit(cand, p0, p1, this.sliceNormal)
+    } else {
+      if (this.juice) {
+        const pos = cand.body.position
+        this.scratchOrigin.set(pos.x, pos.y, pos.z)
+        this.juice.burstAt(this.scratchOrigin, new THREE.Color(0xff4400), 72)
+      }
+      this.removeWhole(cand)
+      this.audio.playBomb()
+    }
+
+    setTimeout(() => {
+      if (this.disposed) return
+      this.menuActionPending = false
+      if (cand.kind === 'fruit') this.restart()
+      else this.goToHomeScreen()
+    }, 650)
+  }
+
   private readonly onPointerLeave = () => {
     if (!this.pointerDown) this.trail?.fade()
   }
 
+  /**
+   * Unified hit test used by all phases.
+   * Project the stroke segment endpoints onto the camera-facing play plane and test
+   * distance to each entity center against its physics radius.
+   */
+  private collectHitsForStrokeSegment(a: { x: number; y: number }, b: { x: number; y: number }) {
+    const rect = this.cachedLayoutRect ?? this.canvas?.getBoundingClientRect() ?? null
+    if (!rect) return { hits: [] as WholeEntity[], okPlane: false, p0: null as THREE.Vector3 | null, p1: null as THREE.Vector3 | null }
+
+    const p0 = this.sliceEdgeWorld0
+    const p1 = this.sliceEdgeWorld1
+    const okA = rect.width > 0 && this.projectEdgeToPlayPlane(a, rect, p0)
+    const okB = rect.width > 0 && this.projectEdgeToPlayPlane(b, rect, p1)
+    if (!okA || !okB) return { hits: [] as WholeEntity[], okPlane: false, p0: null as THREE.Vector3 | null, p1: null as THREE.Vector3 | null }
+
+    const abx = p1.x - p0.x
+    const abz = p1.z - p0.z
+    const abLenSq = abx * abx + abz * abz
+    if (abLenSq < 1e-8) return { hits: [] as WholeEntity[], okPlane: true, p0, p1 }
+
+    const hits: WholeEntity[] = []
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const ent = this.entities[i]!
+      if (this.gameOver) {
+        if (!ent.isGameOverDecor) continue
+      } else {
+        if (ent.isGameOverDecor) continue
+      }
+
+      const cx = ent.body.position.x
+      const cz = ent.body.position.z
+      const apx = cx - p0.x
+      const apz = cz - p0.z
+      const tt = (apx * abx + apz * abz) / abLenSq
+      const tc = Math.max(0, Math.min(1, tt))
+      const nxp = p0.x + tc * abx
+      const nzp = p0.z + tc * abz
+      const dxp = cx - nxp
+      const dzp = cz - nzp
+      const d2 = dxp * dxp + dzp * dzp
+      if (d2 <= ent.radius * ent.radius) hits.push(ent)
+    }
+
+    return { hits, okPlane: true, p0, p1 }
+  }
+
   private appendStroke(clientX: number, clientY: number) {
-    const rect = this.cachedLayoutRect
+    const rect = this.cachedLayoutRect ?? this.canvas?.getBoundingClientRect() ?? null
     if (!rect) return
+    if (!this.cachedLayoutRect) this.cachedLayoutRect = rect
     const x = clientX - rect.left
     const y = clientY - rect.top
-    const last = this.stroke[this.stroke.length - 1]
-    if (last && Math.hypot(x - last.x, y - last.y) < 2) return
     this.stroke.push({ x, y })
     if (this.stroke.length > 120) this.stroke.shift()
   }
 
   private trySliceLatestSegment() {
-    if (this.stroke.length < 2 || !this.world || !this.camera || !this.renderer || this.gameOver) return
+    if (this.stroke.length < 2 || !this.world || !this.camera || !this.renderer) return
     const a = this.stroke[this.stroke.length - 2]!
     const b = this.stroke[this.stroke.length - 1]!
     const w = this.renderer.domElement.clientWidth
     const h = this.renderer.domElement.clientHeight
-    const threshBase = screenSliceHitSqThreshold(0.45)
-
     const hit = this.sliceHitScratch
     hit.length = 0
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const ent = this.entities[i]!
-      const t = ent.body.position
-      this.scratchWorld.set(t.x, t.y, t.z)
-      projectWorldToScreen(this.scratchWorld, this.camera, w, h, this.scratchProj)
-      const px = this.scratchProj.x
-      const py = this.scratchProj.y
-      const th = screenSliceHitSqThreshold(ent.radius)
-      const d2 = distPointSegmentSq2(px, py, a.x, a.y, b.x, b.y)
-      if (d2 <= Math.max(threshBase, th)) hit.push(ent)
-    }
+    const { hits, okPlane, p0, p1 } = this.collectHitsForStrokeSegment(a, b)
+    for (let i = 0; i < hits.length; i++) hit.push(hits[i]!)
 
     if (hit.length === 0) return
+    if (this.gameOver) {
+      // Only mark candidate during stroke; commit happens on pointer up.
+      const cand = hit.find((e) => e.kind === 'fruit') ?? hit[0]!
+      if (cand && cand.isGameOverDecor) this.menuSliceCandidate = cand
+      return
+    }
 
-    const rect = this.cachedLayoutRect ?? this.canvas!.getBoundingClientRect()
-    const p0 = this.sliceEdgeWorld0
-    const p1 = this.sliceEdgeWorld1
-    const okA = this.camera && rect.width > 0 && this.projectEdgeToPlayPlane(a, rect, p0)
-    const okB = this.camera && rect.width > 0 && this.projectEdgeToPlayPlane(b, rect, p1)
+    const okA = okPlane && p0 != null
+    const okB = okPlane && p1 != null
     let nx = 1
     let nz = 0
     if (okA && okB) {
@@ -701,6 +943,7 @@ export class FruitNinjaGame {
       this.gameOver = true
       this.paused = true
       this.audio.playGameOver()
+      this.clearGameplayAndSpawnGameOverDecor()
     }
   }
 
@@ -856,6 +1099,7 @@ export class FruitNinjaGame {
       this.gameOver = true
       this.paused = true
       this.audio.playGameOver()
+      this.clearGameplayAndSpawnGameOverDecor()
     }
     this.emitUi()
   }
@@ -957,8 +1201,13 @@ export class FruitNinjaGame {
 
     for (const ent of [...this.entities]) {
       const { x: fx, y: fy, z: fz } = ent.body.position
-      if (this.phase === 'home' && ent.isHomeDecor && ent.homeAnchor && this.camera && this.cachedLayoutRect) {
-        // Keep home fruits anchored in screen space; slow rotation only (no bob).
+      if (
+        ((this.phase === 'home' && ent.isHomeDecor) || (this.gameOver && ent.isGameOverDecor)) &&
+        ent.homeAnchor &&
+        this.camera &&
+        this.cachedLayoutRect
+      ) {
+        // Keep home / game-over props anchored in screen space; slow rotation only (no bob).
         const anchor = ent.homeAnchor
         const pos = this.scratchWorld
         const ok = screenToCameraFacingPlane(
@@ -979,8 +1228,10 @@ export class FruitNinjaGame {
         // Important: don't let body.quaternion overwrite this rotation later.
         const ry = (t * 0.00055 + ent.id * 0.8) % (Math.PI * 2)
         // Give a stable tilt like the Classic menu (slight pitch/roll) + slow yaw.
-        const tiltX = ent.isStarter ? -0.22 : -0.18
-        const tiltZ = ent.isStarter ? 0.18 : 0.22
+        const tiltX =
+          ent.kind === 'bomb' ? -0.26 : ent.isStarter ? -0.22 : -0.18
+        const tiltZ =
+          ent.kind === 'bomb' ? 0.2 : ent.isStarter ? 0.18 : 0.22
         ent.root.rotation.set(tiltX, ry, tiltZ)
         ent.body.quaternion.setFromEuler(tiltX, ry, tiltZ, 'XYZ')
       } else {
@@ -993,6 +1244,7 @@ export class FruitNinjaGame {
         ent.kind === 'fruit' &&
         !ent.isStarter &&
         !ent.isHomeDecor &&
+        !ent.isGameOverDecor &&
         !ent.missTracked &&
         ent.body.velocity.y < -0.35 &&
         fy < GAME.missY
