@@ -32,6 +32,13 @@ function StartRing({ className }: { className?: string }) {
           <stop offset="60%" stopColor="rgba(255,255,255,0.0)" />
           <stop offset="100%" stopColor="rgba(0,0,0,0.25)" />
         </radialGradient>
+        <mask id="fnStartRingMask">
+          <rect x="0" y="0" width="320" height="320" fill="black" />
+          {/* show outer disk */}
+          <circle cx="160" cy="160" r="125" fill="white" />
+          {/* cut inner hole */}
+          <circle cx="160" cy="160" r="92" fill="black" />
+        </mask>
         <path
           id="fnStartRingPath"
           d="M 160, 160 m -108, 0 a 108,108 0 1,1 216,0 a 108,108 0 1,1 -216,0"
@@ -45,17 +52,11 @@ function StartRing({ className }: { className?: string }) {
         fill="url(#fnStartRing)"
         stroke="rgba(255,255,255,0.22)"
         strokeWidth="10"
+        mask="url(#fnStartRingMask)"
       />
-      <circle cx="160" cy="160" r="125" fill="url(#fnStartRingGlow)" />
-      {/* Inner hole: keep transparent so the 3D starter watermelon stays visible & sliceable. */}
-      <circle
-        cx="160"
-        cy="160"
-        r="92"
-        fill="transparent"
-        stroke="rgba(255,255,255,0.10)"
-        strokeWidth="6"
-      />
+      <circle cx="160" cy="160" r="125" fill="url(#fnStartRingGlow)" mask="url(#fnStartRingMask)" />
+      {/* Inner rim */}
+      <circle cx="160" cy="160" r="92" fill="transparent" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
       <text
         fill="rgba(232,248,255,0.92)"
         fontSize="18"
