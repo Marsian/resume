@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { GameAudio } from './audio/gameAudio'
 import { GAME, SLICE } from './game/constants'
 import { createBombMesh, createFruitMesh, disposeObject3D } from './game/meshes'
-import { pickFruitKind, randomAngularImpulse, sampleBurstSpawnCount, SPAWN } from './game/spawn'
+import { pickFruitKind, randomAngularImpulse, sampleBurstSpawnCount, SPAWN, type FruitArchetype } from './game/spawn'
 import { fillPlayPlaneBasis, sampleSpawnKinematics } from './game/spawnPlane'
 import { createFruitHalfMesh, disposeFruitHalfRoot } from './game/fruitHalfMesh'
 import {
@@ -52,6 +52,8 @@ type WholeEntity = {
   color: THREE.Color
   /** Pulp color for sliced halves (may differ from skin, e.g. watermelon). */
   fleshColor: THREE.Color
+  /** Only present for fruits (not bombs). */
+  fruitType?: FruitArchetype
   kind: 'fruit' | 'bomb'
   /** True once we counted a “miss” for this fruit */
   missTracked: boolean
@@ -80,6 +82,28 @@ type ExplosionFx = {
   endAt: number
   baseScale: number
 }
+
+// Stable per-archetype radii (no randomness). Relative sizes: watermelon largest, cherry smallest.
+const FRUIT_RADIUS: Record<FruitArchetype, number> = {
+  watermelon: 0.58,
+  pineapple: 0.56,
+  coconut: 0.54,
+  mango: 0.52,
+  pear: 0.51,
+  peach: 0.50,
+  apple: 0.49,
+  orange: 0.48,
+  plum: 0.46,
+  passionfruit: 0.45,
+  lemon: 0.44,
+  lime: 0.43,
+  kiwi: 0.42,
+  strawberry: 0.41,
+  banana: 0.47,
+  cherry: 0.38,
+}
+
+const BOMB_RADIUS = 0.50
 
 function fruitMassFromRadius(r: number) {
   return Math.max(0.4, r * r * r * 5.5)
@@ -518,7 +542,10 @@ export class FruitNinjaGame {
       type: CANNON.Body.STATIC,
       shape: new CANNON.Sphere(wmRadius),
       position: new CANNON.Vec3(wmPos.x, wmPos.y, wmPos.z),
+      collisionFilterGroup: 0,
+      collisionFilterMask: 0,
     })
+    wmBody.collisionResponse = false
     this.world.addBody(wmBody)
     this.entities.push({
       id: this.nextId++,
@@ -544,7 +571,10 @@ export class FruitNinjaGame {
       type: CANNON.Body.STATIC,
       shape: new CANNON.Sphere(bombRadius),
       position: new CANNON.Vec3(bombPos.x, bombPos.y, bombPos.z),
+      collisionFilterGroup: 0,
+      collisionFilterMask: 0,
     })
+    bombBody.collisionResponse = false
     this.world.addBody(bombBody)
     this.entities.push({
       id: this.nextId++,
@@ -640,7 +670,10 @@ export class FruitNinjaGame {
       type: CANNON.Body.STATIC,
       shape: new CANNON.Sphere(wmRadius),
       position: new CANNON.Vec3(wmPos.x, wmPos.y, wmPos.z),
+      collisionFilterGroup: 0,
+      collisionFilterMask: 0,
     })
+    wmBody.collisionResponse = false
     this.world.addBody(wmBody)
     this.entities.push({
       id: this.nextId++,
@@ -671,7 +704,10 @@ export class FruitNinjaGame {
       type: CANNON.Body.STATIC,
       shape: new CANNON.Sphere(apRadius),
       position: new CANNON.Vec3(apPos.x, apPos.y, apPos.z),
+      collisionFilterGroup: 0,
+      collisionFilterMask: 0,
     })
+    apBody.collisionResponse = false
     this.world.addBody(apBody)
     this.entities.push({
       id: this.nextId++,
@@ -882,12 +918,26 @@ export class FruitNinjaGame {
     const okB = rect.width > 0 && this.projectEdgeToPlayPlane(b, rect, p1)
     if (!okA || !okB) return { hits: [] as WholeEntity[], okPlane: false, p0: null as THREE.Vector3 | null, p1: null as THREE.Vector3 | null }
 
-    const abx = p1.x - p0.x
-    const abz = p1.z - p0.z
-    const abLenSq = abx * abx + abz * abz
-    if (abLenSq < 1e-8) return { hits: [] as WholeEntity[], okPlane: true, p0, p1 }
-
     const hits: WholeEntity[] = []
+    // Hit-test in SCREEN space so only a blade pass over the object can slice it.
+    // Using a world-space segment on a play-plane can produce “far away hits” when objects have Y/depth offsets.
+    if (!this.camera) return { hits, okPlane: true, p0, p1 }
+    const cam = this.camera
+    const w = rect.width
+    const h = rect.height
+    const ax = a.x
+    const ay = a.y
+    const bx = b.x
+    const by = b.y
+    const segLenSq = (bx - ax) * (bx - ax) + (by - ay) * (by - ay)
+    if (segLenSq < 1e-4) return { hits, okPlane: true, p0, p1 }
+
+    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion).normalize()
+    const cWorld = new THREE.Vector3()
+    const cWorldR = new THREE.Vector3()
+    const cScr = new THREE.Vector3()
+    const rScr = new THREE.Vector3()
+
     for (let i = this.entities.length - 1; i >= 0; i--) {
       const ent = this.entities[i]!
       if (this.gameOver) {
@@ -897,18 +947,18 @@ export class FruitNinjaGame {
       }
       if (!ent.root.visible) continue
 
-      const cx = ent.body.position.x
-      const cz = ent.body.position.z
-      const apx = cx - p0.x
-      const apz = cz - p0.z
-      const tt = (apx * abx + apz * abz) / abLenSq
-      const tc = Math.max(0, Math.min(1, tt))
-      const nxp = p0.x + tc * abx
-      const nzp = p0.z + tc * abz
-      const dxp = cx - nxp
-      const dzp = cz - nzp
-      const d2 = dxp * dxp + dzp * dzp
-      if (d2 <= ent.radius * ent.radius) hits.push(ent)
+      cWorld.set(ent.body.position.x, ent.body.position.y, ent.body.position.z)
+      projectWorldToScreen(cWorld, cam, w, h, cScr)
+
+      cWorldR.copy(cWorld).addScaledVector(camRight, ent.radius)
+      projectWorldToScreen(cWorldR, cam, w, h, rScr)
+      const rPx = Math.max(6, Math.hypot(rScr.x - cScr.x, rScr.y - cScr.y))
+
+      // Slightly stricter for bombs to reduce accidental hits.
+      const pad = ent.kind === 'bomb' ? 0.82 : 0.95
+      const rr = rPx * pad
+      const d2 = distPointSegmentSq2(cScr.x, cScr.y, ax, ay, bx, by)
+      if (d2 <= rr * rr) hits.push(ent)
     }
 
     return { hits, okPlane: true, p0, p1 }
@@ -921,6 +971,15 @@ export class FruitNinjaGame {
     const okA = rect.width > 0 && this.projectEdgeToPlayPlane(a, rect, p)
     if (!okA) return { hits: [] as WholeEntity[], okPlane: false, p: null as THREE.Vector3 | null }
     const hits: WholeEntity[] = []
+    if (!this.camera) return { hits, okPlane: true, p }
+    const cam = this.camera
+    const w = rect.width
+    const h = rect.height
+    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion).normalize()
+    const cWorld = new THREE.Vector3()
+    const cWorldR = new THREE.Vector3()
+    const cScr = new THREE.Vector3()
+    const rScr = new THREE.Vector3()
     for (let i = this.entities.length - 1; i >= 0; i--) {
       const ent = this.entities[i]!
       if (this.gameOver) {
@@ -929,12 +988,16 @@ export class FruitNinjaGame {
         if (ent.isGameOverDecor) continue
       }
       if (!ent.root.visible) continue
-      const cx = ent.body.position.x
-      const cz = ent.body.position.z
-      const dx = cx - p.x
-      const dz = cz - p.z
-      const d2 = dx * dx + dz * dz
-      if (d2 <= ent.radius * ent.radius) hits.push(ent)
+      cWorld.set(ent.body.position.x, ent.body.position.y, ent.body.position.z)
+      projectWorldToScreen(cWorld, cam, w, h, cScr)
+      cWorldR.copy(cWorld).addScaledVector(camRight, ent.radius)
+      projectWorldToScreen(cWorldR, cam, w, h, rScr)
+      const rPx = Math.max(6, Math.hypot(rScr.x - cScr.x, rScr.y - cScr.y))
+      const pad = ent.kind === 'bomb' ? 0.82 : 0.95
+      const rr = rPx * pad
+      const dx = cScr.x - a.x
+      const dy = cScr.y - a.y
+      if (dx * dx + dy * dy <= rr * rr) hits.push(ent)
     }
     return { hits, okPlane: true, p }
   }
@@ -1143,6 +1206,7 @@ export class FruitNinjaGame {
     const bv = ent.body.velocity
     const planeRight = this.slicePlaneRight
 
+    const fruitType = ent.fruitType ?? 'apple'
     for (const sign of [-1, 1] as const) {
       this.sliceHalfOutward.copy(sep).multiplyScalar(sign)
 
@@ -1150,7 +1214,7 @@ export class FruitNinjaGame {
       const y = t.y + sep.y * sign * off + planeUp.y * lift
       const z = t.z + sep.z * sign * off + planeUp.z * lift
 
-      const root = createFruitHalfMesh(r, this.sliceHalfOutward, ent.color, flesh)
+      const root = createFruitHalfMesh(r, this.sliceHalfOutward, ent.color, flesh, fruitType, sign)
       root.position.set(x, y, z)
       this.scene.add(root)
 
@@ -1235,8 +1299,8 @@ export class FruitNinjaGame {
     if (this.entities.length >= GAME.maxWholeEntities) return
 
     const isBomb = Math.random() < GAME.bombSpawnChance
-    const radius =
-      SPAWN.radiusMin + Math.random() * (SPAWN.radiusMax - SPAWN.radiusMin)
+    const k = isBomb ? null : pickFruitKind()
+    const radius = isBomb ? BOMB_RADIUS : FRUIT_RADIUS[k!.kind]
     const { position: p0, velocity: v0 } = sampleSpawnKinematics(
       this.camera,
       this.playPlaneCenter,
@@ -1249,18 +1313,20 @@ export class FruitNinjaGame {
     let root: THREE.Group
     let color: THREE.Color
     let fleshColor: THREE.Color
+    let fruitType: FruitArchetype | undefined
     let kind: 'fruit' | 'bomb'
 
     if (isBomb) {
       root = createBombMesh(radius)
       color = new THREE.Color(0xff3300)
       fleshColor = color.clone()
+      fruitType = undefined
       kind = 'bomb'
     } else {
-      const k = pickFruitKind()
-      root = createFruitMesh(radius, k.kind, k.skin)
-      color = new THREE.Color(k.skin)
-      fleshColor = new THREE.Color(k.flesh)
+      root = createFruitMesh(radius, k!.kind, k!.skin)
+      color = new THREE.Color(k!.skin)
+      fleshColor = new THREE.Color(k!.flesh)
+      fruitType = k!.kind
       kind = 'fruit'
     }
 
@@ -1275,7 +1341,10 @@ export class FruitNinjaGame {
       position: new CANNON.Vec3(x, y, z),
       velocity: new CANNON.Vec3(v0.x, v0.y, v0.z),
       angularVelocity: new CANNON.Vec3(ang.ax, ang.ay, ang.az),
+      collisionFilterGroup: 0,
+      collisionFilterMask: 0,
     })
+    body.collisionResponse = false
     this.world.addBody(body)
 
     this.entities.push({
@@ -1285,6 +1354,7 @@ export class FruitNinjaGame {
       radius,
       color,
       fleshColor,
+      fruitType,
       kind,
       missTracked: false,
     })
