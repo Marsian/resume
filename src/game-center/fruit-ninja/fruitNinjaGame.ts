@@ -2,6 +2,7 @@ import * as CANNON from 'cannon-es'
 import * as THREE from 'three'
 
 import { GameAudio } from './audio/gameAudio'
+import { BOMB_RADIUS, FRUIT_RADIUS, fruitMassFromRadius } from './game/entityParams'
 import { GAME, SLICE } from './game/constants'
 import { createBombMesh, createFruitMesh, disposeObject3D } from './game/meshes'
 import { pickFruitKind, randomAngularImpulse, sampleBurstSpawnCount, SPAWN, type FruitArchetype } from './game/spawn'
@@ -10,7 +11,6 @@ import { createFruitHalfMesh, disposeFruitHalfRoot } from './game/fruitHalfMesh'
 import {
   distPointSegmentSq2,
   projectWorldToScreen,
-  screenSliceHitSqThreshold,
   screenToCameraFacingPlane,
 } from './game/slice'
 import { ComboOverlay2d } from './fx/comboOverlay2d'
@@ -25,7 +25,15 @@ import {
   createScene,
   fitRendererToContainer,
 } from './three/engine'
-import { computeGameOverLayout, computeHomeRingLayout } from './homeMenuLayout'
+import type { ExplosionFx, FruitHalf, WholeEntity } from './game/types'
+import { updateExplosions } from './game/loop/explosions'
+import {
+  clearGameplayAndSpawnGameOverDecor as clearGameplayAndSpawnGameOverDecorImpl,
+  clearGameOverDecor as clearGameOverDecorImpl,
+  clearHomeDecor as clearHomeDecorImpl,
+  spawnGameOverDecor as spawnGameOverDecorImpl,
+  spawnHomeDecor as spawnHomeDecorImpl,
+} from './game/decor'
 
 export type GameUiState = {
   score: number
@@ -44,71 +52,7 @@ export type FruitNinjaGameOptions = {
   reducedMotion?: boolean
 }
 
-type WholeEntity = {
-  id: number
-  root: THREE.Group
-  body: CANNON.Body
-  radius: number
-  color: THREE.Color
-  /** Pulp color for sliced halves (may differ from skin, e.g. watermelon). */
-  fleshColor: THREE.Color
-  /** Only present for fruits (not bombs). */
-  fruitType?: FruitArchetype
-  kind: 'fruit' | 'bomb'
-  /** True once we counted a “miss” for this fruit */
-  missTracked: boolean
-  /** Opening watermelon — slice once to leave `home` phase; never counts as a miss. */
-  isStarter?: boolean
-  /** Decorative fruit used only on the home screen (never counts as miss / score). */
-  isHomeDecor?: boolean
-  /** Decorative objects on the game-over screen (watermelon + bomb); not sliceable while overlay is up. */
-  isGameOverDecor?: boolean
-  /** Anchor in screen space (0..1) for home decor placement. */
-  homeAnchor?: { u: number; v: number }
-  /** Decor visibility is gated until anchor position stabilizes. */
-  _anchorLastPos?: THREE.Vector3
-  _anchorStableFrames?: number
-}
-
-type FruitHalf = {
-  root: THREE.Group
-  body: CANNON.Body
-  removeAt: number
-}
-
-type ExplosionFx = {
-  mesh: THREE.Mesh
-  startAt: number
-  endAt: number
-  baseScale: number
-}
-
-// Stable per-archetype radii (no randomness). Relative sizes: watermelon largest, cherry smallest.
-const FRUIT_RADIUS: Record<FruitArchetype, number> = {
-  // Globally larger fruits; watermelon gets an extra bump.
-  watermelon: 1.02,
-  pineapple: 0.63,
-  coconut: 0.60,
-  mango: 0.58,
-  pear: 0.57,
-  peach: 0.56,
-  apple: 0.55,
-  orange: 0.54,
-  plum: 0.52,
-  passionfruit: 0.50,
-  lemon: 0.49,
-  lime: 0.48,
-  kiwi: 0.47,
-  strawberry: 0.46,
-  banana: 0.53,
-  cherry: 0.43,
-}
-
-const BOMB_RADIUS = 0.50
-
-function fruitMassFromRadius(r: number) {
-  return Math.max(0.4, r * r * r * 5.5)
-}
+// (moved) WholeEntity/FruitHalf/ExplosionFx live in `game/types.ts`
 
 export class FruitNinjaGame {
   private readonly container: HTMLElement
@@ -440,288 +384,54 @@ export class FruitNinjaGame {
   }
 
   private clearHomeDecor() {
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const e = this.entities[i]!
-      if (e.isHomeDecor) this.removeWhole(e)
-    }
+    clearHomeDecorImpl(this.decorCtx())
   }
 
   private clearGameOverDecor() {
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const e = this.entities[i]!
-      if (e.isGameOverDecor) this.removeWhole(e)
-    }
+    clearGameOverDecorImpl(this.decorCtx())
   }
 
   /** Clear flying fruit/bombs/halves and show game-over ring props (Classic-style). */
   private clearGameplayAndSpawnGameOverDecor() {
-    this.clearGameOverDecor()
-    for (const h of [...this.halves]) {
-      this.removeHalf(h)
-    }
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      this.removeWhole(this.entities[i]!)
-    }
-    // Ensure we have a fresh layout rect so props don't spawn at fallback positions then “fly in”.
-    this.syncCanvasLayout()
-    this.spawnGameOverDecor(true)
+    const ctx = this.decorCtx()
+    clearGameplayAndSpawnGameOverDecorImpl(ctx)
   }
 
   private spawnGameOverDecor(forceRelayout = false) {
     if (!this.world || !this.scene || !this.gameOver) return
-    if (!forceRelayout && this.entities.some((e) => e.isGameOverDecor)) return
-    this.clearGameOverDecor()
-    this.gameOverDecorReady = false
-    this.gameOverFxUntil = 0
-
-    const rect = this.cachedLayoutRect
-    if (!rect || !this.camera) {
-      // We'll retry on the next resize/layout sync.
-      requestAnimationFrame(() => {
-        if (this.disposed) return
-        this.syncCanvasLayout()
-        this.spawnGameOverDecor(true)
-      })
-      return
-    }
-    const camera = this.camera
-    const placeOnPlayPlane = (u: number, v: number, out: THREE.Vector3) => {
-      const clientX = rect.left + rect.width * u
-      const clientY = rect.top + rect.height * v
-      return screenToCameraFacingPlane(clientX, clientY, rect, camera, this.playPlaneCenter, out) != null
-    }
-
-    const { uRetry, uQuit, vButtons, ringPx } = computeGameOverLayout(rect?.width ?? 800, rect?.height ?? 500)
-
-    const worldRadiusAt = (u: number, v: number, px: number): number => {
-      const c = new THREE.Vector3()
-      const p = new THREE.Vector3()
-      const okC = screenToCameraFacingPlane(
-        rect.left + rect.width * u,
-        rect.top + rect.height * v,
-        rect,
-        camera,
-        this.playPlaneCenter,
-        c,
-      )
-      const okP = screenToCameraFacingPlane(
-        rect.left + rect.width * u + px,
-        rect.top + rect.height * v,
-        rect,
-        camera,
-        this.playPlaneCenter,
-        p,
-      )
-      if (!okC || !okP) return 0.6
-      return c.distanceTo(p)
-    }
-
-    const innerHoleRatio = 92 / 320
-    const wmRadius = worldRadiusAt(uRetry, vButtons, (ringPx * innerHoleRatio) * 0.62)
-    const bombRadius = worldRadiusAt(uQuit, vButtons, (ringPx * innerHoleRatio) * 0.52)
-
-    const wmPos = new THREE.Vector3()
-    const okWm = placeOnPlayPlane(uRetry, vButtons, wmPos)
-    const bombPos = new THREE.Vector3()
-    const okB = placeOnPlayPlane(uQuit, vButtons, bombPos)
-    // If layout/camera are not stable yet, do not render or allow interaction.
-    // Retry next frame so props appear only once they have a fixed anchor.
-    if (!okWm || !okB || wmRadius <= 0.001 || bombRadius <= 0.001 || rect.width < 2 || rect.height < 2) {
-      requestAnimationFrame(() => {
-        if (this.disposed) return
-        this.syncCanvasLayout()
-        this.spawnGameOverDecor(true)
-      })
-      return
-    }
-    const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x3aa44a)
-    wmRoot.position.copy(wmPos)
-    wmRoot.visible = false
-    this.scene.add(wmRoot)
-    const wmBody = new CANNON.Body({
-      mass: 0,
-      type: CANNON.Body.STATIC,
-      shape: new CANNON.Sphere(wmRadius),
-      position: new CANNON.Vec3(wmPos.x, wmPos.y, wmPos.z),
-      collisionFilterGroup: 0,
-      collisionFilterMask: 0,
-    })
-    wmBody.collisionResponse = false
-    this.world.addBody(wmBody)
-    this.entities.push({
-      id: this.nextId++,
-      root: wmRoot,
-      body: wmBody,
-      radius: wmRadius,
-      color: new THREE.Color(0x3aa44a),
-      fleshColor: new THREE.Color(0xff3a5c),
-      kind: 'fruit',
-      missTracked: true,
-      isStarter: false,
-      isGameOverDecor: true,
-      homeAnchor: { u: uRetry, v: vButtons },
-      _anchorLastPos: new THREE.Vector3(wmPos.x, wmPos.y, wmPos.z),
-      _anchorStableFrames: 0,
-    })
-    const bombRoot = createBombMesh(bombRadius)
-    bombRoot.position.copy(bombPos)
-    bombRoot.visible = false
-    this.scene.add(bombRoot)
-    const bombBody = new CANNON.Body({
-      mass: 0,
-      type: CANNON.Body.STATIC,
-      shape: new CANNON.Sphere(bombRadius),
-      position: new CANNON.Vec3(bombPos.x, bombPos.y, bombPos.z),
-      collisionFilterGroup: 0,
-      collisionFilterMask: 0,
-    })
-    bombBody.collisionResponse = false
-    this.world.addBody(bombBody)
-    this.entities.push({
-      id: this.nextId++,
-      root: bombRoot,
-      body: bombBody,
-      radius: bombRadius,
-      color: new THREE.Color(0xff3300),
-      fleshColor: new THREE.Color(0xff3300),
-      kind: 'bomb',
-      missTracked: true,
-      isGameOverDecor: true,
-      homeAnchor: { u: uQuit, v: vButtons },
-      _anchorLastPos: new THREE.Vector3(bombPos.x, bombPos.y, bombPos.z),
-      _anchorStableFrames: 0,
-    })
-
-    // Debug aid for automated tests / diagnosis.
-    try {
-      ;(globalThis as any).__fnGameOverDecor = {
-        at: performance.now(),
-        watermelon: { u: uRetry, v: vButtons, r: wmRadius, ok: okWm, pos: { x: wmPos.x, y: wmPos.y, z: wmPos.z } },
-        bomb: { u: uQuit, v: vButtons, r: bombRadius, ok: okB, pos: { x: bombPos.x, y: bombPos.y, z: bombPos.z } },
-      }
-    } catch {
-      /* ignore */
-    }
+    const ctx = this.decorCtx()
+    spawnGameOverDecorImpl(ctx, forceRelayout)
   }
 
   private spawnHomeDecor(forceRelayout = false) {
     if (!this.world || !this.scene) return
-    if (!forceRelayout) {
-      // If decor already exists, don't respawn.
-      if (this.entities.some((e) => e.isHomeDecor)) return
+    const ctx = this.decorCtx()
+    spawnHomeDecorImpl(ctx, forceRelayout)
+  }
+
+  private decorCtx() {
+    return {
+      world: this.world!,
+      scene: this.scene!,
+      camera: this.camera,
+      cachedLayoutRect: this.cachedLayoutRect,
+      playPlaneCenter: this.playPlaneCenter,
+      entities: this.entities,
+      halves: this.halves,
+      allocId: () => this.nextId++,
+      removeWhole: (e: WholeEntity) => this.removeWhole(e),
+      removeHalf: (h: FruitHalf) => this.removeHalf(h),
+      syncCanvasLayout: () => this.syncCanvasLayout(),
+      isDisposed: () => this.disposed,
+      isGameOver: () => this.gameOver,
+      setGameOverDecorReady: (v: boolean) => {
+        this.gameOverDecorReady = v
+      },
+      setGameOverFxUntil: (t: number) => {
+        this.gameOverFxUntil = t
+      },
+      retrySpawnGameOverDecor: () => this.spawnGameOverDecor(true),
     }
-    this.clearHomeDecor()
-
-    const rect = this.cachedLayoutRect
-    const placeOnPlayPlane = (u: number, v: number, out: THREE.Vector3) => {
-      if (!this.camera || !rect) return false
-      const clientX = rect.left + rect.width * u
-      const clientY = rect.top + rect.height * v
-      return screenToCameraFacingPlane(clientX, clientY, rect, this.camera, this.playPlaneCenter, out) != null
-    }
-
-    const { uStart, uSettings, vStart, vSettings, startRingPx, settingsRingPx } = computeHomeRingLayout(
-      rect?.width ?? 800,
-      rect?.height ?? 500,
-    )
-
-    // Convert an on-screen pixel radius to a world-space radius at the play plane.
-    const worldRadiusAt = (u: number, v: number, px: number): number => {
-      if (!this.camera || !rect) return 0.6
-      const c = new THREE.Vector3()
-      const p = new THREE.Vector3()
-      const okC = screenToCameraFacingPlane(
-        rect.left + rect.width * u,
-        rect.top + rect.height * v,
-        rect,
-        this.camera,
-        this.playPlaneCenter,
-        c,
-      )
-      const okP = screenToCameraFacingPlane(
-        rect.left + rect.width * u + px,
-        rect.top + rect.height * v,
-        rect,
-        this.camera,
-        this.playPlaneCenter,
-        p,
-      )
-      if (!okC || !okP) return 0.6
-      return c.distanceTo(p)
-    }
-
-    // Inner hole radius in the SVG: 92 on a 320 viewbox.
-    const innerHoleRatio = 92 / 320
-    // Fruits should be clearly smaller than the ring hole (match Classic menu proportions).
-    const wmRadius = worldRadiusAt(uStart, vStart, (startRingPx * innerHoleRatio) * 0.62)
-    const apRadius = worldRadiusAt(uSettings, vSettings, (settingsRingPx * innerHoleRatio) * 0.58)
-
-    // Center start ring: watermelon (slice to start).
-    const wmPos = new THREE.Vector3()
-    const okWm = placeOnPlayPlane(uStart, vStart, wmPos)
-    if (!okWm) {
-      wmPos.set(this.playPlaneCenter.x, this.playPlaneCenter.y + 0.25, this.playPlaneCenter.z)
-    }
-    // Brighter skin so it reads like the Classic menu watermelon.
-    const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x3aa44a)
-    wmRoot.position.copy(wmPos)
-    this.scene.add(wmRoot)
-    const wmBody = new CANNON.Body({
-      mass: 0,
-      type: CANNON.Body.STATIC,
-      shape: new CANNON.Sphere(wmRadius),
-      position: new CANNON.Vec3(wmPos.x, wmPos.y, wmPos.z),
-      collisionFilterGroup: 0,
-      collisionFilterMask: 0,
-    })
-    wmBody.collisionResponse = false
-    this.world.addBody(wmBody)
-    this.entities.push({
-      id: this.nextId++,
-      root: wmRoot,
-      body: wmBody,
-      radius: wmRadius,
-      color: new THREE.Color(0x3aa44a),
-      fleshColor: new THREE.Color(0xff3a5c),
-      kind: 'fruit',
-      missTracked: true,
-      isStarter: true,
-      isHomeDecor: true,
-      homeAnchor: { u: uStart, v: vStart },
-    })
-
-    // Right settings ring: green apple (decorative).
-    const apPos = new THREE.Vector3()
-    const okAp = placeOnPlayPlane(uSettings, vSettings, apPos)
-    if (!okAp) {
-      apPos.set(this.playPlaneCenter.x + 1.85, this.playPlaneCenter.y + 0.18, this.playPlaneCenter.z)
-    }
-    const apSkin = 0x77c83c
-    const apRoot = createFruitMesh(apRadius, 'apple', apSkin)
-    apRoot.position.copy(apPos)
-    this.scene.add(apRoot)
-    const apBody = new CANNON.Body({
-      mass: 0,
-      type: CANNON.Body.STATIC,
-      shape: new CANNON.Sphere(apRadius),
-      position: new CANNON.Vec3(apPos.x, apPos.y, apPos.z),
-      collisionFilterGroup: 0,
-      collisionFilterMask: 0,
-    })
-    apBody.collisionResponse = false
-    this.world.addBody(apBody)
-    this.entities.push({
-      id: this.nextId++,
-      root: apRoot,
-      body: apBody,
-      radius: apRadius,
-      color: new THREE.Color(apSkin),
-      fleshColor: new THREE.Color(0xfff0ea),
-      kind: 'fruit',
-      missTracked: true,
-      isHomeDecor: true,
-      homeAnchor: { u: uSettings, v: vSettings },
-    })
   }
 
   private beginGameplayFromHome() {
@@ -804,57 +514,6 @@ export class FruitNinjaGame {
       /* ignore */
     }
     this.trail?.fade()
-  }
-
-  private commitGameOverMenuSelection() {
-    if (!this.gameOver) return
-    if (this.menuActionPending) return
-    if (!this.gameOverDecorReady) return
-    const cand = this.menuSliceCandidate
-    this.menuSliceCandidate = null
-    if (!cand || !cand.isGameOverDecor) return
-    if (this.stroke.length < 2) return
-    const a0 = this.stroke[0]!
-    const b0 = this.stroke[this.stroke.length - 1]!
-    const { hits, okPlane, p0, p1 } = this.collectHitsForStrokeSegment(a0, b0)
-    if (!okPlane || !p0 || !p1) return
-    if (!hits.includes(cand)) return
-
-    // Stable cut normal from the stroke direction on the play plane.
-    const dx = p1.x - p0.x
-    const dz = p1.z - p0.z
-    let nx = -dz
-    let nz = dx
-    const nLen = Math.hypot(nx, nz) || 1
-    nx /= nLen
-    nz /= nLen
-    this.sliceNormal.set(nx, 0, nz)
-
-    this.menuActionPending = true
-    if (cand.kind === 'fruit') {
-      this.audio.playSlice()
-      this.sliceFruit(cand, p0, p1, this.sliceNormal)
-      // Game-over is paused; briefly step physics so halves fly out like the home screen.
-      this.gameOverFxUntil = performance.now() + 650
-    } else {
-      if (this.juice) {
-        const pos = cand.body.position
-        this.scratchOrigin.set(pos.x, pos.y, pos.z)
-        this.juice.burstAt(this.scratchOrigin, new THREE.Color(0xff4400), 72)
-      }
-      this.spawnExplosionAt(this.scratchOrigin, 1.15)
-      this.removeWhole(cand)
-      this.audio.playBomb()
-      this.shakeUntil = performance.now() + (this.reducedMotion ? 160 : 240)
-      this.gameOverFxUntil = performance.now() + 520
-    }
-
-    setTimeout(() => {
-      if (this.disposed) return
-      this.menuActionPending = false
-      if (cand.kind === 'fruit') this.restart()
-      else this.goToHomeScreen()
-    }, 650)
   }
 
   private triggerGameOverAction(cand: WholeEntity, p0: THREE.Vector3, p1: THREE.Vector3) {
@@ -964,44 +623,6 @@ export class FruitNinjaGame {
     }
 
     return { hits, okPlane: true, p0, p1 }
-  }
-
-  private collectHitsForStrokePoint(a: { x: number; y: number }) {
-    const rect = this.cachedLayoutRect ?? this.canvas?.getBoundingClientRect() ?? null
-    if (!rect) return { hits: [] as WholeEntity[], okPlane: false, p: null as THREE.Vector3 | null }
-    const p = this.sliceEdgeWorld0
-    const okA = rect.width > 0 && this.projectEdgeToPlayPlane(a, rect, p)
-    if (!okA) return { hits: [] as WholeEntity[], okPlane: false, p: null as THREE.Vector3 | null }
-    const hits: WholeEntity[] = []
-    if (!this.camera) return { hits, okPlane: true, p }
-    const cam = this.camera
-    const w = rect.width
-    const h = rect.height
-    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion).normalize()
-    const cWorld = new THREE.Vector3()
-    const cWorldR = new THREE.Vector3()
-    const cScr = new THREE.Vector3()
-    const rScr = new THREE.Vector3()
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const ent = this.entities[i]!
-      if (this.gameOver) {
-        if (!ent.isGameOverDecor) continue
-      } else {
-        if (ent.isGameOverDecor) continue
-      }
-      if (!ent.root.visible) continue
-      cWorld.set(ent.body.position.x, ent.body.position.y, ent.body.position.z)
-      projectWorldToScreen(cWorld, cam, w, h, cScr)
-      cWorldR.copy(cWorld).addScaledVector(camRight, ent.radius)
-      projectWorldToScreen(cWorldR, cam, w, h, rScr)
-      const rPx = Math.max(6, Math.hypot(rScr.x - cScr.x, rScr.y - cScr.y))
-      const pad = ent.kind === 'bomb' ? 0.82 : 1.08
-      const rr = rPx * pad
-      const dx = cScr.x - a.x
-      const dy = cScr.y - a.y
-      if (dx * dx + dy * dy <= rr * rr) hits.push(ent)
-    }
-    return { hits, okPlane: true, p }
   }
 
   private appendStroke(clientX: number, clientY: number) {
@@ -1376,24 +997,7 @@ export class FruitNinjaGame {
     const now = performance.now()
 
     // Update transient explosion FX even while paused.
-    if (this.explosions.length) {
-      for (let i = this.explosions.length - 1; i >= 0; i--) {
-        const fx = this.explosions[i]!
-        const life = (now - fx.startAt) / Math.max(1, fx.endAt - fx.startAt)
-        if (life >= 1) {
-          this.scene.remove(fx.mesh)
-          fx.mesh.geometry.dispose()
-          ;(fx.mesh.material as THREE.Material).dispose()
-          this.explosions.splice(i, 1)
-          continue
-        }
-        const s = fx.baseScale * (0.65 + 2.6 * life)
-        fx.mesh.scale.setScalar(s)
-        const m = fx.mesh.material as THREE.MeshBasicMaterial
-        const flash = life < 0.12 ? 1 - life / 0.12 : Math.max(0, 1 - (life - 0.12) / 0.88)
-        m.opacity = (this.reducedMotion ? 0.5 : 0.75) * flash
-      }
-    }
+    updateExplosions(this.scene, this.explosions, now, this.reducedMotion)
     if (this.camera && now < this.shakeUntil) {
       const a = (Math.random() - 0.5) * 0.14
       const b = (Math.random() - 0.5) * 0.08
