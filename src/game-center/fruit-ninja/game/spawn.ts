@@ -16,7 +16,7 @@ export const SPAWN = {
   spawnBelowMax: 5.4,
   spawnLateralRange: 3.15,
   /** Slight depth jitter along plane normal at spawn (position only; keep small) */
-  spawnDepthJitter: 0.22,
+  spawnDepthJitter: 0.04,
   /** Main toss along screen-up on the play plane (paired with `PHYSICS.gravityY`) */
   upVelMin: 13.2,
   upVelMax: 15.4,
@@ -35,8 +35,10 @@ export const SPAWN = {
   /**
    * Random ± velocity along camera normal. Keep tiny so paths stay nearly parallel to the screen plane.
    */
-  normalVelJitter: 0.38,
+  normalVelJitter: 0.08,
   angVelRange: 3.2,
+  // Note: gameplay radii are now stable per fruit/bomb in `fruitNinjaGame.ts`.
+  // These are kept for compatibility (unused) and as a reference range.
   radiusMin: 0.38,
   radiusMax: 0.58,
   cullY: -6.8,
