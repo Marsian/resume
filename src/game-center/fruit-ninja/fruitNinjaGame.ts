@@ -85,22 +85,23 @@ type ExplosionFx = {
 
 // Stable per-archetype radii (no randomness). Relative sizes: watermelon largest, cherry smallest.
 const FRUIT_RADIUS: Record<FruitArchetype, number> = {
-  watermelon: 0.58,
-  pineapple: 0.56,
-  coconut: 0.54,
-  mango: 0.52,
-  pear: 0.51,
-  peach: 0.50,
-  apple: 0.49,
-  orange: 0.48,
-  plum: 0.46,
-  passionfruit: 0.45,
-  lemon: 0.44,
-  lime: 0.43,
-  kiwi: 0.42,
-  strawberry: 0.41,
-  banana: 0.47,
-  cherry: 0.38,
+  // Globally larger fruits; watermelon gets an extra bump.
+  watermelon: 1.02,
+  pineapple: 0.63,
+  coconut: 0.60,
+  mango: 0.58,
+  pear: 0.57,
+  peach: 0.56,
+  apple: 0.55,
+  orange: 0.54,
+  plum: 0.52,
+  passionfruit: 0.50,
+  lemon: 0.49,
+  lime: 0.48,
+  kiwi: 0.47,
+  strawberry: 0.46,
+  banana: 0.53,
+  cherry: 0.43,
 }
 
 const BOMB_RADIUS = 0.50
@@ -954,8 +955,9 @@ export class FruitNinjaGame {
       projectWorldToScreen(cWorldR, cam, w, h, rScr)
       const rPx = Math.max(6, Math.hypot(rScr.x - cScr.x, rScr.y - cScr.y))
 
-      // Slightly stricter for bombs to reduce accidental hits.
-      const pad = ent.kind === 'bomb' ? 0.82 : 0.95
+      // Arcade forgiveness: fruits are a bit easier to hit than they look.
+      // Keep bombs stricter to reduce accidental taps.
+      const pad = ent.kind === 'bomb' ? 0.82 : 1.08
       const rr = rPx * pad
       const d2 = distPointSegmentSq2(cScr.x, cScr.y, ax, ay, bx, by)
       if (d2 <= rr * rr) hits.push(ent)
@@ -993,7 +995,7 @@ export class FruitNinjaGame {
       cWorldR.copy(cWorld).addScaledVector(camRight, ent.radius)
       projectWorldToScreen(cWorldR, cam, w, h, rScr)
       const rPx = Math.max(6, Math.hypot(rScr.x - cScr.x, rScr.y - cScr.y))
-      const pad = ent.kind === 'bomb' ? 0.82 : 0.95
+      const pad = ent.kind === 'bomb' ? 0.82 : 1.08
       const rr = rPx * pad
       const dx = cScr.x - a.x
       const dy = cScr.y - a.y
