@@ -63,12 +63,22 @@ type WholeEntity = {
   isGameOverDecor?: boolean
   /** Anchor in screen space (0..1) for home decor placement. */
   homeAnchor?: { u: number; v: number }
+  /** Decor visibility is gated until anchor position stabilizes. */
+  _anchorLastPos?: THREE.Vector3
+  _anchorStableFrames?: number
 }
 
 type FruitHalf = {
   root: THREE.Group
   body: CANNON.Body
   removeAt: number
+}
+
+type ExplosionFx = {
+  mesh: THREE.Mesh
+  startAt: number
+  endAt: number
+  baseScale: number
 }
 
 function fruitMassFromRadius(r: number) {
@@ -109,6 +119,9 @@ export class FruitNinjaGame {
   private gameOver = false
   private menuActionPending = false
   private menuSliceCandidate: WholeEntity | null = null
+  private gameOverDecorReady = false
+  /** While game-over is up, briefly step physics to animate slice FX. */
+  private gameOverFxUntil = 0
   private shakeUntil = 0
   private phase: 'home' | 'playing' = 'home'
 
@@ -136,11 +149,39 @@ export class FruitNinjaGame {
   private cachedLayoutRect: DOMRect | null = null
   private uiDirty = false
   private uiRaf: number | null = null
+  private readonly explosions: ExplosionFx[] = []
 
   constructor(container: HTMLElement, opts: FruitNinjaGameOptions) {
     this.container = container
     this.opts = opts
     this.reducedMotion = opts.reducedMotion ?? false
+  }
+
+  private spawnExplosionAt(pos: THREE.Vector3, strength = 1) {
+    if (!this.scene) return
+    const startAt = performance.now()
+    const dur = this.reducedMotion ? 240 : 420
+    const endAt = startAt + dur
+
+    const geom = new THREE.SphereGeometry(1, 24, 18)
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffb020,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    const mesh = new THREE.Mesh(geom, mat)
+    mesh.position.copy(pos)
+    mesh.renderOrder = 99
+    this.scene.add(mesh)
+
+    this.explosions.push({
+      mesh,
+      startAt,
+      endAt,
+      baseScale: 0.5 + 0.35 * strength,
+    })
   }
 
   private emitUi() {
@@ -405,6 +446,8 @@ export class FruitNinjaGame {
     if (!this.world || !this.scene || !this.gameOver) return
     if (!forceRelayout && this.entities.some((e) => e.isGameOverDecor)) return
     this.clearGameOverDecor()
+    this.gameOverDecorReady = false
+    this.gameOverFxUntil = 0
 
     const rect = this.cachedLayoutRect
     if (!rect || !this.camera) {
@@ -454,11 +497,21 @@ export class FruitNinjaGame {
 
     const wmPos = new THREE.Vector3()
     const okWm = placeOnPlayPlane(uRetry, vButtons, wmPos)
-    if (!okWm) {
-      wmPos.set(this.playPlaneCenter.x - 0.9, this.playPlaneCenter.y - 0.1, this.playPlaneCenter.z)
+    const bombPos = new THREE.Vector3()
+    const okB = placeOnPlayPlane(uQuit, vButtons, bombPos)
+    // If layout/camera are not stable yet, do not render or allow interaction.
+    // Retry next frame so props appear only once they have a fixed anchor.
+    if (!okWm || !okB || wmRadius <= 0.001 || bombRadius <= 0.001 || rect.width < 2 || rect.height < 2) {
+      requestAnimationFrame(() => {
+        if (this.disposed) return
+        this.syncCanvasLayout()
+        this.spawnGameOverDecor(true)
+      })
+      return
     }
     const wmRoot = createFruitMesh(wmRadius, 'watermelon', 0x3aa44a)
     wmRoot.position.copy(wmPos)
+    wmRoot.visible = false
     this.scene.add(wmRoot)
     const wmBody = new CANNON.Body({
       mass: 0,
@@ -479,15 +532,12 @@ export class FruitNinjaGame {
       isStarter: false,
       isGameOverDecor: true,
       homeAnchor: { u: uRetry, v: vButtons },
+      _anchorLastPos: new THREE.Vector3(wmPos.x, wmPos.y, wmPos.z),
+      _anchorStableFrames: 0,
     })
-
-    const bombPos = new THREE.Vector3()
-    const okB = placeOnPlayPlane(uQuit, vButtons, bombPos)
-    if (!okB) {
-      bombPos.set(this.playPlaneCenter.x + 0.9, this.playPlaneCenter.y - 0.1, this.playPlaneCenter.z)
-    }
     const bombRoot = createBombMesh(bombRadius)
     bombRoot.position.copy(bombPos)
+    bombRoot.visible = false
     this.scene.add(bombRoot)
     const bombBody = new CANNON.Body({
       mass: 0,
@@ -507,6 +557,8 @@ export class FruitNinjaGame {
       missTracked: true,
       isGameOverDecor: true,
       homeAnchor: { u: uQuit, v: vButtons },
+      _anchorLastPos: new THREE.Vector3(bombPos.x, bombPos.y, bombPos.z),
+      _anchorStableFrames: 0,
     })
 
     // Debug aid for automated tests / diagnosis.
@@ -708,9 +760,6 @@ export class FruitNinjaGame {
 
   private readonly onPointerUp = (e: PointerEvent) => {
     this.pointerDown = false
-    if (this.gameOver) {
-      this.commitGameOverMenuSelection()
-    }
     this.stroke.length = 0
     try {
       this.canvas?.releasePointerCapture(e.pointerId)
@@ -723,6 +772,7 @@ export class FruitNinjaGame {
   private commitGameOverMenuSelection() {
     if (!this.gameOver) return
     if (this.menuActionPending) return
+    if (!this.gameOverDecorReady) return
     const cand = this.menuSliceCandidate
     this.menuSliceCandidate = null
     if (!cand || !cand.isGameOverDecor) return
@@ -747,14 +797,62 @@ export class FruitNinjaGame {
     if (cand.kind === 'fruit') {
       this.audio.playSlice()
       this.sliceFruit(cand, p0, p1, this.sliceNormal)
+      // Game-over is paused; briefly step physics so halves fly out like the home screen.
+      this.gameOverFxUntil = performance.now() + 650
     } else {
       if (this.juice) {
         const pos = cand.body.position
         this.scratchOrigin.set(pos.x, pos.y, pos.z)
         this.juice.burstAt(this.scratchOrigin, new THREE.Color(0xff4400), 72)
       }
+      this.spawnExplosionAt(this.scratchOrigin, 1.15)
       this.removeWhole(cand)
       this.audio.playBomb()
+      this.shakeUntil = performance.now() + (this.reducedMotion ? 160 : 240)
+      this.gameOverFxUntil = performance.now() + 520
+    }
+
+    setTimeout(() => {
+      if (this.disposed) return
+      this.menuActionPending = false
+      if (cand.kind === 'fruit') this.restart()
+      else this.goToHomeScreen()
+    }, 650)
+  }
+
+  private triggerGameOverAction(cand: WholeEntity, p0: THREE.Vector3, p1: THREE.Vector3) {
+    if (!this.gameOver) return
+    if (this.menuActionPending) return
+    if (!this.gameOverDecorReady) return
+    if (!cand.isGameOverDecor || !cand.root.visible) return
+
+    // Stable cut normal from the stroke direction on the play plane.
+    const dx = p1.x - p0.x
+    const dz = p1.z - p0.z
+    let nx = -dz
+    let nz = dx
+    const nLen = Math.hypot(nx, nz) || 1
+    nx /= nLen
+    nz /= nLen
+    this.sliceNormal.set(nx, 0, nz)
+
+    this.menuActionPending = true
+    if (cand.kind === 'fruit') {
+      this.audio.playSlice()
+      this.sliceFruit(cand, p0, p1, this.sliceNormal)
+      // Game-over is paused; briefly step physics so halves fly out like the home screen.
+      this.gameOverFxUntil = performance.now() + 650
+    } else {
+      if (this.juice) {
+        const pos = cand.body.position
+        this.scratchOrigin.set(pos.x, pos.y, pos.z)
+        this.juice.burstAt(this.scratchOrigin, new THREE.Color(0xff4400), 72)
+      }
+      this.spawnExplosionAt(this.scratchOrigin, 1.15)
+      this.removeWhole(cand)
+      this.audio.playBomb()
+      this.shakeUntil = performance.now() + (this.reducedMotion ? 160 : 240)
+      this.gameOverFxUntil = performance.now() + 520
     }
 
     setTimeout(() => {
@@ -797,6 +895,7 @@ export class FruitNinjaGame {
       } else {
         if (ent.isGameOverDecor) continue
       }
+      if (!ent.root.visible) continue
 
       const cx = ent.body.position.x
       const cz = ent.body.position.z
@@ -813,6 +912,31 @@ export class FruitNinjaGame {
     }
 
     return { hits, okPlane: true, p0, p1 }
+  }
+
+  private collectHitsForStrokePoint(a: { x: number; y: number }) {
+    const rect = this.cachedLayoutRect ?? this.canvas?.getBoundingClientRect() ?? null
+    if (!rect) return { hits: [] as WholeEntity[], okPlane: false, p: null as THREE.Vector3 | null }
+    const p = this.sliceEdgeWorld0
+    const okA = rect.width > 0 && this.projectEdgeToPlayPlane(a, rect, p)
+    if (!okA) return { hits: [] as WholeEntity[], okPlane: false, p: null as THREE.Vector3 | null }
+    const hits: WholeEntity[] = []
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const ent = this.entities[i]!
+      if (this.gameOver) {
+        if (!ent.isGameOverDecor) continue
+      } else {
+        if (ent.isGameOverDecor) continue
+      }
+      if (!ent.root.visible) continue
+      const cx = ent.body.position.x
+      const cz = ent.body.position.z
+      const dx = cx - p.x
+      const dz = cz - p.z
+      const d2 = dx * dx + dz * dz
+      if (d2 <= ent.radius * ent.radius) hits.push(ent)
+    }
+    return { hits, okPlane: true, p }
   }
 
   private appendStroke(clientX: number, clientY: number) {
@@ -838,9 +962,11 @@ export class FruitNinjaGame {
 
     if (hit.length === 0) return
     if (this.gameOver) {
-      // Only mark candidate during stroke; commit happens on pointer up.
+      if (!this.gameOverDecorReady) return
+      if (!okPlane || !p0 || !p1) return
+      // Match home/playing behavior: slice immediately on contact.
       const cand = hit.find((e) => e.kind === 'fruit') ?? hit[0]!
-      if (cand && cand.isGameOverDecor) this.menuSliceCandidate = cand
+      if (cand && cand.isGameOverDecor) this.triggerGameOverAction(cand, p0, p1)
       return
     }
 
@@ -1176,6 +1302,26 @@ export class FruitNinjaGame {
     this.juice?.update(t)
 
     const now = performance.now()
+
+    // Update transient explosion FX even while paused.
+    if (this.explosions.length) {
+      for (let i = this.explosions.length - 1; i >= 0; i--) {
+        const fx = this.explosions[i]!
+        const life = (now - fx.startAt) / Math.max(1, fx.endAt - fx.startAt)
+        if (life >= 1) {
+          this.scene.remove(fx.mesh)
+          fx.mesh.geometry.dispose()
+          ;(fx.mesh.material as THREE.Material).dispose()
+          this.explosions.splice(i, 1)
+          continue
+        }
+        const s = fx.baseScale * (0.65 + 2.6 * life)
+        fx.mesh.scale.setScalar(s)
+        const m = fx.mesh.material as THREE.MeshBasicMaterial
+        const flash = life < 0.12 ? 1 - life / 0.12 : Math.max(0, 1 - (life - 0.12) / 0.88)
+        m.opacity = (this.reducedMotion ? 0.5 : 0.75) * flash
+      }
+    }
     if (this.camera && now < this.shakeUntil) {
       const a = (Math.random() - 0.5) * 0.14
       const b = (Math.random() - 0.5) * 0.08
@@ -1184,9 +1330,11 @@ export class FruitNinjaGame {
       this.camera.position.copy(this.cameraHome)
     }
 
-    if (!this.paused && !this.gameOver) {
+    const shouldStepPhysics = (!this.paused && !this.gameOver) || (this.gameOver && now < this.gameOverFxUntil)
+    if (shouldStepPhysics) {
       this.world.step(1 / 60, dt, 3)
-      if (this.phase === 'playing') {
+      // Never spawn during game-over even if we temporarily step physics for FX.
+      if (!this.gameOver && this.phase === 'playing') {
         this.spawnAcc += dt * 1000
         if (this.spawnAcc >= this.nextSpawnIn) {
           this.spawnAcc = 0
@@ -1199,6 +1347,8 @@ export class FruitNinjaGame {
       }
     }
 
+    let gameOverDecorTotal = 0
+    let gameOverDecorVisible = 0
     for (const ent of [...this.entities]) {
       const { x: fx, y: fy, z: fz } = ent.body.position
       if (
@@ -1221,9 +1371,24 @@ export class FruitNinjaGame {
         if (ok) {
           ent.root.position.set(pos.x, pos.y, pos.z)
           ent.body.position.set(pos.x, pos.y, pos.z)
+
+          // Don't render until the anchored position stabilizes (prevents “fly in” during initial layout settle).
+          const last = ent._anchorLastPos ?? (ent._anchorLastPos = new THREE.Vector3(pos.x, pos.y, pos.z))
+          const dx = pos.x - last.x
+          const dy = pos.y - last.y
+          const dz = pos.z - last.z
+          const stable = dx * dx + dy * dy + dz * dz < 1e-6
+          if (stable) ent._anchorStableFrames = (ent._anchorStableFrames ?? 0) + 1
+          else {
+            ent._anchorStableFrames = 0
+            last.set(pos.x, pos.y, pos.z)
+          }
+          const show = (ent._anchorStableFrames ?? 0) >= 2
+          ent.root.visible = show
         } else {
           ent.root.position.set(fx, fy, fz)
           ent.body.position.set(fx, fy, fz)
+          ent.root.visible = false
         }
         // Important: don't let body.quaternion overwrite this rotation later.
         const ry = (t * 0.00055 + ent.id * 0.8) % (Math.PI * 2)
@@ -1234,6 +1399,11 @@ export class FruitNinjaGame {
           ent.kind === 'bomb' ? 0.2 : ent.isStarter ? 0.18 : 0.22
         ent.root.rotation.set(tiltX, ry, tiltZ)
         ent.body.quaternion.setFromEuler(tiltX, ry, tiltZ, 'XYZ')
+
+        if (this.gameOver && ent.isGameOverDecor) {
+          gameOverDecorTotal++
+          if (ent.root.visible) gameOverDecorVisible++
+        }
       } else {
         ent.root.position.set(fx, fy, fz)
         const q = ent.body.quaternion
@@ -1256,6 +1426,12 @@ export class FruitNinjaGame {
       if (fy < GAME.cullY) {
         this.removeWhole(ent)
       }
+    }
+
+    if (this.gameOver) {
+      this.gameOverDecorReady = gameOverDecorTotal > 0 && gameOverDecorVisible === gameOverDecorTotal
+    } else if (this.gameOverDecorReady) {
+      this.gameOverDecorReady = false
     }
 
     for (const h of [...this.halves]) {
