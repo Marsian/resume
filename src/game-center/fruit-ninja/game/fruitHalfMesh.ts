@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 
 import type { FruitArchetype } from './spawn'
+import { getAppleBodyMaterial } from './appleSkin'
+import { getAppleHalfPolyGeometry, APPLE_MAX_XZ } from './applePolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import { getWatermelonBodyMaterial } from './watermelonSkin'
 import {
@@ -319,6 +321,9 @@ function getSkinMatForFruit(
   if (fruitType === 'banana') {
     return getBananaBodyMaterial(skin.getHex())
   }
+  if (fruitType === 'apple') {
+    return getAppleBodyMaterial()
+  }
   return getSkinMat(skin)
 }
 
@@ -404,6 +409,9 @@ export function createFruitHalfMesh(
   } else if (fruitType === 'watermelon') {
     curved = new THREE.Mesh(getWatermelonHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
     capScale = radius * Math.max(WATERMELON_AX, WATERMELON_AZ) * 1.01
+  } else if (fruitType === 'apple') {
+    curved = new THREE.Mesh(getAppleHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    capScale = radius * APPLE_MAX_XZ * 1.01
   } else {
     curved = new THREE.Mesh(sharedHemisphere, getSkinMatForFruit(fruitType, skinColor))
     curved.scale.setScalar(radius)

@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 
+import { getAppleBodyMaterial } from './appleSkin'
+import { getAppleBodyPolyGeometry } from './applePolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -532,32 +534,41 @@ function fruitBodyMaterial(hex: number) {
 // ---------------------------------------------------------------------------
 
 function addStemLeaf(g: THREE.Group, radius: number, stemColor = 0x3d2914) {
-  // Stem — slightly curved via tapered cylinder
+  // Stem — slightly curved via tapered cylinder, lowered to sit in deeper cavity
+  // Keep the stem mostly outside the body to avoid z-fighting/penetration artifacts.
+  const stemH = radius * 0.28
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.06, radius * 0.10, radius * 0.35, 8),
+    new THREE.CylinderGeometry(radius * 0.06, radius * 0.10, stemH, 8),
     new THREE.MeshStandardMaterial({ color: stemColor, roughness: 0.85, metalness: 0 }),
   )
-  stem.position.y = radius * 0.92
+  stem.position.y = radius * 0.96
   stem.castShadow = true
+  stem.renderOrder = 2
   g.add(stem)
 
-  // Leaf — more organic elliptical shape
-  const leafGeo = new THREE.CircleGeometry(radius * 0.32, 12)
+  // Leaf — root anchored at the stem root (stem/body junction).
+  const leafGeo = new THREE.CircleGeometry(radius * 0.26, 12)
   const leaf = new THREE.Mesh(
     leafGeo,
-    new THREE.MeshStandardMaterial({
+    // Use unlit material so both sides stay green (no backface lighting darkening).
+    new THREE.MeshBasicMaterial({
       color: 0x2d7a3a,
-      roughness: 0.60,
       side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.92,
+      transparent: false,
+      opacity: 1,
+      toneMapped: false,
+      depthWrite: true,
+      depthTest: true,
     }),
   )
-  leaf.position.set(radius * 0.32, radius * 0.78, radius * 0.08)
-  leaf.rotation.set(0.6, 0.35, 0.25)
-  leaf.scale.set(1, 0.6, 1)
+  // Stem is centered at `stem.position.y`; its root is at y = stem.position.y - stemH/2.
+  // Make the leaf a child of stem so its local y=0 aligns with stem center.
+  stem.add(leaf)
+  leaf.position.set(radius * 0.22, -stemH / 2 + radius * 0.01, radius * 0.06)
+  leaf.rotation.set(-0.35, 0.15, 0.75)
+  leaf.scale.set(1, 0.55, 1)
   leaf.castShadow = true
-  g.add(leaf)
+  leaf.renderOrder = 2
 }
 
 function addHighlightSphere(g: THREE.Group, radius: number) {
@@ -601,33 +612,18 @@ function createWatermelonMesh(radius: number): THREE.Group {
   return g
 }
 
-function createAppleMesh(radius: number, skinHex: number): THREE.Group {
+function createAppleMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 26, 20),
-    fruitBodyMaterial(skinHex),
+    getAppleBodyPolyGeometry(radius),
+    getAppleBodyMaterial(),
   )
-  // Apple shape: slightly wider than tall, subtle indent at top and bottom
-  body.scale.set(1.02, 0.96, 1.02)
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
 
-  // Top indent dimple
-  const indent = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.18, 10, 8),
-    new THREE.MeshStandardMaterial({
-      color: skinHex,
-      roughness: 0.32,
-      metalness: 0.06,
-    }),
-  )
-  indent.position.y = radius * 0.88
-  indent.scale.set(1, 0.3, 1)
-  g.add(indent)
-
   addStemLeaf(g, radius)
-  addHighlightSphere(g, radius)
   return g
 }
 

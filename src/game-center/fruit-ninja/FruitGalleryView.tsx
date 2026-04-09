@@ -4,7 +4,6 @@ import { createBombMesh, createFruitMesh } from './game/meshes'
 import { FRUIT_RADIUS } from './game/entityParams'
 import type { FruitArchetype } from './game/spawn'
 import { addDefaultLights, createCamera, createRenderer, createScene, fitRendererToContainer } from './three/engine'
-import { addDojoBackdrop } from './three/engine'
 
 const FRUIT_KINDS: { kind: FruitArchetype }[] = [
   { kind: 'watermelon' },
@@ -75,7 +74,8 @@ export default function FruitGalleryView() {
     container.appendChild(canvas)
 
     const scene = createScene()
-    addDojoBackdrop(scene)
+    // Gallery verification view: use solid black background to make color/shape comparison easier.
+    scene.background = new THREE.Color(0x000000)
     addDefaultLights(scene)
 
     const { clientWidth, clientHeight } = container
@@ -225,13 +225,21 @@ export default function FruitGalleryView() {
 
     let raf: number
     let disposed = false
+    let prevT = -1
+
+    // Rotation axis tilted outward (toward camera / +Z), so top & bottom detail is visible
+    const spinAxis = new THREE.Vector3(0, 1, 0.55).normalize()
+    const speed = 0.0012 // rad per ms
 
     const animate = (t: number) => {
       if (disposed) return
       raf = requestAnimationFrame(animate)
-      // Gentle rotation for all fruits
+      if (prevT < 0) { prevT = t; return }
+      const dt = t - prevT
+      prevT = t
+      const delta = dt * speed
       for (const g of groups) {
-        g.rotation.y = t * 0.0004
+        g.rotateOnAxis(spinAxis, delta)
       }
       renderer.render(scene, camera)
     }
