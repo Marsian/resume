@@ -1,6 +1,13 @@
 import * as THREE from 'three'
 
 import type { FruitArchetype } from './spawn'
+import { getBananaBodyMaterial } from './bananaSkin'
+import { getWatermelonBodyMaterial } from './watermelonSkin'
+import {
+  getWatermelonHalfPolyGeometry,
+  WATERMELON_AX,
+  WATERMELON_AZ,
+} from './watermelonPolyGeometry'
 
 /** Lighter "pulp" tone from skin color (fallback when spawn did not set flesh). */
 export function fleshColorFromSkin(skin: THREE.Color): THREE.Color {
@@ -18,61 +25,6 @@ const skinMatCache = new Map<number, THREE.MeshStandardMaterial>()
 const fleshMatCache = new Map<number, THREE.MeshStandardMaterial>()
 
 const fleshTexCache = new Map<string, THREE.CanvasTexture>()
-
-let watermelonStripeTex: THREE.CanvasTexture | null = null
-function watermelonStripeTexture(): THREE.CanvasTexture {
-  if (watermelonStripeTex) return watermelonStripeTex
-  const c = document.createElement('canvas')
-  c.width = 128; c.height = 128
-  const g = c.getContext('2d')!
-  // Rich green with wavy stripes (matches whole watermelon)
-  g.fillStyle = '#2a8a3e'
-  g.fillRect(0, 0, 128, 128)
-  for (let x = 0; x < 128; x += 16) {
-    g.fillStyle = x % 32 === 0 ? '#165a24' : '#3eaa52'
-    g.beginPath()
-    g.moveTo(x, 0)
-    for (let y = 0; y <= 128; y += 4)
-      g.lineTo(x + Math.sin(y * 0.06 + x * 0.1) * 2, y)
-    for (let y = 128; y >= 0; y -= 4)
-      g.lineTo(x + 7 + Math.sin(y * 0.06 + x * 0.1) * 2, y)
-    g.closePath()
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.wrapS = THREE.RepeatWrapping
-  tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(4, 2)
-  watermelonStripeTex = tex
-  return tex
-}
-
-let bananaSpeckleTex: THREE.CanvasTexture | null = null
-function bananaSpeckleTexture(): THREE.CanvasTexture {
-  if (bananaSpeckleTex) return bananaSpeckleTex
-  const c = document.createElement('canvas')
-  c.width = 128; c.height = 128
-  const g = c.getContext('2d')!
-  // Rich yellow base
-  g.fillStyle = '#f0c830'
-  g.fillRect(0, 0, 128, 128)
-  // Subtle brown speckles for banana skin
-  for (let i = 0; i < 400; i++) {
-    const x = Math.random() * 128
-    const y = Math.random() * 128
-    const a = 0.04 + Math.random() * 0.12
-    g.fillStyle = `rgba(120,80,20,${a})`
-    g.fillRect(x, y, 1 + Math.random(), 1 + Math.random() * 0.5)
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.wrapS = THREE.RepeatWrapping
-  tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(2.4, 1.6)
-  bananaSpeckleTex = tex
-  return tex
-}
 
 function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): THREE.CanvasTexture {
   const key = `${fruitType}:${flesh.getHexString()}`
@@ -96,30 +48,41 @@ function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): TH
   g.fillRect(0, 0, s, s)
 
   if (fruitType === 'watermelon') {
-    // Red flesh with scattered black seeds and white/cream rind ring
-    // Outer rind ring — thin green-to-white transition
-    g.strokeStyle = 'rgba(200,255,200,0.4)'
-    g.lineWidth = 6
+    // Wiki: green outside, vivid red inside with black seeds
+    const hash = (i: number, j: number) => {
+      const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453123
+      return n - Math.floor(n)
+    }
+    // Pale rind ring → white inner ring (classic cross-section)
+    g.strokeStyle = 'rgba(90,160,80,0.55)'
+    g.lineWidth = 5
     g.beginPath()
-    g.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2)
+    g.arc(s / 2, s / 2, s / 2 - 4, 0, Math.PI * 2)
     g.stroke()
-    g.strokeStyle = 'rgba(40,120,50,0.3)'
-    g.lineWidth = 3
+    g.strokeStyle = 'rgba(255,255,245,0.85)'
+    g.lineWidth = 4
     g.beginPath()
-    g.arc(s / 2, s / 2, s / 2 - 1, 0, Math.PI * 2)
+    g.arc(s / 2, s / 2, s / 2 - 2, 0, Math.PI * 2)
     g.stroke()
-    // Seeds: dark ovals scattered toward center
-    for (let i = 0; i < 48; i++) {
-      const a = Math.random() * Math.PI * 2
-      const r = 8 + Math.random() * 42
+    g.strokeStyle = 'rgba(255,60,70,0.35)'
+    g.lineWidth = 2
+    g.beginPath()
+    g.arc(s / 2, s / 2, s / 2 - 7, 0, Math.PI * 2)
+    g.stroke()
+    // Seeds: deterministic ovals (teardrop toward center like FN art)
+    for (let i = 0; i < 52; i++) {
+      const t = hash(i, 17)
+      const t2 = hash(i, 91)
+      const a = t * Math.PI * 2
+      const r = 10 + t2 * 40
       const x = s / 2 + Math.cos(a) * r
       const y = s / 2 + Math.sin(a) * r
-      const w = 2 + Math.random() * 2.5
-      const h = 4 + Math.random() * 4.5
+      const w = 1.8 + hash(i, 3) * 2.2
+      const h = 3.5 + hash(i, 5) * 4
       g.save()
       g.translate(x, y)
-      g.rotate(a + (Math.random() - 0.5) * 0.6)
-      g.fillStyle = `rgba(30,10,10,${0.45 + Math.random() * 0.2})`
+      g.rotate(a + (hash(i, 7) - 0.5) * 0.5)
+      g.fillStyle = `rgba(18,8,12,${0.5 + hash(i, 11) * 0.35})`
       g.beginPath()
       g.ellipse(0, 0, w, h, 0, 0, Math.PI * 2)
       g.fill()
@@ -346,40 +309,15 @@ function getSkinMat(skin: THREE.Color): THREE.MeshStandardMaterial {
   return m
 }
 
-function getSkinMatForFruit(fruitType: FruitArchetype, skin: THREE.Color): THREE.MeshStandardMaterial {
+function getSkinMatForFruit(
+  fruitType: FruitArchetype,
+  skin: THREE.Color,
+): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial {
   if (fruitType === 'watermelon') {
-    const h = skin.getHex() ^ 0x77aa33
-    let m = skinMatCache.get(h)
-    if (!m) {
-      m = new THREE.MeshStandardMaterial({
-        map: watermelonStripeTexture(),
-        color: skin.clone(),
-        roughness: 0.42,
-        metalness: 0,
-        emissive: skin.clone().multiplyScalar(0.06),
-        emissiveIntensity: 1,
-      })
-      m.userData = { sharedPool: true }
-      skinMatCache.set(h, m)
-    }
-    return m
+    return getWatermelonBodyMaterial()
   }
   if (fruitType === 'banana') {
-    const h = skin.getHex() ^ 0x33cc77
-    let m = skinMatCache.get(h)
-    if (!m) {
-      m = new THREE.MeshStandardMaterial({
-        map: bananaSpeckleTexture(),
-        color: skin.clone(),
-        roughness: 0.50,
-        metalness: 0,
-        emissive: skin.clone().multiplyScalar(0.03),
-        emissiveIntensity: 1,
-      })
-      m.userData = { sharedPool: true }
-      skinMatCache.set(h, m)
-    }
-    return m
+    return getBananaBodyMaterial(skin.getHex())
   }
   return getSkinMat(skin)
 }
@@ -463,12 +401,12 @@ export function createFruitHalfMesh(
     geo.translate(-cutP.x, -cutP.y, -cutP.z)
     curved = new THREE.Mesh(geo, getSkinMatForFruit('banana', skinColor))
     capScale = tubeR * 1.01
+  } else if (fruitType === 'watermelon') {
+    curved = new THREE.Mesh(getWatermelonHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    capScale = radius * Math.max(WATERMELON_AX, WATERMELON_AZ) * 1.01
   } else {
     curved = new THREE.Mesh(sharedHemisphere, getSkinMatForFruit(fruitType, skinColor))
     curved.scale.setScalar(radius)
-    if (fruitType === 'watermelon') {
-      curved.scale.multiply(new THREE.Vector3(1.15, 0.78, 1.10))
-    }
   }
   curved.castShadow = false
   curved.receiveShadow = false

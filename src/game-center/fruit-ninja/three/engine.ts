@@ -106,7 +106,7 @@ export function createRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.12
   renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFShadowMap
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   const dpr = Math.min(DPR_CAP, window.devicePixelRatio || 1)
   renderer.setPixelRatio(dpr)
   return renderer
@@ -124,11 +124,11 @@ export function fitRendererToContainer(
 }
 
 export function addDefaultLights(scene: THREE.Scene): void {
-  // Slightly stronger ambient so menu fruits don't read as silhouettes.
-  const hemi = new THREE.HemisphereLight(0xffe8d0, 0x2a1810, 0.92)
+  // Cartoon: bright fill, weaker key so cast shadows stay light / readable.
+  const hemi = new THREE.HemisphereLight(0xffe8d0, 0x3a2820, 1.08)
   scene.add(hemi)
 
-  const key = new THREE.DirectionalLight(0xfff6ee, 1.22)
+  const key = new THREE.DirectionalLight(0xfff6ee, 0.68)
   key.position.set(4.5, 15, 6)
   key.castShadow = true
   key.shadow.mapSize.set(1024, 1024)
@@ -140,7 +140,7 @@ export function addDefaultLights(scene: THREE.Scene): void {
   key.shadow.camera.bottom = -16
   scene.add(key)
 
-  const rim = new THREE.DirectionalLight(0xffaa77, 0.28)
+  const rim = new THREE.DirectionalLight(0xffccaa, 0.4)
   rim.position.set(-7, 5, -5)
   scene.add(rim)
 }

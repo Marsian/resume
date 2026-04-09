@@ -1,6 +1,15 @@
 import * as THREE from 'three'
 
+import { getBananaBodyMaterial } from './bananaSkin'
+import {
+  applyTubeRadiusProfile,
+  bananaGirthScale,
+  createBananaEndSeal,
+  createBananaSpineCurve,
+} from './bananaGeometry'
 import type { FruitArchetype } from './spawn'
+import { getWatermelonBodyMaterial } from './watermelonSkin'
+import { getWatermelonBodyPolyGeometry, WATERMELON_AY } from './watermelonPolyGeometry'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -19,50 +28,8 @@ export function disposeObject3D(root: THREE.Object3D) {
 
 // ---------------------------------------------------------------------------
 // Enhanced procedural texture generators (128×128 for richer detail)
+// (Watermelon + banana skin canvases live in `fruitSkinTextures.ts`; materials in `*Skin.ts`.)
 // ---------------------------------------------------------------------------
-
-let watermelonStripeTex: THREE.CanvasTexture | null = null
-function watermelonStripeTexture(): THREE.CanvasTexture {
-  if (watermelonStripeTex) return watermelonStripeTex
-  const s = 256
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Bright green base (cartoony Fruit Ninja style)
-  g.fillStyle = '#38a84e'
-  g.fillRect(0, 0, s, s)
-  // Bold wide stripes like the wiki — 2-3 thick dark-green bands running lengthwise
-  const stripePositions = [0.15, 0.42, 0.72]
-  for (const frac of stripePositions) {
-    const cx = frac * s
-    const w = 18 + Math.random() * 8
-    g.fillStyle = '#1a6828'
-    g.beginPath()
-    g.moveTo(cx - w, 0)
-    for (let y = 0; y <= s; y += 4) {
-      g.lineTo(cx - w + Math.sin(y * 0.03 + frac * 20) * 4, y)
-    }
-    for (let y = s; y >= 0; y -= 4) {
-      g.lineTo(cx + w + Math.sin(y * 0.03 + frac * 20) * 4, y)
-    }
-    g.closePath()
-    g.fill()
-  }
-  // Subtle lighter specks for texture variation
-  for (let i = 0; i < 200; i++) {
-    g.fillStyle = `rgba(100,200,100,${0.03 + Math.random() * 0.04})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 1 + Math.random() * 2, 0, Math.PI * 2)
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.wrapS = THREE.RepeatWrapping
-  tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(2, 1)
-  watermelonStripeTex = tex
-  return tex
-}
 
 let pineappleSkinTex: THREE.CanvasTexture | null = null
 function pineappleSkinTexture(): THREE.CanvasTexture {
@@ -401,21 +368,6 @@ function pearTexture(): THREE.CanvasTexture {
 // Cached body materials
 // ---------------------------------------------------------------------------
 
-let watermelonBodyMat: THREE.MeshStandardMaterial | null = null
-function watermelonBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!watermelonBodyMat) {
-    watermelonBodyMat = new THREE.MeshStandardMaterial({
-      map: watermelonStripeTexture(),
-      color: 0x3a9a4a,
-      roughness: 0.40,
-      metalness: 0,
-      emissive: new THREE.Color(0x1a5c2a),
-      emissiveIntensity: 0.3,
-    })
-  }
-  return watermelonBodyMat
-}
-
 let pineappleBodyMat: THREE.MeshStandardMaterial | null = null
 function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
   if (!pineappleBodyMat) {
@@ -631,19 +583,19 @@ function addHighlightSphere(g: THREE.Group, radius: number) {
 
 function createWatermelonMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 22), watermelonBodyMaterial())
-  // More elongated oval shape per wiki reference
-  body.scale.set(1.15, 0.78, 1.10)
+  // Subdivided icosahedron + longitudinal UV; ellipsoid baked in geometry (`watermelonPolyGeometry.ts`)
+  const body = new THREE.Mesh(getWatermelonBodyPolyGeometry(radius), getWatermelonBodyMaterial())
   body.castShadow = true
   body.receiveShadow = true
   body.userData.sharedMaterial = true
   g.add(body)
-  // Simple stubby green stem matching wiki's cartoony style
+  // Short dark stem at the top pole (cartoony stub)
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.08, radius * 0.12, radius * 0.25, 8),
-    new THREE.MeshStandardMaterial({ color: 0x2d7a2d, roughness: 0.7, metalness: 0 }),
+    new THREE.CylinderGeometry(radius * 0.065, radius * 0.095, radius * 0.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x1a5a22, roughness: 0.82, metalness: 0 }),
   )
-  stem.position.y = radius * 0.74
+  stem.position.y = radius * WATERMELON_AY * 0.9
+  stem.rotation.z = 0.06
   stem.castShadow = true
   g.add(stem)
   return g
@@ -681,32 +633,38 @@ function createAppleMesh(radius: number, skinHex: number): THREE.Group {
 
 function createBananaMesh(radius: number, skinHex: number): THREE.Group {
   const g = new THREE.Group()
-  // Bold cartoony curve matching wiki's bright yellow banana
-  const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-radius * 0.1, -radius * 0.95, 0),
-    new THREE.Vector3(radius * 0.25, -radius * 0.45, radius * 0.12),
-    new THREE.Vector3(radius * 0.7, radius * 0.15, radius * 0.06),
-    new THREE.Vector3(radius * 1.0, radius * 0.65, -radius * 0.08),
-    new THREE.Vector3(radius * 0.85, radius * 0.95, -radius * 0.18),
-  ])
-  // Thicker tube for bold cartoony appearance
-  const tubeR = radius * 0.44
-  const body = new THREE.Mesh(
-    new THREE.TubeGeometry(curve, 22, tubeR, 12, false),
-    fruitBodyMaterial(skinHex),
-  )
+  const curve = createBananaSpineCurve(radius)
+  const baseR = radius * 0.36
+  const tubularSegments = 56
+  const radialSegments = 6
+  const geo = new THREE.TubeGeometry(curve, tubularSegments, baseR, radialSegments, false)
+  applyTubeRadiusProfile(geo, curve, baseR, bananaGirthScale)
+
+  const skinMat = getBananaBodyMaterial(skinHex)
+  const body = new THREE.Mesh(geo, skinMat)
+  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
 
-  // Dark tips at both ends per wiki reference
-  const tipMat = new THREE.MeshStandardMaterial({ color: 0x5a4a10, roughness: 0.7 })
-  const tip1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 8, 6), tipMat)
-  tip1.position.copy(curve.getPoint(0))
-  g.add(tip1)
-  const tip2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.07, 8, 6), tipMat)
-  tip2.position.copy(curve.getPoint(1))
-  g.add(tip2)
+  const s0 = bananaGirthScale(0)
+  const s1 = bananaGirthScale(1)
+
+  const seal0 = createBananaEndSeal(curve, 'blossom', baseR, s0, skinMat)
+  const seal1 = createBananaEndSeal(curve, 'stem', baseR, s1, skinMat)
+  seal0.castShadow = true
+  seal1.castShadow = true
+  g.add(seal0, seal1)
+
+  const tipMat = new THREE.MeshBasicMaterial({ color: 0x5c4428 })
+  const tan0 = curve.getTangentAt(0).clone().normalize()
+  const tan1 = curve.getTangentAt(1).clone().normalize()
+  const nub0 = new THREE.Mesh(new THREE.SphereGeometry(baseR * s0 * 0.22, 8, 6), tipMat)
+  nub0.position.copy(curve.getPointAt(0)).addScaledVector(tan0.clone().multiplyScalar(-1), baseR * s0 * 0.52)
+  const nub1 = new THREE.Mesh(new THREE.SphereGeometry(baseR * s1 * 0.2, 8, 6), tipMat)
+  nub1.position.copy(curve.getPointAt(1)).addScaledVector(tan1.clone(), baseR * s1 * 0.48)
+  g.add(nub0, nub1)
+
   return g
 }
 
