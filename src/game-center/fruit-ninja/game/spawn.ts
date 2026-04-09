@@ -71,22 +71,22 @@ export type FruitSpawnKind = {
 }
 
 const FRUIT_KINDS: FruitSpawnKind[] = [
-  { kind: 'watermelon', skin: 0x1e5c2e, flesh: 0xff3a5c },
-  { kind: 'apple', skin: 0xc41e1e, flesh: 0xfff0ea },
-  { kind: 'banana', skin: 0xe8c840, flesh: 0xfff8dc },
-  { kind: 'lemon', skin: 0xf2e6a0, flesh: 0xfffacd },
-  { kind: 'lime', skin: 0x6b9e3d, flesh: 0xe8f5b8 },
-  { kind: 'mango', skin: 0xff9f40, flesh: 0xffd699 },
-  { kind: 'pineapple', skin: 0xc9a227, flesh: 0xfff3c4 },
-  { kind: 'coconut', skin: 0x4a3728, flesh: 0xf5f0e6 },
-  { kind: 'strawberry', skin: 0xd81e35, flesh: 0xffb7c5 },
-  { kind: 'kiwi', skin: 0x7a5c1e, flesh: 0xc8e86c },
-  { kind: 'orange', skin: 0xff7f00, flesh: 0xffa64d },
-  { kind: 'plum', skin: 0x5c1a6b, flesh: 0xe8c8e8 },
-  { kind: 'pear', skin: 0xb8c94a, flesh: 0xfffef0 },
-  { kind: 'peach', skin: 0xffa07a, flesh: 0xffdcc8 },
-  { kind: 'passionfruit', skin: 0x3d2a5c, flesh: 0xf4e6b8 },
-  { kind: 'cherry', skin: 0xb01030, flesh: 0xff3050 },
+  { kind: 'watermelon', skin: 0x287a38, flesh: 0xff2a4a },
+  { kind: 'apple', skin: 0xcc2228, flesh: 0xfff5f0 },
+  { kind: 'banana', skin: 0xf0c830, flesh: 0xfff8dc },
+  { kind: 'lemon', skin: 0xf5e050, flesh: 0xfffff0 },
+  { kind: 'lime', skin: 0x4a8f2e, flesh: 0xc8f0a0 },
+  { kind: 'mango', skin: 0xff8820, flesh: 0xffcc70 },
+  { kind: 'pineapple', skin: 0xd4a020, flesh: 0xfff5d0 },
+  { kind: 'coconut', skin: 0x5a4030, flesh: 0xf8f4ea },
+  { kind: 'strawberry', skin: 0xe8202a, flesh: 0xffa8b8 },
+  { kind: 'kiwi', skin: 0x7a5a1a, flesh: 0xb8e060 },
+  { kind: 'orange', skin: 0xff8c00, flesh: 0xffaa44 },
+  { kind: 'plum', skin: 0x6a2078, flesh: 0xe0c0e0 },
+  { kind: 'pear', skin: 0xb8c840, flesh: 0xfffff0 },
+  { kind: 'peach', skin: 0xff9a6a, flesh: 0xffe0c8 },
+  { kind: 'passionfruit', skin: 0x3a2055, flesh: 0xf0d890 },
+  { kind: 'cherry', skin: 0xa81028, flesh: 0xff2848 },
 ]
 
 export function pickFruitKind(): FruitSpawnKind {

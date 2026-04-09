@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 import type { FruitArchetype } from './spawn'
 
-/** Lighter “pulp” tone from skin color (fallback when spawn did not set flesh). */
+/** Lighter "pulp" tone from skin color (fallback when spawn did not set flesh). */
 export function fleshColorFromSkin(skin: THREE.Color): THREE.Color {
   return new THREE.Color().copy(skin).lerp(new THREE.Color(0xfff5e8), 0.55)
 }
@@ -23,14 +23,21 @@ let watermelonStripeTex: THREE.CanvasTexture | null = null
 function watermelonStripeTexture(): THREE.CanvasTexture {
   if (watermelonStripeTex) return watermelonStripeTex
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = 128; c.height = 128
   const g = c.getContext('2d')!
-  g.fillStyle = '#2f8c3f'
-  g.fillRect(0, 0, 64, 64)
-  for (let x = 0; x < 64; x += 8) {
-    g.fillStyle = x % 16 === 0 ? '#1c6f2d' : '#4fbf5d'
-    g.fillRect(x, 0, 4, 64)
+  // Rich green with wavy stripes (matches whole watermelon)
+  g.fillStyle = '#2a8a3e'
+  g.fillRect(0, 0, 128, 128)
+  for (let x = 0; x < 128; x += 16) {
+    g.fillStyle = x % 32 === 0 ? '#165a24' : '#3eaa52'
+    g.beginPath()
+    g.moveTo(x, 0)
+    for (let y = 0; y <= 128; y += 4)
+      g.lineTo(x + Math.sin(y * 0.06 + x * 0.1) * 2, y)
+    for (let y = 128; y >= 0; y -= 4)
+      g.lineTo(x + 7 + Math.sin(y * 0.06 + x * 0.1) * 2, y)
+    g.closePath()
+    g.fill()
   }
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -45,17 +52,18 @@ let bananaSpeckleTex: THREE.CanvasTexture | null = null
 function bananaSpeckleTexture(): THREE.CanvasTexture {
   if (bananaSpeckleTex) return bananaSpeckleTex
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = 128; c.height = 128
   const g = c.getContext('2d')!
-  g.fillStyle = '#f3d55a'
-  g.fillRect(0, 0, 64, 64)
-  for (let i = 0; i < 220; i++) {
-    const x = Math.random() * 64
-    const y = Math.random() * 64
-    const a = 0.06 + Math.random() * 0.14
+  // Rich yellow base
+  g.fillStyle = '#f0c830'
+  g.fillRect(0, 0, 128, 128)
+  // Subtle brown speckles for banana skin
+  for (let i = 0; i < 400; i++) {
+    const x = Math.random() * 128
+    const y = Math.random() * 128
+    const a = 0.04 + Math.random() * 0.12
     g.fillStyle = `rgba(120,80,20,${a})`
-    g.fillRect(x, y, 1, 1)
+    g.fillRect(x, y, 1 + Math.random(), 1 + Math.random() * 0.5)
   }
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -71,60 +79,245 @@ function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): TH
   const cached = fleshTexCache.get(key)
   if (cached) return cached
 
+  const s = 128
   const c = document.createElement('canvas')
-  c.width = 128
-  c.height = 128
+  c.width = s; c.height = s
   const g = c.getContext('2d')!
 
   const base = flesh.clone()
-  const hi = base.clone().lerp(new THREE.Color(0xffffff), 0.22)
-  const lo = base.clone().multiplyScalar(0.75)
+  const hi = base.clone().lerp(new THREE.Color(0xffffff), 0.25)
+  const lo = base.clone().multiplyScalar(0.70)
 
-  // Base gradient (avoids "flat disk" look).
-  const radial = g.createRadialGradient(64, 64, 8, 64, 64, 68)
+  // Base gradient — radial light center to darker edge
+  const radial = g.createRadialGradient(s / 2, s / 2, 6, s / 2, s / 2, s / 2 + 4)
   radial.addColorStop(0, `#${hi.getHexString()}`)
   radial.addColorStop(1, `#${lo.getHexString()}`)
   g.fillStyle = radial
-  g.fillRect(0, 0, 128, 128)
+  g.fillRect(0, 0, s, s)
 
   if (fruitType === 'watermelon') {
-    // Seeds: dark ovals scattered toward center.
-    g.fillStyle = 'rgba(30, 10, 10, 0.55)'
-    for (let i = 0; i < 42; i++) {
+    // Red flesh with scattered black seeds and white/cream rind ring
+    // Outer rind ring — thin green-to-white transition
+    g.strokeStyle = 'rgba(200,255,200,0.4)'
+    g.lineWidth = 6
+    g.beginPath()
+    g.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2)
+    g.stroke()
+    g.strokeStyle = 'rgba(40,120,50,0.3)'
+    g.lineWidth = 3
+    g.beginPath()
+    g.arc(s / 2, s / 2, s / 2 - 1, 0, Math.PI * 2)
+    g.stroke()
+    // Seeds: dark ovals scattered toward center
+    for (let i = 0; i < 48; i++) {
       const a = Math.random() * Math.PI * 2
-      const r = 10 + Math.random() * 46
-      const x = 64 + Math.cos(a) * r
-      const y = 64 + Math.sin(a) * r
-      const w = 2 + Math.random() * 2.6
-      const h = 4 + Math.random() * 4.2
+      const r = 8 + Math.random() * 42
+      const x = s / 2 + Math.cos(a) * r
+      const y = s / 2 + Math.sin(a) * r
+      const w = 2 + Math.random() * 2.5
+      const h = 4 + Math.random() * 4.5
       g.save()
       g.translate(x, y)
       g.rotate(a + (Math.random() - 0.5) * 0.6)
+      g.fillStyle = `rgba(30,10,10,${0.45 + Math.random() * 0.2})`
       g.beginPath()
       g.ellipse(0, 0, w, h, 0, 0, Math.PI * 2)
       g.fill()
       g.restore()
     }
   } else if (fruitType === 'banana') {
-    // Fibers: subtle radial strokes.
-    g.strokeStyle = 'rgba(255, 255, 255, 0.18)'
-    for (let i = 0; i < 70; i++) {
+    // Creamy flesh with visible fiber lines
+    g.strokeStyle = 'rgba(255,255,255,0.16)'
+    for (let i = 0; i < 80; i++) {
       const a = Math.random() * Math.PI * 2
-      const r0 = 6 + Math.random() * 10
-      const r1 = 40 + Math.random() * 24
+      const r0 = 4 + Math.random() * 10
+      const r1 = 35 + Math.random() * 28
       g.beginPath()
-      g.moveTo(64 + Math.cos(a) * r0, 64 + Math.sin(a) * r0)
-      g.lineTo(64 + Math.cos(a) * r1, 64 + Math.sin(a) * r1)
+      g.moveTo(s / 2 + Math.cos(a) * r0, s / 2 + Math.sin(a) * r0)
+      g.lineTo(s / 2 + Math.cos(a) * r1, s / 2 + Math.sin(a) * r1)
       g.stroke()
     }
+  } else if (fruitType === 'orange') {
+    // Orange flesh with visible segment lines
+    g.strokeStyle = 'rgba(255,180,60,0.25)'
+    g.lineWidth = 1.2
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(s / 2, s / 2)
+      g.lineTo(s / 2 + Math.cos(a) * (s / 2), s / 2 + Math.sin(a) * (s / 2))
+      g.stroke()
+    }
+    // Tiny juice vesicles
+    for (let i = 0; i < 60; i++) {
+      g.fillStyle = `rgba(255,220,100,${0.08 + Math.random() * 0.1})`
+      g.beginPath()
+      g.arc(Math.random() * s, Math.random() * s, 0.8 + Math.random() * 1.5, 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'kiwi') {
+    // Green flesh with radiating seed lines and white center
+    // White core center
+    g.fillStyle = 'rgba(255,255,240,0.25)'
+    g.beginPath()
+    g.arc(s / 2, s / 2, 12, 0, Math.PI * 2)
+    g.fill()
+    // Radiating seed lines
+    g.strokeStyle = 'rgba(200,240,100,0.3)'
+    g.lineWidth = 0.8
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(s / 2 + Math.cos(a) * 10, s / 2 + Math.sin(a) * 10)
+      g.lineTo(s / 2 + Math.cos(a) * 55, s / 2 + Math.sin(a) * 55)
+      g.stroke()
+    }
+    // Tiny black seeds
+    for (let i = 0; i < 80; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r = 12 + Math.random() * 45
+      g.fillStyle = 'rgba(20,20,10,0.35)'
+      g.beginPath()
+      g.arc(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r, 0.8 + Math.random(), 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'apple') {
+    // White/cream flesh with faint core lines
+    g.strokeStyle = 'rgba(220,200,180,0.2)'
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(s / 2 + Math.cos(a) * 5, s / 2 + Math.sin(a) * 5)
+      g.lineTo(s / 2 + Math.cos(a) * 50, s / 2 + Math.sin(a) * 50)
+      g.stroke()
+    }
+    // Small seed cavity dots
+    for (let i = 0; i < 6; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r = 4 + Math.random() * 8
+      g.fillStyle = 'rgba(180,150,100,0.2)'
+      g.beginPath()
+      g.ellipse(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r, 2, 3, a, 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'strawberry') {
+    // Pink/red flesh with seed cavities
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r = 6 + Math.random() * 48
+      g.fillStyle = 'rgba(255,200,200,0.15)'
+      g.beginPath()
+      g.arc(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r, 2 + Math.random() * 2, 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'lemon' || fruitType === 'lime') {
+    // Citrus segment pattern
+    g.strokeStyle = 'rgba(255,255,200,0.2)'
+    g.lineWidth = 1
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(s / 2, s / 2)
+      g.lineTo(s / 2 + Math.cos(a) * 58, s / 2 + Math.sin(a) * 58)
+      g.stroke()
+    }
+  } else if (fruitType === 'peach') {
+    // Soft peach flesh with slight grain
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = 'rgba(255,200,160,0.1)'
+      g.beginPath()
+      g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 3, 0, Math.PI * 2)
+      g.fill()
+    }
+    // Stone/pit outline in center
+    g.strokeStyle = 'rgba(180,140,100,0.25)'
+    g.lineWidth = 2
+    g.beginPath()
+    g.ellipse(s / 2, s / 2, 14, 20, 0, 0, Math.PI * 2)
+    g.stroke()
+  } else if (fruitType === 'plum') {
+    // Lavender/pink flesh with stone outline
+    g.strokeStyle = 'rgba(180,140,180,0.2)'
+    g.lineWidth = 2
+    g.beginPath()
+    g.ellipse(s / 2, s / 2, 12, 18, 0, 0, Math.PI * 2)
+    g.stroke()
+    for (let i = 0; i < 30; i++) {
+      g.fillStyle = 'rgba(220,200,220,0.08)'
+      g.beginPath()
+      g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 3, 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'cherry') {
+    // Bright red flesh with subtle lighter patches
+    for (let i = 0; i < 20; i++) {
+      g.fillStyle = 'rgba(255,150,150,0.12)'
+      g.beginPath()
+      g.arc(Math.random() * s, Math.random() * s, 3 + Math.random() * 4, 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'passionfruit') {
+    // Golden flesh with dark seeds
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r = 8 + Math.random() * 48
+      g.fillStyle = 'rgba(40,20,10,0.35)'
+      g.beginPath()
+      g.ellipse(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r, 1.5, 2.5, a, 0, Math.PI * 2)
+      g.fill()
+    }
+    // Juicy pulp patches
+    for (let i = 0; i < 30; i++) {
+      g.fillStyle = 'rgba(255,230,150,0.12)'
+      g.beginPath()
+      g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 3, 0, Math.PI * 2)
+      g.fill()
+    }
+  } else if (fruitType === 'coconut') {
+    // White coconut meat with brown shell edge
+    g.strokeStyle = 'rgba(80,55,30,0.35)'
+    g.lineWidth = 5
+    g.beginPath()
+    g.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2)
+    g.stroke()
+  } else if (fruitType === 'mango') {
+    // Orange/yellow flesh with subtle fiber lines
+    g.strokeStyle = 'rgba(255,220,100,0.15)'
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2
+      g.beginPath()
+      g.moveTo(s / 2 + Math.cos(a) * 5, s / 2 + Math.sin(a) * 5)
+      g.lineTo(s / 2 + Math.cos(a) * 55, s / 2 + Math.sin(a) * 55)
+      g.stroke()
+    }
+    // Stone outline
+    g.strokeStyle = 'rgba(180,140,60,0.2)'
+    g.lineWidth = 1.5
+    g.beginPath()
+    g.ellipse(s / 2, s / 2, 10, 18, 0.2, 0, Math.PI * 2)
+    g.stroke()
+  } else if (fruitType === 'pear') {
+    // Creamy white flesh with faint grit cells
+    for (let i = 0; i < 50; i++) {
+      g.fillStyle = 'rgba(200,180,120,0.08)'
+      g.beginPath()
+      g.arc(Math.random() * s, Math.random() * s, 1 + Math.random(), 0, Math.PI * 2)
+      g.fill()
+    }
+    // Core outline
+    g.strokeStyle = 'rgba(180,170,130,0.18)'
+    g.lineWidth = 1
+    g.beginPath()
+    g.ellipse(s / 2, s / 2, 10, 15, 0, 0, Math.PI * 2)
+    g.stroke()
   } else {
-    // Generic: faint fibers.
-    g.strokeStyle = 'rgba(255,255,255,0.16)'
+    // Generic: faint radial fibers
+    g.strokeStyle = 'rgba(255,255,255,0.14)'
     for (let i = 0; i < 26; i++) {
       const a = (i / 26) * Math.PI * 2
       g.beginPath()
-      g.moveTo(64, 64)
-      g.lineTo(64 + Math.cos(a) * 64, 64 + Math.sin(a) * 64)
+      g.moveTo(s / 2, s / 2)
+      g.lineTo(s / 2 + Math.cos(a) * 62, s / 2 + Math.sin(a) * 62)
       g.stroke()
     }
   }
@@ -154,7 +347,6 @@ function getSkinMat(skin: THREE.Color): THREE.MeshStandardMaterial {
 }
 
 function getSkinMatForFruit(fruitType: FruitArchetype, skin: THREE.Color): THREE.MeshStandardMaterial {
-  // Keep caching behavior: keyed by skin color, but certain fruits override map.
   if (fruitType === 'watermelon') {
     const h = skin.getHex() ^ 0x77aa33
     let m = skinMatCache.get(h)
@@ -162,7 +354,7 @@ function getSkinMatForFruit(fruitType: FruitArchetype, skin: THREE.Color): THREE
       m = new THREE.MeshStandardMaterial({
         map: watermelonStripeTexture(),
         color: skin.clone(),
-        roughness: 0.45,
+        roughness: 0.42,
         metalness: 0,
         emissive: skin.clone().multiplyScalar(0.06),
         emissiveIntensity: 1,
@@ -179,7 +371,7 @@ function getSkinMatForFruit(fruitType: FruitArchetype, skin: THREE.Color): THREE
       m = new THREE.MeshStandardMaterial({
         map: bananaSpeckleTexture(),
         color: skin.clone(),
-        roughness: 0.55,
+        roughness: 0.50,
         metalness: 0,
         emissive: skin.clone().multiplyScalar(0.03),
         emissiveIntensity: 1,
@@ -198,7 +390,7 @@ function getFleshMat(flesh: THREE.Color): THREE.MeshStandardMaterial {
   if (!m) {
     m = new THREE.MeshStandardMaterial({
       color: flesh.clone(),
-      map: fleshTextureForFruit('apple', flesh), // default (overridden by per-fruit helper)
+      map: fleshTextureForFruit('apple', flesh),
       roughness: 0.52,
       metalness: 0,
       emissive: flesh.clone().multiplyScalar(0.05),
@@ -210,7 +402,6 @@ function getFleshMat(flesh: THREE.Color): THREE.MeshStandardMaterial {
 }
 
 function getFleshMatForFruit(fruitType: FruitArchetype, flesh: THREE.Color): THREE.MeshStandardMaterial {
-  // Cache per fruitType + flesh color to allow distinct maps.
   const key = `${fruitType}:${flesh.getHexString()}`
   const h = (flesh.getHex() ^ (fruitType === 'watermelon' ? 0x11aa33 : fruitType === 'banana' ? 0x33aa11 : 0x7))
   let m = fleshMatCache.get(h)
@@ -218,7 +409,7 @@ function getFleshMatForFruit(fruitType: FruitArchetype, flesh: THREE.Color): THR
     m = new THREE.MeshStandardMaterial({
       color: flesh.clone(),
       map: fleshTextureForFruit(fruitType, flesh),
-      roughness: fruitType === 'watermelon' ? 0.58 : fruitType === 'banana' ? 0.66 : 0.6,
+      roughness: fruitType === 'watermelon' ? 0.55 : fruitType === 'banana' ? 0.62 : 0.58,
       metalness: 0,
       emissive: flesh.clone().multiplyScalar(0.05),
       emissiveIntensity: 1,
@@ -232,7 +423,7 @@ function getFleshMatForFruit(fruitType: FruitArchetype, flesh: THREE.Color): THR
 
 /**
  * One hemisphere of a sliced fruit: curved skin + flat circular cut face (flesh).
- * Local +Y is the outward normal of the cut (into this half’s interior / visible pulp).
+ * Local +Y is the outward normal of the cut (into this half's interior / visible pulp).
  * Geometries and materials are shared — do not dispose them in disposeFruitHalfRoot.
  */
 export function createFruitHalfMesh(
@@ -249,12 +440,12 @@ export function createFruitHalfMesh(
   let curved: THREE.Mesh
   let capScale = radius
   if (fruitType === 'banana') {
-    // Two banana segments (not hemispheres): approximate by slicing the banana tube along its arc length.
     const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, -radius * 0.9, 0),
-      new THREE.Vector3(radius * 0.35, -radius * 0.2, radius * 0.08),
-      new THREE.Vector3(radius * 0.85, radius * 0.35, 0),
-      new THREE.Vector3(radius * 1.05, radius * 0.75, -radius * 0.12),
+      new THREE.Vector3(0, -radius * 0.95, 0),
+      new THREE.Vector3(radius * 0.25, -radius * 0.45, radius * 0.12),
+      new THREE.Vector3(radius * 0.7, radius * 0.15, radius * 0.06),
+      new THREE.Vector3(radius * 1.0, radius * 0.65, -radius * 0.08),
+      new THREE.Vector3(radius * 0.85, radius * 0.95, -radius * 0.18),
     ])
     const t0 = sideSign < 0 ? 0.0 : 0.52
     const t1 = sideSign < 0 ? 0.52 : 1.0
@@ -265,9 +456,8 @@ export function createFruitHalfMesh(
       pts.push(curve.getPoint(t))
     }
     const sub = new THREE.CatmullRomCurve3(pts)
-    const tubeR = radius * 0.42
+    const tubeR = radius * 0.38
     const geo = new THREE.TubeGeometry(sub, 14, tubeR, 10, false)
-    // Re-center so the cut surface is at the local origin, so the cap can be a simple disk.
     const cutT = 0.52
     const cutP = curve.getPoint(cutT)
     geo.translate(-cutP.x, -cutP.y, -cutP.z)
@@ -277,8 +467,7 @@ export function createFruitHalfMesh(
     curved = new THREE.Mesh(sharedHemisphere, getSkinMatForFruit(fruitType, skinColor))
     curved.scale.setScalar(radius)
     if (fruitType === 'watermelon') {
-      // Match the whole watermelon’s slightly squashed silhouette.
-      curved.scale.multiply(new THREE.Vector3(1.05, 0.88, 1.05))
+      curved.scale.multiply(new THREE.Vector3(1.15, 0.78, 1.10))
     }
   }
   curved.castShadow = false

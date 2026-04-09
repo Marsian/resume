@@ -17,72 +17,85 @@ export function disposeObject3D(root: THREE.Object3D) {
   })
 }
 
-function fruitBodyMaterial(hex: number) {
-  const c = new THREE.Color(hex)
-  return new THREE.MeshStandardMaterial({
-    color: c,
-    roughness: 0.28,
-    metalness: 0.06,
-    emissive: c.clone().multiplyScalar(0.05),
-    emissiveIntensity: 1,
-  })
-}
+// ---------------------------------------------------------------------------
+// Enhanced procedural texture generators (128×128 for richer detail)
+// ---------------------------------------------------------------------------
 
 let watermelonStripeTex: THREE.CanvasTexture | null = null
 function watermelonStripeTexture(): THREE.CanvasTexture {
   if (watermelonStripeTex) return watermelonStripeTex
+  const s = 256
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = s; c.height = s
   const g = c.getContext('2d')!
-  // Brighter stripes so the starter watermelon reads like Classic menu.
-  g.fillStyle = '#2f8c3f'
-  g.fillRect(0, 0, 64, 64)
-  for (let x = 0; x < 64; x += 8) {
-    g.fillStyle = x % 16 === 0 ? '#1c6f2d' : '#4fbf5d'
-    g.fillRect(x, 0, 4, 64)
+  // Bright green base (cartoony Fruit Ninja style)
+  g.fillStyle = '#38a84e'
+  g.fillRect(0, 0, s, s)
+  // Bold wide stripes like the wiki — 2-3 thick dark-green bands running lengthwise
+  const stripePositions = [0.15, 0.42, 0.72]
+  for (const frac of stripePositions) {
+    const cx = frac * s
+    const w = 18 + Math.random() * 8
+    g.fillStyle = '#1a6828'
+    g.beginPath()
+    g.moveTo(cx - w, 0)
+    for (let y = 0; y <= s; y += 4) {
+      g.lineTo(cx - w + Math.sin(y * 0.03 + frac * 20) * 4, y)
+    }
+    for (let y = s; y >= 0; y -= 4) {
+      g.lineTo(cx + w + Math.sin(y * 0.03 + frac * 20) * 4, y)
+    }
+    g.closePath()
+    g.fill()
+  }
+  // Subtle lighter specks for texture variation
+  for (let i = 0; i < 200; i++) {
+    g.fillStyle = `rgba(100,200,100,${0.03 + Math.random() * 0.04})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 1 + Math.random() * 2, 0, Math.PI * 2)
+    g.fill()
   }
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = THREE.RepeatWrapping
   tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(4, 2)
+  tex.repeat.set(2, 1)
   watermelonStripeTex = tex
   return tex
-}
-
-let watermelonBodyMat: THREE.MeshStandardMaterial | null = null
-function watermelonBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!watermelonBodyMat) {
-    watermelonBodyMat = new THREE.MeshStandardMaterial({
-      map: watermelonStripeTexture(),
-      color: 0x4a8f55,
-      roughness: 0.45,
-      metalness: 0,
-      emissive: new THREE.Color(0x1a5c2a),
-      emissiveIntensity: 0.35,
-    })
-  }
-  return watermelonBodyMat
 }
 
 let pineappleSkinTex: THREE.CanvasTexture | null = null
 function pineappleSkinTexture(): THREE.CanvasTexture {
   if (pineappleSkinTex) return pineappleSkinTex
+  const s = 128
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = s; c.height = s
   const g = c.getContext('2d')!
-  g.fillStyle = '#a67c1f'
-  g.fillRect(0, 0, 64, 64)
-  g.strokeStyle = '#5c4a18'
-  g.lineWidth = 1
-  for (let y = 0; y < 64; y += 6) {
-    for (let x = (y % 12) / 2; x < 64; x += 12) {
+  // Golden-brown base
+  g.fillStyle = '#c49420'
+  g.fillRect(0, 0, s, s)
+  // Hexagonal / diamond scale pattern
+  const cellW = 14, cellH = 12
+  for (let row = -1; row < s / cellH + 1; row++) {
+    const offsetX = (row % 2) * (cellW / 2)
+    for (let col = -1; col < s / cellW + 1; col++) {
+      const cx = col * cellW + offsetX
+      const cy = row * cellH
+      // Dark outline
+      g.strokeStyle = '#6a4a12'
+      g.lineWidth = 1.5
       g.beginPath()
-      g.moveTo(x, y)
-      g.lineTo(x + 6, y + 8)
+      g.moveTo(cx, cy + cellH * 0.5)
+      g.lineTo(cx + cellW * 0.5, cy)
+      g.lineTo(cx + cellW, cy + cellH * 0.5)
+      g.lineTo(cx + cellW * 0.5, cy + cellH)
+      g.closePath()
       g.stroke()
+      // Highlight dot at center
+      g.fillStyle = 'rgba(255,220,120,0.25)'
+      g.beginPath()
+      g.arc(cx + cellW * 0.5, cy + cellH * 0.5, 2, 0, Math.PI * 2)
+      g.fill()
     }
   }
   const tex = new THREE.CanvasTexture(c)
@@ -94,33 +107,34 @@ function pineappleSkinTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let pineappleBodyMat: THREE.MeshStandardMaterial | null = null
-function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!pineappleBodyMat) {
-    pineappleBodyMat = new THREE.MeshStandardMaterial({
-      map: pineappleSkinTexture(),
-      color: 0xd4a84b,
-      roughness: 0.55,
-      metalness: 0,
-    })
-  }
-  return pineappleBodyMat
-}
-
 let kiwiFuzzTex: THREE.CanvasTexture | null = null
 function kiwiFuzzTexture(): THREE.CanvasTexture {
   if (kiwiFuzzTex) return kiwiFuzzTex
+  const s = 128
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = s; c.height = s
   const g = c.getContext('2d')!
-  g.fillStyle = '#6b4f1e'
-  g.fillRect(0, 0, 64, 64)
-  for (let i = 0; i < 900; i++) {
-    const x = Math.random() * 64
-    const y = Math.random() * 64
-    g.fillStyle = Math.random() > 0.5 ? '#4a3510' : '#8a7030'
-    g.fillRect(x, y, 1, 1)
+  g.fillStyle = '#6a4f18'
+  g.fillRect(0, 0, s, s)
+  // Fuzz fibers — short strokes radiating from random points
+  for (let i = 0; i < 1800; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    const angle = Math.random() * Math.PI * 2
+    const len = 1.5 + Math.random() * 2.5
+    g.strokeStyle = Math.random() > 0.5 ? 'rgba(90,65,20,0.5)' : 'rgba(130,100,40,0.4)'
+    g.lineWidth = 0.6
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len)
+    g.stroke()
+  }
+  // Lighter patches for variation
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = `rgba(120,95,35,${0.08 + Math.random() * 0.1})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 3 + Math.random() * 5, 0, Math.PI * 2)
+    g.fill()
   }
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -128,34 +142,31 @@ function kiwiFuzzTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let kiwiBodyMat: THREE.MeshStandardMaterial | null = null
-function kiwiBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!kiwiBodyMat) {
-    kiwiBodyMat = new THREE.MeshStandardMaterial({
-      map: kiwiFuzzTexture(),
-      color: 0x8b6914,
-      roughness: 0.95,
-      metalness: 0,
-    })
-  }
-  return kiwiBodyMat
-}
-
 let orangePoreTex: THREE.CanvasTexture | null = null
 function orangePoreTexture(): THREE.CanvasTexture {
   if (orangePoreTex) return orangePoreTex
+  const s = 128
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = s; c.height = s
   const g = c.getContext('2d')!
-  g.fillStyle = '#ff8c1a'
-  g.fillRect(0, 0, 64, 64)
-  for (let i = 0; i < 200; i++) {
-    const x = Math.random() * 64
-    const y = Math.random() * 64
-    g.fillStyle = `rgba(200,90,0,${0.15 + Math.random() * 0.25})`
+  // Bright orange base
+  g.fillStyle = '#ff9020'
+  g.fillRect(0, 0, s, s)
+  // Dimpled pores
+  for (let i = 0; i < 500; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    const r = 0.4 + Math.random() * 1.0
+    g.fillStyle = `rgba(180,70,0,${0.12 + Math.random() * 0.2})`
     g.beginPath()
-    g.arc(x, y, 0.6 + Math.random() * 1.2, 0, Math.PI * 2)
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fill()
+  }
+  // Subtle highlight specks
+  for (let i = 0; i < 100; i++) {
+    g.fillStyle = `rgba(255,200,100,${0.05 + Math.random() * 0.08})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 0.5 + Math.random(), 0, Math.PI * 2)
     g.fill()
   }
   const tex = new THREE.CanvasTexture(c)
@@ -164,33 +175,33 @@ function orangePoreTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let orangeBodyMat: THREE.MeshStandardMaterial | null = null
-function orangeBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!orangeBodyMat) {
-    orangeBodyMat = new THREE.MeshStandardMaterial({
-      map: orangePoreTexture(),
-      color: 0xff7700,
-      roughness: 0.42,
-      metalness: 0,
-    })
-  }
-  return orangeBodyMat
-}
-
 let passionSpeckleTex: THREE.CanvasTexture | null = null
 function passionSpeckleTexture(): THREE.CanvasTexture {
   if (passionSpeckleTex) return passionSpeckleTex
+  const s = 128
   const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
+  c.width = s; c.height = s
   const g = c.getContext('2d')!
-  g.fillStyle = '#2d1f45'
-  g.fillRect(0, 0, 64, 64)
-  g.fillStyle = '#e8e0f0'
-  for (let i = 0; i < 140; i++) {
-    const x = Math.random() * 64
-    const y = Math.random() * 64
+  // Dark purple base
+  g.fillStyle = '#2a1840'
+  g.fillRect(0, 0, s, s)
+  // Speckles
+  for (let i = 0; i < 300; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    g.fillStyle = `rgba(200,180,220,${0.15 + Math.random() * 0.2})`
     g.fillRect(x, y, 1 + (Math.random() * 2) | 0, 1)
+  }
+  // Subtle wrinkle lines
+  for (let i = 0; i < 60; i++) {
+    g.strokeStyle = `rgba(50,30,70,${0.1 + Math.random() * 0.1})`
+    g.lineWidth = 0.5
+    g.beginPath()
+    const sx = Math.random() * s
+    const sy = Math.random() * s
+    g.moveTo(sx, sy)
+    g.lineTo(sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 12)
+    g.stroke()
   }
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -198,96 +209,549 @@ function passionSpeckleTexture(): THREE.CanvasTexture {
   return tex
 }
 
+let coconutHuskTex: THREE.CanvasTexture | null = null
+function coconutHuskTexture(): THREE.CanvasTexture {
+  if (coconutHuskTex) return coconutHuskTex
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const g = c.getContext('2d')!
+  // Brown base
+  g.fillStyle = '#5a3f28'
+  g.fillRect(0, 0, s, s)
+  // Fiber lines
+  for (let i = 0; i < 400; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    const angle = -0.3 + Math.random() * 0.6
+    const len = 3 + Math.random() * 8
+    g.strokeStyle = Math.random() > 0.5 ? 'rgba(40,25,12,0.2)' : 'rgba(90,65,40,0.15)'
+    g.lineWidth = 0.5
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len)
+    g.stroke()
+  }
+  // Coarser fiber patches
+  for (let i = 0; i < 50; i++) {
+    g.fillStyle = `rgba(80,55,30,${0.08 + Math.random() * 0.1})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 4, 0, Math.PI * 2)
+    g.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  coconutHuskTex = tex
+  return tex
+}
+
+let strawberryTex: THREE.CanvasTexture | null = null
+function strawberryTexture(): THREE.CanvasTexture {
+  if (strawberryTex) return strawberryTex
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const g = c.getContext('2d')!
+  // Deep red base
+  g.fillStyle = '#d81828'
+  g.fillRect(0, 0, s, s)
+  // Subtle stripe / ridge pattern
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2
+    g.strokeStyle = 'rgba(160,10,20,0.2)'
+    g.lineWidth = 1.5
+    g.beginPath()
+    g.moveTo(s / 2, s / 2)
+    g.lineTo(s / 2 + Math.cos(a) * s * 0.55, s / 2 + Math.sin(a) * s * 0.55)
+    g.stroke()
+  }
+  // Lighter highlights
+  for (let i = 0; i < 80; i++) {
+    g.fillStyle = `rgba(255,100,100,${0.04 + Math.random() * 0.06})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 3, 0, Math.PI * 2)
+    g.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  strawberryTex = tex
+  return tex
+}
+
+let plumBloomTex: THREE.CanvasTexture | null = null
+function plumBloomTexture(): THREE.CanvasTexture {
+  if (plumBloomTex) return plumBloomTex
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const g = c.getContext('2d')!
+  // Deep purple base
+  g.fillStyle = '#5a1868'
+  g.fillRect(0, 0, s, s)
+  // Dusty bloom overlay
+  for (let i = 0; i < 800; i++) {
+    g.fillStyle = `rgba(180,160,200,${0.02 + Math.random() * 0.05})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 1 + Math.random() * 2.5, 0, Math.PI * 2)
+    g.fill()
+  }
+  // Subtle glossy highlight zone
+  const grad = g.createRadialGradient(s * 0.35, s * 0.35, 0, s * 0.35, s * 0.35, s * 0.45)
+  grad.addColorStop(0, 'rgba(200,180,220,0.12)')
+  grad.addColorStop(1, 'rgba(200,180,220,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, s, s)
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  plumBloomTex = tex
+  return tex
+}
+
+let peachFuzzTex: THREE.CanvasTexture | null = null
+function peachFuzzTexture(): THREE.CanvasTexture {
+  if (peachFuzzTex) return peachFuzzTex
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const g = c.getContext('2d')!
+  // Soft peach base
+  g.fillStyle = '#ff9060'
+  g.fillRect(0, 0, s, s)
+  // Fuzz fibers
+  for (let i = 0; i < 1200; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    g.strokeStyle = `rgba(255,200,160,${0.06 + Math.random() * 0.08})`
+    g.lineWidth = 0.5
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + (Math.random() - 0.5) * 2, y - 1 - Math.random() * 2)
+    g.stroke()
+  }
+  // Rosy blush areas
+  for (let i = 0; i < 30; i++) {
+    g.fillStyle = `rgba(220,80,60,${0.04 + Math.random() * 0.06})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 5 + Math.random() * 8, 0, Math.PI * 2)
+    g.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  peachFuzzTex = tex
+  return tex
+}
+
+let mangoTex: THREE.CanvasTexture | null = null
+function mangoTexture(): THREE.CanvasTexture {
+  if (mangoTex) return mangoTex
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const g = c.getContext('2d')!
+  // Gradient from yellow to red-orange
+  const grad = g.createLinearGradient(0, 0, s, s)
+  grad.addColorStop(0, '#ffaa40')
+  grad.addColorStop(0.5, '#ff7a20')
+  grad.addColorStop(1, '#e85510')
+  g.fillStyle = grad
+  g.fillRect(0, 0, s, s)
+  // Subtle mottle
+  for (let i = 0; i < 200; i++) {
+    g.fillStyle = `rgba(255,180,80,${0.03 + Math.random() * 0.05})`
+    g.beginPath()
+    g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 4, 0, Math.PI * 2)
+    g.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  mangoTex = tex
+  return tex
+}
+
+let pearTex: THREE.CanvasTexture | null = null
+function pearTexture(): THREE.CanvasTexture {
+  if (pearTex) return pearTex
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const g = c.getContext('2d')!
+  // Yellow-green base
+  g.fillStyle = '#b0c040'
+  g.fillRect(0, 0, s, s)
+  // Subtle speckle / lenticels
+  for (let i = 0; i < 200; i++) {
+    g.fillStyle = `rgba(160,140,50,${0.06 + Math.random() * 0.08})`
+    g.beginPath()
+    g.ellipse(Math.random() * s, Math.random() * s, 0.8 + Math.random() * 1.5, 0.5 + Math.random(), 0, 0, Math.PI * 2)
+    g.fill()
+  }
+  // Slight blush
+  const grad = g.createRadialGradient(s * 0.6, s * 0.3, 0, s * 0.6, s * 0.3, s * 0.4)
+  grad.addColorStop(0, 'rgba(220,180,80,0.15)')
+  grad.addColorStop(1, 'rgba(220,180,80,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, s, s)
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  pearTex = tex
+  return tex
+}
+
+// ---------------------------------------------------------------------------
+// Cached body materials
+// ---------------------------------------------------------------------------
+
+let watermelonBodyMat: THREE.MeshStandardMaterial | null = null
+function watermelonBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!watermelonBodyMat) {
+    watermelonBodyMat = new THREE.MeshStandardMaterial({
+      map: watermelonStripeTexture(),
+      color: 0x3a9a4a,
+      roughness: 0.40,
+      metalness: 0,
+      emissive: new THREE.Color(0x1a5c2a),
+      emissiveIntensity: 0.3,
+    })
+  }
+  return watermelonBodyMat
+}
+
+let pineappleBodyMat: THREE.MeshStandardMaterial | null = null
+function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!pineappleBodyMat) {
+    pineappleBodyMat = new THREE.MeshStandardMaterial({
+      map: pineappleSkinTexture(),
+      color: 0xd4a840,
+      roughness: 0.50,
+      metalness: 0,
+      emissive: new THREE.Color(0x4a3a10),
+      emissiveIntensity: 0.15,
+    })
+  }
+  return pineappleBodyMat
+}
+
+let kiwiBodyMat: THREE.MeshStandardMaterial | null = null
+function kiwiBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!kiwiBodyMat) {
+    kiwiBodyMat = new THREE.MeshStandardMaterial({
+      map: kiwiFuzzTexture(),
+      color: 0x8a6a1e,
+      roughness: 0.88,
+      metalness: 0,
+    })
+  }
+  return kiwiBodyMat
+}
+
+let orangeBodyMat: THREE.MeshStandardMaterial | null = null
+function orangeBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!orangeBodyMat) {
+    orangeBodyMat = new THREE.MeshStandardMaterial({
+      map: orangePoreTexture(),
+      color: 0xff8c00,
+      roughness: 0.36,
+      metalness: 0,
+      emissive: new THREE.Color(0x604000),
+      emissiveIntensity: 0.08,
+    })
+  }
+  return orangeBodyMat
+}
+
 let passionBodyMat: THREE.MeshStandardMaterial | null = null
 function passionBodyMaterial(): THREE.MeshStandardMaterial {
   if (!passionBodyMat) {
     passionBodyMat = new THREE.MeshStandardMaterial({
       map: passionSpeckleTexture(),
-      color: 0x4a3568,
-      roughness: 0.5,
+      color: 0x4a2868,
+      roughness: 0.52,
       metalness: 0,
+      emissive: new THREE.Color(0x1a0a28),
+      emissiveIntensity: 0.2,
     })
   }
   return passionBodyMat
 }
 
-function addStemLeaf(g: THREE.Group, radius: number) {
+let coconutBodyMat: THREE.MeshStandardMaterial | null = null
+function coconutBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!coconutBodyMat) {
+    coconutBodyMat = new THREE.MeshStandardMaterial({
+      map: coconutHuskTexture(),
+      color: 0x6a5038,
+      roughness: 0.70,
+      metalness: 0,
+      emissive: new THREE.Color(0x201508),
+      emissiveIntensity: 0.1,
+    })
+  }
+  return coconutBodyMat
+}
+
+let strawberryBodyMat: THREE.MeshStandardMaterial | null = null
+function strawberryBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!strawberryBodyMat) {
+    strawberryBodyMat = new THREE.MeshStandardMaterial({
+      map: strawberryTexture(),
+      color: 0xe8202a,
+      roughness: 0.38,
+      metalness: 0,
+      emissive: new THREE.Color(0x601015),
+      emissiveIntensity: 0.12,
+    })
+  }
+  return strawberryBodyMat
+}
+
+let plumBodyMat: THREE.MeshStandardMaterial | null = null
+function plumBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!plumBodyMat) {
+    plumBodyMat = new THREE.MeshStandardMaterial({
+      map: plumBloomTexture(),
+      color: 0x6a2078,
+      roughness: 0.42,
+      metalness: 0.02,
+      emissive: new THREE.Color(0x280a30),
+      emissiveIntensity: 0.15,
+    })
+  }
+  return plumBodyMat
+}
+
+let peachBodyMat: THREE.MeshStandardMaterial | null = null
+function peachBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!peachBodyMat) {
+    peachBodyMat = new THREE.MeshStandardMaterial({
+      map: peachFuzzTexture(),
+      color: 0xff9a6a,
+      roughness: 0.48,
+      metalness: 0,
+      emissive: new THREE.Color(0x603820),
+      emissiveIntensity: 0.1,
+    })
+  }
+  return peachBodyMat
+}
+
+let mangoBodyMat: THREE.MeshStandardMaterial | null = null
+function mangoBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!mangoBodyMat) {
+    mangoBodyMat = new THREE.MeshStandardMaterial({
+      map: mangoTexture(),
+      color: 0xff8820,
+      roughness: 0.25,
+      metalness: 0.02,
+      emissive: new THREE.Color(0x603010),
+      emissiveIntensity: 0.1,
+    })
+  }
+  return mangoBodyMat
+}
+
+let pearBodyMat: THREE.MeshStandardMaterial | null = null
+function pearBodyMaterial(): THREE.MeshStandardMaterial {
+  if (!pearBodyMat) {
+    pearBodyMat = new THREE.MeshStandardMaterial({
+      map: pearTexture(),
+      color: 0xb8c840,
+      roughness: 0.32,
+      metalness: 0,
+      emissive: new THREE.Color(0x404010),
+      emissiveIntensity: 0.08,
+    })
+  }
+  return pearBodyMat
+}
+
+function fruitBodyMaterial(hex: number) {
+  const c = new THREE.Color(hex)
+  return new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: 0.28,
+    metalness: 0.06,
+    emissive: c.clone().multiplyScalar(0.05),
+    emissiveIntensity: 1,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Decoration helpers
+// ---------------------------------------------------------------------------
+
+function addStemLeaf(g: THREE.Group, radius: number, stemColor = 0x3d2914) {
+  // Stem — slightly curved via tapered cylinder
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.08, radius * 0.12, radius * 0.35, 8),
-    new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9, metalness: 0 }),
+    new THREE.CylinderGeometry(radius * 0.06, radius * 0.10, radius * 0.35, 8),
+    new THREE.MeshStandardMaterial({ color: stemColor, roughness: 0.85, metalness: 0 }),
   )
   stem.position.y = radius * 0.92
   stem.castShadow = true
   g.add(stem)
 
+  // Leaf — more organic elliptical shape
+  const leafGeo = new THREE.CircleGeometry(radius * 0.32, 12)
   const leaf = new THREE.Mesh(
-    new THREE.CircleGeometry(radius * 0.35, 12),
+    leafGeo,
     new THREE.MeshStandardMaterial({
-      color: 0x2d6b3a,
-      roughness: 0.65,
+      color: 0x2d7a3a,
+      roughness: 0.60,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.92,
     }),
   )
-  leaf.position.set(radius * 0.35, radius * 0.75, radius * 0.1)
-  leaf.rotation.set(0.5, 0.4, 0.3)
+  leaf.position.set(radius * 0.32, radius * 0.78, radius * 0.08)
+  leaf.rotation.set(0.6, 0.35, 0.25)
+  leaf.scale.set(1, 0.6, 1)
   leaf.castShadow = true
   g.add(leaf)
 }
 
+function addHighlightSphere(g: THREE.Group, radius: number) {
+  // Small specular highlight on upper-left to simulate glossy surface
+  const hl = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.18, 10, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.1,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  )
+  hl.position.set(-radius * 0.35, radius * 0.45, radius * 0.65)
+  g.add(hl)
+}
+
+// ---------------------------------------------------------------------------
+// Per-fruit mesh builders — enhanced for wiki-accurate visuals
+// ---------------------------------------------------------------------------
+
 function createWatermelonMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 18), watermelonBodyMaterial())
-  body.scale.set(1.05, 0.88, 1.05)
+  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 22), watermelonBodyMaterial())
+  // More elongated oval shape per wiki reference
+  body.scale.set(1.15, 0.78, 1.10)
   body.castShadow = true
   body.receiveShadow = true
   body.userData.sharedMaterial = true
   g.add(body)
-  addStemLeaf(g, radius * 0.95)
+  // Simple stubby green stem matching wiki's cartoony style
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.08, radius * 0.12, radius * 0.25, 8),
+    new THREE.MeshStandardMaterial({ color: 0x2d7a2d, roughness: 0.7, metalness: 0 }),
+  )
+  stem.position.y = radius * 0.74
+  stem.castShadow = true
+  g.add(stem)
   return g
 }
 
 function createAppleMesh(radius: number, skinHex: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), fruitBodyMaterial(skinHex))
-  body.scale.set(0.98, 1.04, 0.98)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 26, 20),
+    fruitBodyMaterial(skinHex),
+  )
+  // Apple shape: slightly wider than tall, subtle indent at top and bottom
+  body.scale.set(1.02, 0.96, 1.02)
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Top indent dimple
+  const indent = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.18, 10, 8),
+    new THREE.MeshStandardMaterial({
+      color: skinHex,
+      roughness: 0.32,
+      metalness: 0.06,
+    }),
+  )
+  indent.position.y = radius * 0.88
+  indent.scale.set(1, 0.3, 1)
+  g.add(indent)
+
   addStemLeaf(g, radius)
+  addHighlightSphere(g, radius)
   return g
 }
 
 function createBananaMesh(radius: number, skinHex: number): THREE.Group {
   const g = new THREE.Group()
+  // Bold cartoony curve matching wiki's bright yellow banana
   const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, -radius * 0.9, 0),
-    new THREE.Vector3(radius * 0.35, -radius * 0.2, radius * 0.08),
-    new THREE.Vector3(radius * 0.85, radius * 0.35, 0),
-    new THREE.Vector3(radius * 1.05, radius * 0.75, -radius * 0.12),
+    new THREE.Vector3(-radius * 0.1, -radius * 0.95, 0),
+    new THREE.Vector3(radius * 0.25, -radius * 0.45, radius * 0.12),
+    new THREE.Vector3(radius * 0.7, radius * 0.15, radius * 0.06),
+    new THREE.Vector3(radius * 1.0, radius * 0.65, -radius * 0.08),
+    new THREE.Vector3(radius * 0.85, radius * 0.95, -radius * 0.18),
   ])
-  const tubeR = radius * 0.42
+  // Thicker tube for bold cartoony appearance
+  const tubeR = radius * 0.44
   const body = new THREE.Mesh(
-    new THREE.TubeGeometry(curve, 18, tubeR, 10, false),
+    new THREE.TubeGeometry(curve, 22, tubeR, 12, false),
     fruitBodyMaterial(skinHex),
   )
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Dark tips at both ends per wiki reference
+  const tipMat = new THREE.MeshStandardMaterial({ color: 0x5a4a10, roughness: 0.7 })
+  const tip1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 8, 6), tipMat)
+  tip1.position.copy(curve.getPoint(0))
+  g.add(tip1)
+  const tip2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.07, 8, 6), tipMat)
+  tip2.position.copy(curve.getPoint(1))
+  g.add(tip2)
   return g
 }
 
 function createLemonMesh(radius: number, skinHex: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 20, 14), fruitBodyMaterial(skinHex))
-  body.scale.set(1.12, 0.82, 1.08)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 16),
+    fruitBodyMaterial(skinHex),
+  )
+  // Elongated with slight taper
+  body.scale.set(1.18, 0.78, 1.10)
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Nipple protrusions at both ends
+  const nubMat = new THREE.MeshStandardMaterial({ color: 0x8aaa40, roughness: 0.65 })
+  const nubTop = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.14, 8, 6), nubMat)
+  nubTop.position.set(0, radius * 0.78, 0)
+  nubTop.scale.set(0.8, 1.4, 0.8)
+  nubTop.castShadow = true
+  g.add(nubTop)
+  const nubBot = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 8, 6), nubMat)
+  nubBot.position.set(0, -radius * 0.78, 0)
+  nubBot.scale.set(0.7, 1.3, 0.7)
+  g.add(nubBot)
+  return g
+}
+
+function createLimeMesh(radius: number, skinHex: number): THREE.Group {
+  const g = new THREE.Group()
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 16),
+    fruitBodyMaterial(skinHex),
+  )
+  // Rounder than lemon — just slightly oval
+  body.scale.set(1.04, 0.92, 1.02)
+  body.castShadow = true
+  body.receiveShadow = true
+  g.add(body)
+
+  // Small green nub
   const nub = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.12, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x6b8f3a, roughness: 0.75 }),
+    new THREE.SphereGeometry(radius * 0.10, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3a7020, roughness: 0.65 }),
   )
   nub.position.set(0, radius * 0.88, 0)
   nub.castShadow = true
@@ -295,41 +759,34 @@ function createLemonMesh(radius: number, skinHex: number): THREE.Group {
   return g
 }
 
-function createLimeMesh(radius: number, skinHex: number): THREE.Group {
+function createMangoMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 20, 14), fruitBodyMaterial(skinHex))
-  body.scale.set(1.08, 0.88, 1.06)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    mangoBodyMaterial(),
+  )
+  // Distinctive ovoid: elongated, laterally flattened, with pointed end
+  body.scale.set(1.22, 0.78, 0.92)
+  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
-  const nub = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.1, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x4a6b28, roughness: 0.75 }),
-  )
-  nub.position.set(0, radius * 0.9, 0)
-  nub.castShadow = true
-  g.add(nub)
-  return g
-}
 
-function createMangoMesh(radius: number, skinHex: number): THREE.Group {
-  const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), fruitBodyMaterial(skinHex))
-  body.scale.set(1.18, 0.78, 0.95)
-  body.castShadow = true
-  body.receiveShadow = true
-  g.add(body)
+  // Pointed tip at bottom
   const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.08, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x5c4a20, roughness: 0.85 }),
+    new THREE.SphereGeometry(radius * 0.10, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6a4a20, roughness: 0.8 }),
   )
-  tip.position.set(0, -radius * 0.82, radius * 0.12)
+  tip.position.set(0, -radius * 0.78, radius * 0.10)
+  tip.scale.set(0.7, 1.5, 0.7)
   g.add(tip)
+
+  // Stem at top
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.05, radius * 0.08, radius * 0.22, 6),
+    new THREE.CylinderGeometry(radius * 0.04, radius * 0.07, radius * 0.22, 6),
     new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 }),
   )
-  stem.position.set(0, radius * 0.72, radius * 0.08)
+  stem.position.set(0, radius * 0.72, radius * 0.06)
   stem.rotation.z = 0.25
   g.add(stem)
   return g
@@ -337,202 +794,392 @@ function createMangoMesh(radius: number, skinHex: number): THREE.Group {
 
 function createPineappleMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
+  // Rounder body shape — egg/ovoid instead of pure cylinder
   const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.62, radius * 0.72, radius * 1.65, 18, 4),
+    new THREE.SphereGeometry(radius * 0.85, 22, 18),
     pineappleBodyMaterial(),
   )
+  // Squash into barrel shape
+  body.scale.set(0.82, 1.0, 0.82)
+  body.position.y = -radius * 0.08
   body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2
+
+  // Elaborate leaf crown — multiple tiers of longer, thinner leaves
+  const leafMat = new THREE.MeshStandardMaterial({
+    color: 0x2a8a2a,
+    roughness: 0.60,
+    side: THREE.DoubleSide,
+    emissive: new THREE.Color(0x0a2a0a),
+    emissiveIntensity: 0.15,
+  })
+  // Inner crown — tall narrow leaves
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3
     const leaf = new THREE.Mesh(
-      new THREE.ConeGeometry(radius * 0.22, radius * 0.55, 6),
-      new THREE.MeshStandardMaterial({ color: 0x2d6b2d, roughness: 0.7, side: THREE.DoubleSide }),
+      new THREE.ConeGeometry(radius * 0.12, radius * 0.75, 5),
+      leafMat,
     )
-    leaf.position.set(Math.cos(a) * radius * 0.15, radius * 1.05, Math.sin(a) * radius * 0.15)
-    leaf.rotation.set(0.35 + Math.random() * 0.2, a, 0.2)
+    leaf.position.set(Math.cos(a) * radius * 0.08, radius * 0.65, Math.sin(a) * radius * 0.08)
+    leaf.rotation.set(0.15, a, 0.08)
+    leaf.castShadow = true
+    g.add(leaf)
+  }
+  // Outer crown — wider shorter leaves spreading outward
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    const leaf = new THREE.Mesh(
+      new THREE.ConeGeometry(radius * 0.18, radius * 0.50, 5),
+      leafMat,
+    )
+    leaf.position.set(Math.cos(a) * radius * 0.18, radius * 0.48, Math.sin(a) * radius * 0.18)
+    leaf.rotation.set(0.55 + Math.random() * 0.15, a, 0.15)
     leaf.castShadow = true
     g.add(leaf)
   }
   return g
 }
 
-function createCoconutMesh(radius: number, skinHex: number): THREE.Group {
+function createCoconutMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), fruitBodyMaterial(skinHex))
-  body.scale.set(0.92, 0.88, 0.95)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    coconutBodyMaterial(),
+  )
+  // Slightly oblong
+  body.scale.set(0.94, 0.90, 0.96)
+  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x2a1810, roughness: 0.95 })
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.2
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.07, 8, 6), eyeMat)
-    eye.position.set(Math.cos(a) * radius * 0.55, radius * 0.35, Math.sin(a) * radius * 0.52)
+
+  // Three characteristic "eyes" — more visible
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a0e06, roughness: 0.95, metalness: 0 })
+  const eyePositions = [
+    { a: 0.2, y: 0.30 },
+    { a: 2.3, y: 0.30 },
+    { a: 4.4, y: 0.30 },
+  ]
+  for (const ep of eyePositions) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.09, 10, 8), eyeMat)
+    eye.position.set(
+      Math.cos(ep.a) * radius * 0.60,
+      radius * ep.y,
+      Math.sin(ep.a) * radius * 0.56,
+    )
+    eye.scale.set(1, 0.7, 1)
     g.add(eye)
   }
+
+  // Equatorial fiber ring / tuft
+  const fiberRing = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.78, radius * 0.04, 6, 24),
+    new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.9 }),
+  )
+  fiberRing.rotation.x = Math.PI / 2
+  fiberRing.position.y = radius * 0.15
+  g.add(fiberRing)
   return g
 }
 
-function createStrawberryMesh(radius: number, skinHex: number): THREE.Group {
+function createStrawberryMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.85, radius * 1.15, 14, 8), fruitBodyMaterial(skinHex))
-  body.rotation.x = Math.PI
-  body.position.y = -radius * 0.08
+  // Rounder, less conical shape matching wiki's cartoony strawberry
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 22, 16),
+    strawberryBodyMaterial(),
+  )
+  // Slightly squashed sphere with tapered bottom
+  body.scale.set(0.95, 1.08, 0.95)
+  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
-  const seedMat = new THREE.MeshStandardMaterial({ color: 0xf5e6b8, roughness: 0.6 })
-  for (let i = 0; i < 28; i++) {
-    const ry = -radius * 0.35 + Math.random() * radius * 0.75
-    const rr = Math.max(0.05, (radius * 0.75 * (1 - Math.abs(ry) / (radius * 0.9))) * 0.95)
-    const a = Math.random() * Math.PI * 2
-    const seed = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.04, 6, 4), seedMat)
-    seed.position.set(Math.cos(a) * rr, ry, Math.sin(a) * rr)
-    g.add(seed)
-  }
-  const calyx = new THREE.Mesh(
-    new THREE.ConeGeometry(radius * 0.55, radius * 0.35, 7),
-    new THREE.MeshStandardMaterial({ color: 0x2d7a3a, roughness: 0.65, side: THREE.DoubleSide }),
+
+  // Small pointed tip at bottom for strawberry silhouette
+  const tip = new THREE.Mesh(
+    new THREE.ConeGeometry(radius * 0.25, radius * 0.30, 10, 6),
+    strawberryBodyMaterial(),
   )
-  calyx.position.y = radius * 0.52
-  calyx.rotation.x = Math.PI
-  g.add(calyx)
+  tip.position.y = -radius * 0.95
+  tip.rotation.x = Math.PI
+  tip.castShadow = true
+  g.add(tip)
+
+  // Bold yellow seed bumps — larger and more visible per wiki style
+  const seedMat = new THREE.MeshStandardMaterial({ color: 0xf5e0a0, roughness: 0.5, metalness: 0.1 })
+  for (let row = 0; row < 7; row++) {
+    const ry = -radius * 0.40 + row * radius * 0.14
+    const circumference = Math.max(0.05, radius * 0.80 * (1 - Math.abs(ry) / (radius * 0.85)))
+    const seedsInRow = 5 + Math.floor(row * 0.6)
+    for (let j = 0; j < seedsInRow; j++) {
+      const a = (j / seedsInRow) * Math.PI * 2 + row * 0.35
+      const seed = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.055, 6, 4), seedMat)
+      seed.position.set(Math.cos(a) * circumference, ry, Math.sin(a) * circumference)
+      g.add(seed)
+    }
+  }
+
+  // Green calyx with sepals
+  const calyxMat = new THREE.MeshStandardMaterial({
+    color: 0x2a8a3a,
+    roughness: 0.60,
+    side: THREE.DoubleSide,
+  })
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2
+    const sepal = new THREE.Mesh(
+      new THREE.CircleGeometry(radius * 0.28, 8),
+      calyxMat,
+    )
+    sepal.position.set(Math.cos(a) * radius * 0.20, radius * 0.50, Math.sin(a) * radius * 0.20)
+    sepal.rotation.set(-0.5, a, 0)
+    sepal.scale.set(1, 0.5, 1)
+    g.add(sepal)
+  }
   return g
 }
 
 function createKiwiMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), kiwiBodyMaterial())
-  body.scale.set(1.05, 0.88, 1.02)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 22, 16),
+    kiwiBodyMaterial(),
+  )
+  // Slightly elongated oval
+  body.scale.set(1.06, 0.86, 1.02)
   body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Small brown nub / stem remnant
   const nub = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.04, radius * 0.06, radius * 0.12, 6),
-    new THREE.MeshStandardMaterial({ color: 0x5a4a30, roughness: 0.9 }),
+    new THREE.CylinderGeometry(radius * 0.04, radius * 0.07, radius * 0.14, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a28, roughness: 0.9 }),
   )
-  nub.position.set(0, radius * 0.88, 0)
+  nub.position.set(0, radius * 0.86, 0)
   g.add(nub)
   return g
 }
 
 function createOrangeMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), orangeBodyMaterial())
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    orangeBodyMaterial(),
+  )
   body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Small navel / nub at top
+  const navel = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.08, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5a8828, roughness: 0.7 }),
+  )
+  navel.position.y = radius * 0.92
+  navel.scale.set(1.2, 0.6, 1.2)
+  g.add(navel)
   return g
 }
 
-function createPlumMesh(radius: number, skinHex: number): THREE.Group {
+function createPlumMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 20, 14), fruitBodyMaterial(skinHex))
-  body.scale.set(0.92, 1.08, 0.94)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 22, 16),
+    plumBodyMaterial(),
+  )
+  // Slightly taller than wide
+  body.scale.set(0.94, 1.06, 0.94)
+  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Stem
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.04, radius * 0.06, radius * 0.2, 6),
+    new THREE.CylinderGeometry(radius * 0.035, radius * 0.055, radius * 0.22, 6),
     new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 }),
   )
-  stem.position.y = radius * 0.95
+  stem.position.y = radius * 0.98
+  stem.rotation.z = 0.1
   g.add(stem)
+
+  addHighlightSphere(g, radius)
   return g
 }
 
-function createPearMesh(radius: number, skinHex: number): THREE.Group {
+function createPearMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const bottom = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.92, 18, 14), fruitBodyMaterial(skinHex))
-  bottom.scale.set(1.05, 0.92, 1.05)
-  bottom.position.y = -radius * 0.22
+  // Smoother pear shape — bottom sphere larger, top sphere smaller, with overlap
+  const bottom = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.90, 22, 16),
+    pearBodyMaterial(),
+  )
+  bottom.scale.set(1.08, 0.90, 1.08)
+  bottom.position.y = -radius * 0.20
+  bottom.userData.sharedMaterial = true
   bottom.castShadow = true
   bottom.receiveShadow = true
   g.add(bottom)
-  const top = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.52, 14, 10), fruitBodyMaterial(skinHex))
-  top.position.y = radius * 0.48
-  top.scale.set(0.95, 1.1, 0.95)
+
+  const top = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.50, 18, 12),
+    pearBodyMaterial(),
+  )
+  top.position.y = radius * 0.45
+  top.scale.set(0.90, 1.12, 0.90)
+  top.userData.sharedMaterial = true
   top.castShadow = true
   top.receiveShadow = true
   g.add(top)
+
+  // Stem
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.04, radius * 0.06, radius * 0.28, 6),
+    new THREE.CylinderGeometry(radius * 0.035, radius * 0.06, radius * 0.30, 6),
     new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 }),
   )
-  stem.position.y = radius * 0.92
+  stem.position.y = radius * 0.88
+  stem.rotation.z = 0.08
   g.add(stem)
+
+  // Small leaf near stem
+  const leaf = new THREE.Mesh(
+    new THREE.CircleGeometry(radius * 0.18, 8),
+    new THREE.MeshStandardMaterial({ color: 0x3a8a3a, roughness: 0.65, side: THREE.DoubleSide }),
+  )
+  leaf.position.set(radius * 0.15, radius * 0.78, 0)
+  leaf.rotation.set(0.5, 0.3, 0.4)
+  leaf.scale.set(1, 0.5, 1)
+  g.add(leaf)
   return g
 }
 
-function createPeachMesh(radius: number, skinHex: number): THREE.Group {
+function createPeachMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), fruitBodyMaterial(skinHex))
-  body.scale.set(1.02, 0.95, 0.98)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    peachBodyMaterial(),
+  )
+  body.scale.set(1.02, 0.96, 0.98)
+  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Softer, more defined crease / suture line
   const crease = new THREE.Mesh(
-    new THREE.TorusGeometry(radius * 0.42, radius * 0.04, 6, 16, Math.PI * 0.85),
-    new THREE.MeshStandardMaterial({ color: 0xc87050, roughness: 0.55 }),
+    new THREE.TorusGeometry(radius * 0.46, radius * 0.035, 8, 24, Math.PI * 0.9),
+    new THREE.MeshStandardMaterial({
+      color: 0xc06040,
+      roughness: 0.55,
+      emissive: new THREE.Color(0x401510),
+      emissiveIntensity: 0.1,
+    }),
   )
   crease.rotation.x = Math.PI / 2
-  crease.rotation.z = 0.15
-  crease.position.set(0, radius * 0.12, radius * 0.72)
+  crease.rotation.z = 0.12
+  crease.position.set(0, radius * 0.08, radius * 0.72)
   g.add(crease)
+
+  // Stem
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.035, radius * 0.05, radius * 0.18, 6),
+    new THREE.CylinderGeometry(radius * 0.03, radius * 0.05, radius * 0.20, 6),
     new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.9 }),
   )
   stem.position.y = radius * 0.88
+  stem.rotation.z = 0.08
   g.add(stem)
   return g
 }
 
 function createPassionfruitMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 16), passionBodyMaterial())
-  body.scale.set(0.95, 0.88, 0.95)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    passionBodyMaterial(),
+  )
+  body.scale.set(0.96, 0.90, 0.96)
   body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
+
+  // Small stem / calyx remnant at top
+  const calyx = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.06, radius * 0.10, radius * 0.10, 6),
+    new THREE.MeshStandardMaterial({ color: 0x2a1a3a, roughness: 0.8 }),
+  )
+  calyx.position.y = radius * 0.88
+  g.add(calyx)
   return g
 }
 
 function createCherryMesh(radius: number, skinHex: number): THREE.Group {
   const g = new THREE.Group()
-  const r1 = radius * 0.62
-  const left = new THREE.Mesh(new THREE.SphereGeometry(r1, 16, 12), fruitBodyMaterial(skinHex))
-  left.position.set(-radius * 0.38, -radius * 0.12, 0)
+
+  // Glossy cherry material with high specular
+  const cherryMat = new THREE.MeshStandardMaterial({
+    color: skinHex,
+    roughness: 0.15,
+    metalness: 0.08,
+    emissive: new THREE.Color(skinHex).multiplyScalar(0.08),
+    emissiveIntensity: 1,
+  })
+
+  // Two cherry spheres — slightly heart-shaped (vertically stretched)
+  const r1 = radius * 0.58
+  const left = new THREE.Mesh(new THREE.SphereGeometry(r1, 18, 14), cherryMat)
+  left.position.set(-radius * 0.35, -radius * 0.10, 0)
+  left.scale.set(0.95, 1.08, 0.95) // slightly taller = heart-like
   left.castShadow = true
   g.add(left)
-  const right = new THREE.Mesh(new THREE.SphereGeometry(r1 * 0.95, 16, 12), fruitBodyMaterial(skinHex))
-  right.position.set(radius * 0.38, -radius * 0.08, radius * 0.06)
+
+  const right = new THREE.Mesh(new THREE.SphereGeometry(r1 * 0.95, 18, 14), cherryMat)
+  right.position.set(radius * 0.35, -radius * 0.06, radius * 0.05)
+  right.scale.set(0.95, 1.08, 0.95)
   right.castShadow = true
   g.add(right)
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 })
+
+  // Longer, more elegant curved stem
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x3a5818, roughness: 0.75, metalness: 0 })
+  const stemCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-radius * 0.20, radius * 0.15, 0),
+    new THREE.Vector3(-radius * 0.05, radius * 0.55, radius * 0.04),
+    new THREE.Vector3(radius * 0.08, radius * 0.90, -radius * 0.02),
+    new THREE.Vector3(radius * 0.05, radius * 1.15, 0),
+  ])
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.025, radius * 0.04, radius * 0.85, 6),
+    new THREE.TubeGeometry(stemCurve, 12, radius * 0.025, 6, false),
     stemMat,
   )
-  stem.position.set(0, radius * 0.55, 0)
-  stem.rotation.z = 0.12
-  stem.rotation.x = 0.25
   g.add(stem)
-  const join = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.02, radius * 0.02, radius * 0.35, 6),
-    stemMat,
-  )
-  join.position.set(0, radius * 0.12, 0)
-  join.rotation.z = Math.PI / 2.2
-  g.add(join)
+
+  // Small highlight spheres for glossy look
+  const hlMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+  })
+  const hl1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 8, 6), hlMat)
+  hl1.position.set(-radius * 0.50, radius * 0.08, radius * 0.42)
+  g.add(hl1)
+  const hl2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.08, 8, 6), hlMat)
+  hl2.position.set(radius * 0.22, radius * 0.12, radius * 0.46)
+  g.add(hl2)
+
   return g
 }
+
+// ---------------------------------------------------------------------------
+// Factory & bomb
+// ---------------------------------------------------------------------------
 
 /** Whole fruit mesh by archetype — physics stays spherical in game. */
 export function createFruitMesh(radius: number, archetype: FruitArchetype, skinHex: number): THREE.Group {
@@ -548,23 +1195,23 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
     case 'lime':
       return createLimeMesh(radius, skinHex)
     case 'mango':
-      return createMangoMesh(radius, skinHex)
+      return createMangoMesh(radius)
     case 'pineapple':
       return createPineappleMesh(radius)
     case 'coconut':
-      return createCoconutMesh(radius, skinHex)
+      return createCoconutMesh(radius)
     case 'strawberry':
-      return createStrawberryMesh(radius, skinHex)
+      return createStrawberryMesh(radius)
     case 'kiwi':
       return createKiwiMesh(radius)
     case 'orange':
       return createOrangeMesh(radius)
     case 'plum':
-      return createPlumMesh(radius, skinHex)
+      return createPlumMesh(radius)
     case 'pear':
-      return createPearMesh(radius, skinHex)
+      return createPearMesh(radius)
     case 'peach':
-      return createPeachMesh(radius, skinHex)
+      return createPeachMesh(radius)
     case 'passionfruit':
       return createPassionfruitMesh(radius)
     case 'cherry':
@@ -574,7 +1221,7 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
   }
 }
 
-/** Classic “bomb”: dark shell + fuse + ember */
+/** Classic "bomb": dark shell + fuse + ember */
 export function createBombMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
   const shell = new THREE.Mesh(
