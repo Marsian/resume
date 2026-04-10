@@ -13,7 +13,7 @@ export const FRUIT_RADIUS: Record<FruitArchetype, number> = {
   orange: 0.54,
   plum: 0.52,
   passionfruit: 0.5,
-  lemon: 0.49,
+  lemon: 0.44,
   lime: 0.48,
   kiwi: 0.47,
   strawberry: 0.46,

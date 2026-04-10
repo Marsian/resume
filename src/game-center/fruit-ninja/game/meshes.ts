@@ -2,6 +2,10 @@ import * as THREE from 'three'
 
 import { getAppleBodyMaterial } from './appleSkin'
 import { getAppleBodyPolyGeometry, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
+import { getLemonBodyMaterial } from './lemonSkin'
+import { getLemonBodyPolyGeometry } from './lemonPolyGeometry'
+import { getLimeBodyMaterial } from './limeSkin'
+import { getLimeBodyPolyGeometry } from './limePolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -637,52 +641,29 @@ function createBananaMesh(radius: number, skinHex: number): THREE.Group {
   return g
 }
 
-function createLemonMesh(radius: number, skinHex: number): THREE.Group {
+function createLemonMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 16),
-    fruitBodyMaterial(skinHex),
+    getLemonBodyPolyGeometry(radius),
+    getLemonBodyMaterial(),
   )
-  // Elongated with slight taper
-  body.scale.set(1.18, 0.78, 1.10)
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
-
-  // Nipple protrusions at both ends
-  const nubMat = new THREE.MeshStandardMaterial({ color: 0x8aaa40, roughness: 0.65 })
-  const nubTop = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.14, 8, 6), nubMat)
-  nubTop.position.set(0, radius * 0.78, 0)
-  nubTop.scale.set(0.8, 1.4, 0.8)
-  nubTop.castShadow = true
-  g.add(nubTop)
-  const nubBot = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 8, 6), nubMat)
-  nubBot.position.set(0, -radius * 0.78, 0)
-  nubBot.scale.set(0.7, 1.3, 0.7)
-  g.add(nubBot)
   return g
 }
 
-function createLimeMesh(radius: number, skinHex: number): THREE.Group {
+function createLimeMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 16),
-    fruitBodyMaterial(skinHex),
+    getLimeBodyPolyGeometry(radius),
+    getLimeBodyMaterial(),
   )
-  // Rounder than lemon — just slightly oval
-  body.scale.set(1.04, 0.92, 1.02)
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
-
-  // Small green nub
-  const nub = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.10, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x3a7020, roughness: 0.65 }),
-  )
-  nub.position.set(0, radius * 0.88, 0)
-  nub.castShadow = true
-  g.add(nub)
   return g
 }
 
