@@ -922,3 +922,206 @@ export function limeSkinTexture(): THREE.CanvasTexture {
   limeSkinTex = tex
   return tex
 }
+
+// ---------------------------------------------------------------------------
+// Mango skin: wiki-accurate yellow-to-orange mango texture.
+// UV: u = azimuth around Y (0–1), v = colatitude/π (0=top pole/stem, 1=bottom tip).
+//
+// Visual zones (from wiki reference — lime.png is the truth source for style):
+//   v ≈ 0.00–0.06 : top pole — greenish-yellow (stem area)
+//   v ≈ 0.06–0.18 : top transition — yellow blending into body
+//   v ≈ 0.18–0.78 : main body — golden-orange
+//   v ≈ 0.78–0.90 : bottom transition — deeper orange
+//   v ≈ 0.90–1.00 : bottom tip — dark orange-brown point
+//
+// Key features: golden-yellow to orange gradient, smooth waxy peel,
+// subtle bumpy texture, uniform azimuthal color (no blush — avoids seam).
+// ---------------------------------------------------------------------------
+
+let mangoSkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing mango skin generation so the next `mangoSkinTexture()` rebuilds the canvas. */
+export function resetMangoSkinTextureCache(): void {
+  mangoSkinTex = null
+}
+
+export function mangoSkinTexture(): THREE.CanvasTexture {
+  if (mangoSkinTex) return mangoSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki mango reference:
+  // - golden orange body:   #F09818 (warm golden-orange)
+  // - deep orange shadow:   #B85810
+  // - stem area (top):      #708028 (greenish-yellow)
+  // - tip (bottom):         #683008 (dark orange-brown)
+  const bodyR = 0xf0, bodyG = 0x98, bodyB = 0x18
+  const deepR = 0xb8, deepG = 0x58, deepB = 0x10
+  const stemR = 0x70, stemG = 0x80, stemB = 0x28
+  const tipR = 0x68, tipG = 0x30, tipB = 0x08
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (stem), 1 = bottom (tip)
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for organic variation ---
+      const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
+      const n2 = fbm(tu * 16 + 7.3, tv * 18 + 5.8)
+
+      // --- Bumpy skin texture (subtle mango peel) ---
+      const bumpNoise = fbm(tu * 40 + 3.7, tv * 45 + 5.2)
+
+      // --- Longitudinal ridges (subtle, mango has faint lines) ---
+      const ridge = 0.99 + 0.01 * Math.cos(tu * Math.PI * 2 * 8 + n1 * 1.5)
+
+      // --- Latitude color gradient for body ---
+      // Upper body: more golden-yellow; lower body: more orange
+      const latFactor = smoothstep(0.80, 0.20, tv)
+
+      // --- Start with base yellow-orange ---
+      let r = deepR + (bodyR - deepR) * latFactor
+      let gg = deepG + (bodyG - deepG) * latFactor
+      let b = deepB + (bodyB - deepB) * latFactor
+
+      // FBM noise variation
+      r += 10 * (n1 - 0.5)
+      gg += 6 * (n1 - 0.5)
+      b += 4 * (n1 - 0.5)
+
+      r += 5 * (n2 - 0.5)
+      gg += 3 * (n2 - 0.5)
+
+      // Bumpy texture — subtle waxy peel
+      const bumpMul = 0.97 + 0.035 * bumpNoise
+      r *= bumpMul
+      gg *= bumpMul
+      b *= bumpMul * 0.98
+
+      // Longitudinal ridges
+      r *= ridge
+      gg *= ridge
+      b *= ridge
+
+      // Speckle (tiny dots on mango skin)
+      const speck = hash21(px + 53, py + 29)
+      if (speck < 0.015) {
+        r *= 0.96
+        gg *= 0.97
+        b *= 0.94
+      }
+      if (speck > 0.988) {
+        r = Math.min(255, r + 6)
+        gg = Math.min(255, gg + 5)
+        b = Math.min(255, b + 2)
+      }
+
+      // --- Smooth tip blending (bottom: orange → dark tip) ---
+      const bottomTipMix = smoothstep(0.88, 0.98, tv)
+      const bottomEdgeNoise = fbm(tu * 5 + 3.7, tv * 7 + 4.2) * 0.06
+      const bottomBlend = Math.min(1, Math.max(0, bottomTipMix + bottomEdgeNoise))
+
+      // Transition zone color (deeper orange)
+      const transR = deepR + 8 * (n1 - 0.5)
+      const transG = deepG + 5 * (n1 - 0.5)
+      const transB = deepB + 4 * (n1 - 0.5)
+
+      const botMid = smoothstep(0.78, 0.88, tv)
+      r = r * (1 - botMid) + transR * botMid
+      gg = gg * (1 - botMid) + transG * botMid
+      b = b * (1 - botMid) + transB * botMid
+
+      const tipColorR = tipR + 10 * (n1 - 0.5)
+      const tipColorG = tipG + 6 * (n1 - 0.5)
+      const tipColorB = tipB + 5 * (n1 - 0.5)
+      r = r * (1 - bottomBlend) + tipColorR * bottomBlend
+      gg = gg * (1 - bottomBlend) + tipColorG * bottomBlend
+      b = b * (1 - bottomBlend) + tipColorB * bottomBlend
+
+      // --- Smooth stem area blending (top: greenish-yellow) ---
+      const topStemMix = smoothstep(0.18, 0.04, tv)
+      const topEdgeNoise = fbm(tu * 6 + 1.2, tv * 8 + 2.5) * 0.06
+      const topBlend = Math.min(1, Math.max(0, topStemMix + topEdgeNoise))
+
+      const stemTransR = bodyR * 0.85 + stemR * 0.15 + 8 * (n1 - 0.5)
+      const stemTransG = bodyG * 0.80 + stemG * 0.20 + 6 * (n1 - 0.5)
+      const stemTransB = bodyB * 0.70 + stemB * 0.30 + 4 * (n1 - 0.5)
+
+      const topMid = smoothstep(0.22, 0.12, tv)
+      r = r * (1 - topMid) + stemTransR * topMid
+      gg = gg * (1 - topMid) + stemTransG * topMid
+      b = b * (1 - topMid) + stemTransB * topMid
+
+      const stemColorR = stemR + 8 * (n1 - 0.5)
+      const stemColorG = stemG + 6 * (n1 - 0.5)
+      const stemColorB = stemB + 5 * (n1 - 0.5)
+      r = r * (1 - topBlend) + stemColorR * topBlend
+      gg = gg * (1 - topBlend) + stemColorG * topBlend
+      b = b * (1 - topBlend) + stemColorB * topBlend
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      // Use azimuthal angle phi directly so lighting wraps seamlessly at u=0/1 seam
+      const phi = tv * Math.PI
+      const theta = tu * Math.PI * 2
+      const nlx = Math.sin(phi) * Math.cos(theta)
+      const nly = Math.cos(phi)
+      const nlz = Math.sin(phi) * Math.sin(theta)
+      let ndotl = nlx * Lx + nly * Ly + nlz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill
+      const diffBoost = Math.pow(ndotl, 1.0) * 0.30
+      // Tight specular highlight near top-front
+      const specRaw = Math.pow(ndotl, 5) * 0.24 + Math.pow(ndotl, 14) * 0.12
+      const specFalloff = smoothstep(0.38, 0.10, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: warm white highlight (mango is slightly glossy)
+      r += 255 * specBoost * 0.42
+      gg += 255 * specBoost * 0.40
+      b += 255 * specBoost * 0.28
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  mangoSkinTex = tex
+  return tex
+}

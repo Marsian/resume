@@ -6,6 +6,8 @@ import { getLemonBodyMaterial } from './lemonSkin'
 import { getLemonBodyPolyGeometry } from './lemonPolyGeometry'
 import { getLimeBodyMaterial } from './limeSkin'
 import { getLimeBodyPolyGeometry } from './limePolyGeometry'
+import { getMangoBodyMaterial } from './mangoSkin'
+import { getMangoBodyPolyGeometry } from './mangoPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -314,32 +316,6 @@ function peachFuzzTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let mangoTex: THREE.CanvasTexture | null = null
-function mangoTexture(): THREE.CanvasTexture {
-  if (mangoTex) return mangoTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Gradient from yellow to red-orange
-  const grad = g.createLinearGradient(0, 0, s, s)
-  grad.addColorStop(0, '#ffaa40')
-  grad.addColorStop(0.5, '#ff7a20')
-  grad.addColorStop(1, '#e85510')
-  g.fillStyle = grad
-  g.fillRect(0, 0, s, s)
-  // Subtle mottle
-  for (let i = 0; i < 200; i++) {
-    g.fillStyle = `rgba(255,180,80,${0.03 + Math.random() * 0.05})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 4, 0, Math.PI * 2)
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  mangoTex = tex
-  return tex
-}
 
 let pearTex: THREE.CanvasTexture | null = null
 function pearTexture(): THREE.CanvasTexture {
@@ -492,20 +468,6 @@ function peachBodyMaterial(): THREE.MeshStandardMaterial {
   return peachBodyMat
 }
 
-let mangoBodyMat: THREE.MeshStandardMaterial | null = null
-function mangoBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!mangoBodyMat) {
-    mangoBodyMat = new THREE.MeshStandardMaterial({
-      map: mangoTexture(),
-      color: 0xff8820,
-      roughness: 0.25,
-      metalness: 0.02,
-      emissive: new THREE.Color(0x603010),
-      emissiveIntensity: 0.1,
-    })
-  }
-  return mangoBodyMat
-}
 
 let pearBodyMat: THREE.MeshStandardMaterial | null = null
 function pearBodyMaterial(): THREE.MeshStandardMaterial {
@@ -667,36 +629,16 @@ function createLimeMesh(radius: number, _skinHex: number): THREE.Group {
   return g
 }
 
-function createMangoMesh(radius: number): THREE.Group {
+function createMangoMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 18),
-    mangoBodyMaterial(),
+    getMangoBodyPolyGeometry(radius),
+    getMangoBodyMaterial(),
   )
-  // Distinctive ovoid: elongated, laterally flattened, with pointed end
-  body.scale.set(1.22, 0.78, 0.92)
-  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
-
-  // Pointed tip at bottom
-  const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.10, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x6a4a20, roughness: 0.8 }),
-  )
-  tip.position.set(0, -radius * 0.78, radius * 0.10)
-  tip.scale.set(0.7, 1.5, 0.7)
-  g.add(tip)
-
-  // Stem at top
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.04, radius * 0.07, radius * 0.22, 6),
-    new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 }),
-  )
-  stem.position.set(0, radius * 0.72, radius * 0.06)
-  stem.rotation.z = 0.25
-  g.add(stem)
   return g
 }
 
@@ -1103,7 +1045,7 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
     case 'lime':
       return createLimeMesh(radius, skinHex)
     case 'mango':
-      return createMangoMesh(radius)
+      return createMangoMesh(radius, skinHex)
     case 'pineapple':
       return createPineappleMesh(radius)
     case 'coconut':
