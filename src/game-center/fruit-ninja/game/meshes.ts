@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 
 import { getAppleBodyMaterial } from './appleSkin'
-import { getAppleBodyPolyGeometry } from './applePolyGeometry'
+import { getAppleBodyPolyGeometry, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -533,42 +533,15 @@ function fruitBodyMaterial(hex: number) {
 // Decoration helpers
 // ---------------------------------------------------------------------------
 
-function addStemLeaf(g: THREE.Group, radius: number, stemColor = 0x3d2914) {
-  // Stem — slightly curved via tapered cylinder, lowered to sit in deeper cavity
-  // Keep the stem mostly outside the body to avoid z-fighting/penetration artifacts.
-  const stemH = radius * 0.28
+function addStem(g: THREE.Group, radius: number, stemColor = 0x5a3a1e) {
+  const stemH = radius * 0.24
+  const stemCenterY = radius * APPLE_TOP_POLE_Y_RATIO + stemH * 0.40
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.06, radius * 0.10, stemH, 8),
-    new THREE.MeshStandardMaterial({ color: stemColor, roughness: 0.85, metalness: 0 }),
+    new THREE.CylinderGeometry(radius * 0.05, radius * 0.09, stemH, 8),
+    new THREE.MeshBasicMaterial({ color: stemColor, toneMapped: false }),
   )
-  stem.position.y = radius * 0.96
-  stem.castShadow = true
-  stem.renderOrder = 2
+  stem.position.y = stemCenterY
   g.add(stem)
-
-  // Leaf — root anchored at the stem root (stem/body junction).
-  const leafGeo = new THREE.CircleGeometry(radius * 0.26, 12)
-  const leaf = new THREE.Mesh(
-    leafGeo,
-    // Use unlit material so both sides stay green (no backface lighting darkening).
-    new THREE.MeshBasicMaterial({
-      color: 0x2d7a3a,
-      side: THREE.DoubleSide,
-      transparent: false,
-      opacity: 1,
-      toneMapped: false,
-      depthWrite: true,
-      depthTest: true,
-    }),
-  )
-  // Stem is centered at `stem.position.y`; its root is at y = stem.position.y - stemH/2.
-  // Make the leaf a child of stem so its local y=0 aligns with stem center.
-  stem.add(leaf)
-  leaf.position.set(radius * 0.22, -stemH / 2 + radius * 0.01, radius * 0.06)
-  leaf.rotation.set(-0.35, 0.15, 0.75)
-  leaf.scale.set(1, 0.55, 1)
-  leaf.castShadow = true
-  leaf.renderOrder = 2
 }
 
 function addHighlightSphere(g: THREE.Group, radius: number) {
@@ -623,7 +596,7 @@ function createAppleMesh(radius: number, _skinHex: number): THREE.Group {
   body.userData.sharedMaterial = true
   g.add(body)
 
-  addStemLeaf(g, radius)
+  addStem(g, radius)
   return g
 }
 

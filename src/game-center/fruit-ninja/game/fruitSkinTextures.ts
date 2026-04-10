@@ -292,6 +292,12 @@ export function bananaSkinTexture(): THREE.CanvasTexture {
 // ---------------------------------------------------------------------------
 
 let appleSkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing apple skin generation so the next `appleSkinTexture()` rebuilds the canvas. */
+export function resetAppleSkinTextureCache(): void {
+  appleSkinTex = null
+}
+
 export function appleSkinTexture(): THREE.CanvasTexture {
   if (appleSkinTex) return appleSkinTex
   const s = 512
@@ -308,24 +314,22 @@ export function appleSkinTexture(): THREE.CanvasTexture {
       const tu = px / (s - 1) // 0–1 around azimuth
 
       // --- Zone determination based on v (latitude) ---
-      // Cavities: tiny top/bottom zones are darker red-brown.
-      // Keep the dark cavity extremely small so the yellow ring is visible.
-      const inStemCavity = smoothstep(0.020, 0.004, tv)
-      const inBottomCavity = smoothstep(1.0, 0.988, tv)
+      // Cavity starts at h > 0.80, UV zone is tv < ~0.20.
+      const inStemCavity = smoothstep(0.015, 0.003, tv)
+      const inBottomCavity = smoothstep(0.990, 1.0, tv)
 
-      // Top yellow-green area surrounding the stem cavity (wiki reference) — make it strong & visible.
-      // Make the top ring large enough to be visible even on side views.
-      const topHalo = smoothstep(0.02, 0.22, tv) * (1 - smoothstep(0.42, 0.55, tv))
-      // Very small reddish-green tint only near the very top edge (subtle).
-      const topBlushEdge = 0.070 + 0.015 * fbm(tu * 10 + 5.5, tv * 7 + 1.2)
-      const inTopBlush = smoothstep(0.040, topBlushEdge, tv) * (1 - smoothstep(topBlushEdge, topBlushEdge + 0.025, tv))
+      // Top yellow-green area — tiny zone near stem (wiki: ~5% of visible surface).
+      const topHalo = smoothstep(0.04, 0.06, tv) * (1 - smoothstep(0.08, 0.11, tv))
+      // Very small reddish-green tint at the cavity edge.
+      const topBlushEdge = 0.035 + 0.010 * fbm(tu * 10 + 5.5, tv * 7 + 1.2)
+      const inTopBlush = smoothstep(0.025, topBlushEdge, tv) * (1 - smoothstep(topBlushEdge, topBlushEdge + 0.015, tv))
 
-      const bottomBlushEdge = 0.930 + 0.015 * fbm(tu * 9 + 8.2, tv * 8 + 4.7)
+      const bottomBlushEdge = 0.940 + 0.015 * fbm(tu * 9 + 8.2, tv * 8 + 4.7)
       const inBottomBlush =
         smoothstep(bottomBlushEdge, 1.0, tv) *
-        (1 - smoothstep(0.970, 1.0, tv))
+        (1 - smoothstep(0.975, 1.0, tv))
 
-      const inLower = smoothstep(0.86, 0.92, tv) * (1 - smoothstep(0.97, 1.0, tv))
+      const inLower = smoothstep(0.88, 0.94, tv) * (1 - smoothstep(0.98, 1.0, tv))
 
       // --- FBM noise for organic variation ---
       const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
@@ -337,6 +341,27 @@ export function appleSkinTexture(): THREE.CanvasTexture {
       // --- Speckle ---
       const speck = hash21(px + 53, py + 29)
       const speckMul = speck < 0.035 ? 0.88 : speck > 0.975 ? 1.06 : 1.0
+
+      // Wiki-style lighting: top-front light source (matches reference).
+      const phi = tv * Math.PI
+      const th = tu * Math.PI * 2
+      const nx = Math.sin(phi) * Math.cos(th)
+      const ny = Math.cos(phi)
+      const nz = Math.sin(phi) * Math.sin(th)
+      const Lx = 0.15
+      const Ly = 0.85
+      const Lz = 0.50
+      const llen = Math.hypot(Lx, Ly, Lz)
+      let ndotl = nx * (Lx / llen) + ny * (Ly / llen) + nz * (Lz / llen)
+      ndotl = Math.max(0, ndotl)
+      // Broad diffuse fill + tighter specular highlight near top-front.
+      const diffBoost = Math.pow(ndotl, 1.0) * 0.40
+      // Tight specular: white highlight spot (wiki: small bright spot, not yellow wash).
+      const specRaw = Math.pow(ndotl, 4) * 0.30 + Math.pow(ndotl, 12) * 0.20
+      // Concentrate specular in a small region near top-front only.
+      const specFalloff = smoothstep(0.30, 0.08, tv)
+      const specBoost = specRaw * specFalloff
+      const wedge = 0.5 + 0.5 * Math.sin(th * 3 + fbm(tu * 4 + 1.2, tv * 5.2) * 1.4)
 
       let r: number, gg: number, b: number
 
@@ -359,44 +384,41 @@ export function appleSkinTexture(): THREE.CanvasTexture {
         // - top yellow:      #e7d134
         // - top yellow-green:#e7b22f / #d8ce2d
         // - cavity dark:     #ca4411
-        const deepR = 0x76, deepG = 0x00, deepB = 0x00
-        // Brighter base red sampled near the stem edge (#c83610) so the apple reads red at thumbnail scale.
-        const baseR = 0xc8, baseG = 0x36, baseB = 0x10
-        const midR = 0xe1, midG = 0x6b, midB = 0x1c
-        const hiR = 0xd8, hiG = 0x6c, hiB = 0x19
-        const topY0R = 0xe7, topY0G = 0xd1, topY0B = 0x34
+        // Wiki apple palette (bright saturated crimson, NOT maroon):
+        // - deep body:    #AA0808 (bottom/side shadow)
+        // - bright body:  #E82018 (main visible crimson)
+        // - top yellow:   #FFE064 (pale yellow highlight)
+        // - top yellow-g: #E7B22F (yellow-green transition)
+        const deepR = 0xaa, deepG = 0x08, deepB = 0x06
+        const baseR = 0xe8, baseG = 0x1c, baseB = 0x14
+        const topY0R = 0xff, topY0G = 0xe0, topY0B = 0x64
         const topY1R = 0xe7, topY1G = 0xb2, topY1B = 0x2f
         const blushR = 0xd8, blushG = 0xce, blushB = 0x2d
-        const btmBlushR = 0xca, btmBlushG = 0x44, btmBlushB = 0x11
 
-        // Patch fields (broad shapes like the reference)
-        const p0 = fbm(tu * 3.3 + 1.1, tv * 3.8 + 2.4)
-        const p1 = fbm(tu * 6.5 + 7.9, tv * 5.2 + 1.7)
-        const patch = 0.55 * p0 + 0.45 * p1
+        // --- Latitude gradient: deep red at bottom → bright crimson at top ---
+        // smoothstep covers the full body range for a clear visible gradient.
+        const latFactor = smoothstep(0.78, 0.18, tv)
+        r = deepR + (baseR - deepR) * latFactor
+        gg = deepG + (baseG - deepG) * latFactor
+        b = deepB + (baseB - deepB) * latFactor
 
-        // Base mix between deep and main red using patch field.
-        const deepMix = smoothstep(0.32, 0.60, patch) * (0.70 + 0.30 * n1)
-        r = deepR * deepMix + baseR * (1 - deepMix)
-        gg = deepG * deepMix + baseG * (1 - deepMix)
-        b = deepB * deepMix + baseB * (1 - deepMix)
+        // Subtle FBM noise variation — small, keeps body uniformly crimson.
+        r += 10 * (n1 - 0.5)
+        gg += 3 * (n1 - 0.5)
+        b += 2 * (n1 - 0.5)
 
-        // Orange paint patches concentrated more near the top half.
-        const topBias = 1 - smoothstep(0.45, 0.78, tv)
-        const orangeMask = smoothstep(0.52, 0.70, patch + 0.12 * topBias + 0.06 * (streakNoise - 0.5))
-        r = r * (1 - orangeMask) + midR * orangeMask
-        gg = gg * (1 - orangeMask) + midG * orangeMask
-        b = b * (1 - orangeMask) + midB * orangeMask
+        // Apply baked diffuse lighting (was computed but never used!).
+        const lighting = 1.0 + diffBoost
+        r *= lighting
+        gg *= lighting
+        b *= lighting
 
-        // Lighter yellow/orange "drips" near the top (stylized like the reference).
-        const drip = smoothstep(0.68, 0.86, fbm(tu * 2.2 + 4.7, tv * 7.5 + 9.1) + 0.18 * topBias)
-        const hiMask = drip * (0.65 + 0.35 * topBias)
-        r = r * (1 - hiMask) + hiR * hiMask
-        gg = gg * (1 - hiMask) + hiG * hiMask
-        b = b * (1 - hiMask) + hiB * hiMask
+        // Slightly deeper red toward the very bottom.
+        r = r * (1 - inLower) + 110 * inLower
 
-        // Top yellow-green halo around the stem cavity.
+        // Top yellow-green halo (wiki: ~5% of visible surface near stem).
         const haloN = fbm(tu * 8 + 1.7, tv * 12 + 3.1)
-        const haloMix = Math.min(1, topHalo * (1.15 + 0.25 * haloN))
+        const haloMix = Math.min(1, topHalo * (1.2 + 0.30 * haloN))
         const topR = topY0R * (1 - haloN) + topY1R * haloN
         const topG = topY0G * (1 - haloN) + topY1G * haloN
         const topB = topY0B * (1 - haloN) + topY1B * haloN
@@ -404,32 +426,35 @@ export function appleSkinTexture(): THREE.CanvasTexture {
         gg = gg * (1 - haloMix) + topG * haloMix
         b = b * (1 - haloMix) + topB * haloMix
 
-        // Hard-guarantee a visible top yellow/green band in thumbnails.
-        const topBand = smoothstep(0.02, 0.14, tv) * (1 - smoothstep(0.38, 0.50, tv))
+        // Hard-guarantee tiny top yellow band (wiki: ~5% near stem).
+        const topBand = smoothstep(0.04, 0.06, tv) * (1 - smoothstep(0.09, 0.12, tv))
         r = r * (1 - topBand) + topR * topBand
         gg = gg * (1 - topBand) + topG * topBand
         b = b * (1 - topBand) + topB * topBand
+
+        // Continuous yellow→red gradient near stem — smooth, no bands.
+        // t=0 at stem (yellow), t=1 at body (red), with noise for organic edge.
+        const gradNoise = fbm(tu * 5 + 2.1, tv * 7 + 1.3) * 0.04
+        const gradT = Math.min(1, Math.max(0, smoothstep(0.04, 0.22, tv + gradNoise)))
+        // Interpolate R/G/B continuously: yellow (#FFE064) → orange (#E87020) → red (#E81C14)
+        // R stays high throughout; G and B fade from yellow-green to near-zero.
+        const gradR = 0xff - (0xff - 0xe8) * gradT
+        const gradG = 0xe0 * (1 - gradT) + 0x1c * gradT
+        const gradB = 0x64 * (1 - gradT) + 0x14 * gradT
+        // Blend on top of existing body colour; stronger near stem, fades to 0.
+        const gradMask = smoothstep(0.22, 0.04, tv) * (0.95 + 0.15 * fbm(tu * 7 + 4.1, tv * 9 + 2.7))
+        const gm = Math.min(1, gradMask)
+        r = r * (1 - gm) + gradR * gm
+        gg = gg * (1 - gm) + gradG * gm
+        b = b * (1 - gm) + gradB * gm
 
         // Tiny olive tint at extreme top edge only.
         r = r * (1 - inTopBlush) + blushR * inTopBlush
         gg = gg * (1 - inTopBlush) + blushG * inTopBlush
         b = b * (1 - inTopBlush) + blushB * inTopBlush
 
-        // Bottom orange/red band near the bottom indent (make it clearly visible).
-        const bottomBand = smoothstep(0.72, 0.88, tv) * (1 - smoothstep(0.97, 1.0, tv))
-        const bottomMix = Math.min(1, Math.max(inBottomBlush, bottomBand) * 0.95)
-        r = r * (1 - bottomMix) + btmBlushR * bottomMix
-        gg = gg * (1 - bottomMix) + btmBlushG * bottomMix
-        b = b * (1 - bottomMix) + btmBlushB * bottomMix
-
-        // Slightly deeper red toward the bottom like the reference.
-        const lowerR = 170, lowerG = 12, lowerB = 12
-        r = r * (1 - inLower) + lowerR * inLower
-        gg = gg * (1 - inLower) + lowerG * inLower
-        b = b * (1 - inLower) + lowerB * inLower
-
-        // Vertical streaks (subtle)
-        const stk = 0.92 + 0.10 * streakNoise
+        // Subtle vertical streaks (keep hue neutral — don't add green).
+        const stk = 0.97 + 0.04 * streakNoise
         r *= stk
         gg *= stk
         b *= stk
@@ -439,28 +464,39 @@ export function appleSkinTexture(): THREE.CanvasTexture {
         gg *= speckMul
         b *= speckMul
 
-        // Transition smoothing near stem cavity edge (very narrow)
-        const cavityFade = smoothstep(0.02, 0.06, tv)
-        r = r * cavityFade + (62 + 14 * n1) * (1 - cavityFade)
-        gg = gg * cavityFade + (28 + 10 * n1) * (1 - cavityFade)
-        b = b * cavityFade + (22 + 8 * n1) * (1 - cavityFade)
+        // Specular: white highlight spot near top-front.
+        r += 255 * specBoost * 0.50
+        gg += 255 * specBoost * 0.50
+        b += 255 * specBoost * 0.45
 
-        // Transition smoothing near bottom cavity edge (very narrow)
-        const bottomFade = 1 - smoothstep(0.965, 0.99, tv)
-        r = r * bottomFade + (58 + 14 * n1) * (1 - bottomFade)
-        gg = gg * bottomFade + (26 + 10 * n1) * (1 - bottomFade)
-        b = b * bottomFade + (22 + 8 * n1) * (1 - bottomFade)
+        // Stem pole: narrow ring blends toward cavity dark.
+        const topPoleMix = (1 - smoothstep(0.026, 0.045, tv)) * smoothstep(0, 0.018, tv)
+        const cavityColR = 62 + 14 * n1
+        const cavityColG = 28 + 10 * n1
+        const cavityColB = 22 + 8 * n1
+        const mTop = Math.min(1, topPoleMix * 0.92)
+        r = r * (1 - mTop) + cavityColR * mTop
+        gg = gg * (1 - mTop) + cavityColG * mTop
+        b = b * (1 - mTop) + cavityColB * mTop
+
+        // Bottom cavity rim (narrow)
+        const botPoleMix = (1 - smoothstep(0.972, 0.995, tv)) * smoothstep(0.956, 0.978, tv)
+        const mBot = Math.min(1, botPoleMix * 0.88)
+        r = r * (1 - mBot) + (58 + 14 * n1) * mBot
+        gg = gg * (1 - mBot) + (26 + 10 * n1) * mBot
+        b = b * (1 - mBot) + (22 + 8 * n1) * mBot
       }
 
       // Very gentle pole smoothing
       const sinV = Math.sin(tv * Math.PI)
-      const poleFactor = 0.97 + 0.03 * sinV
+      const poleFactor = 0.985 + 0.015 * sinV
       r *= poleFactor
       gg *= poleFactor
       b *= poleFactor
 
-      // Apple uses `toneMapped: false` — boost slightly for visibility in thumbnails.
-      const gain = 1.9
+      // Apple uses `toneMapped: false` — no gain needed; base colors are already calibrated.
+      // Any gain clips the red channel to 255, destroying the top-bottom gradient.
+      const gain = 1.0
       r *= gain
       gg *= gain
       b *= gain
@@ -476,6 +512,7 @@ export function appleSkinTexture(): THREE.CanvasTexture {
 
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false // canvas row 0 (tv=0, stem) must map to UV v=0 → mesh top pole
   tex.wrapS = THREE.RepeatWrapping
   tex.wrapT = THREE.ClampToEdgeWrapping
   // Keep small color zones (top yellow ring) visible in thumbnails:

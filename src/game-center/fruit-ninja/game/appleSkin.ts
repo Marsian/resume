@@ -12,6 +12,7 @@ export function getAppleBodyMaterial(): THREE.MeshBasicMaterial {
   if (!appleBodyMat) {
     appleBodyMat = new THREE.MeshBasicMaterial({
       map: appleSkinTexture(),
+      side: THREE.DoubleSide,
       transparent: false,
       opacity: 1,
       toneMapped: false,

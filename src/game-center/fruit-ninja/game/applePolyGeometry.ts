@@ -10,7 +10,8 @@ import * as THREE from 'three'
  * UV mapping: standard equirectangular (u = azimuth, v = colatitude/pi).
  */
 
-const LON_SEGMENTS = 48
+/** Slightly higher than 48 so gallery captures show a smoother silhouette next to wiki art. */
+const LON_SEGMENTS = 56
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
 const halfCache = new Map<number, THREE.BufferGeometry>()
@@ -24,30 +25,30 @@ function appleDeform(nx: number, ny: number, nz: number, radius: number): [numbe
   const h = ny // -1 bottom, +1 top
 
   // --- Base ellipsoid: nearly spherical, slightly taller than wide ---
-  // Reduce width/height ratio (less “flat”).
-  const scaleXZ = 0.94
-  const scaleY = 1.18
+  // Wiki apple is quite round; keep modest height.
+  const scaleXZ = 0.98
+  const scaleY = 1.06
 
-  // --- Upper body bulge: widest slightly above equator ---
-  const bulge = 0.06 * Math.exp(-((h - 0.15) * (h - 0.15)) / (0.28 * 0.28))
+  // --- Upper body bulge: widest near equator (wiki apple is round) ---
+  const bulge = 0.04 * Math.exp(-((h - 0.05) * (h - 0.05)) / (0.32 * 0.32))
   const totalXZ = scaleXZ + bulge
 
-  // --- Top indent (stem cavity) ---
+  // --- Top indent (stem cavity) — wiki-style shallow dent ---
   let topDY = 0
   let topDR = 1.0
-  if (h > 0.55) {
-    const t = (h - 0.55) / 0.45
-    topDY = -0.35 * t * t * radius
-    topDR = 1.0 - 0.75 * t * t
+  if (h > 0.80) {
+    const t = (h - 0.80) / 0.20
+    topDY = -0.18 * t * t * radius
+    topDR = 1.0 - 0.45 * t * t
   }
 
-  // --- Bottom indent ---
+  // --- Bottom indent — shallow, like wiki reference ---
   let bottomDY = 0
   let bottomDR = 1.0
-  if (h < -0.65) {
-    const t = (-0.65 - h) / 0.35
-    bottomDY = 0.22 * t * t * radius
-    bottomDR = 1.0 - 0.65 * t * t
+  if (h < -0.80) {
+    const t = (-0.80 - h) / 0.20
+    bottomDY = 0.14 * t * t * radius
+    bottomDR = 1.0 - 0.40 * t * t
   }
 
   // --- Lower body taper ---
@@ -65,9 +66,9 @@ function appleDeform(nx: number, ny: number, nz: number, radius: number): [numbe
 /**
  * Build non-uniform theta (latitude) steps.
  *
- * Top indent zone:    theta 0    -> ~1.0  (h > 0.55) : dense rings
- * Middle body zone:   theta ~1.0 -> ~2.28 : normal density
- * Bottom indent zone: theta ~2.28 -> pi   (h < -0.65) : dense rings
+ * Top indent zone:    theta 0    -> ~0.64  (h > 0.80) : dense rings
+ * Middle body zone:   theta ~0.64 -> ~2.50 : normal density
+ * Bottom indent zone: theta ~2.50 -> pi   (h < -0.80) : dense rings
  *
  * thetaStart/thetaLength restrict the range for half-geometry.
  */
@@ -75,8 +76,8 @@ function buildThetaSteps(thetaStart: number, thetaLength: number): number[] {
   const thetaEnd = thetaStart + thetaLength
 
   // Zone boundaries (in theta)
-  const topZoneEnd = Math.acos(0.55)    // ~0.988 rad
-  const bottomZoneStart = Math.acos(-0.65) // ~2.279 rad
+  const topZoneEnd = Math.acos(0.80)    // ~0.6435 rad
+  const bottomZoneStart = Math.acos(-0.80) // ~2.498 rad
 
   // Full-sphere ring counts per zone
   const topRings = 20
@@ -172,6 +173,22 @@ function buildAppleCustomGeometry(
   geo.setIndex(indices)
   geo.computeVertexNormals()
 
+  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
+  // The cavity dents pull the top down asymmetrically, shifting the visual centre
+  // away from the origin; re-centring eliminates the "stem lags the body" effect.
+  geo.computeBoundingBox()
+  const centre = new THREE.Vector3()
+  geo.boundingBox!.getCenter(centre)
+  if (Math.abs(centre.y) > 1e-5) {
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute
+    for (let i = 0; i < pos.count; i++) {
+      pos.setY(i, pos.getY(i) - centre.y)
+    }
+    pos.needsUpdate = true
+    geo.computeBoundingBox()
+    geo.computeVertexNormals()
+  }
+
   return geo
 }
 
@@ -195,3 +212,9 @@ export function getAppleHalfPolyGeometry(radius: number): THREE.BufferGeometry {
 
 /** Approximate max XZ radius for half-mesh cap scaling. */
 export const APPLE_MAX_XZ = 1.12
+
+/**
+ * Y-coordinate of the top pole (cavity floor) after geometry re-centring.
+ * Used by stem/leaf positioning code in `meshes.ts`.
+ */
+export const APPLE_TOP_POLE_Y_RATIO = 0.89

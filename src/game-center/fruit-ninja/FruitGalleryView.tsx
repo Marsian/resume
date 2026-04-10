@@ -113,6 +113,9 @@ export default function FruitGalleryView() {
     const camera = createCamera(clientWidth / Math.max(1, clientHeight))
 
     const renderer = createRenderer(canvas)
+    // Gallery / wiki comparison: avoid ACES crushing saturated fruit albedos in captures.
+    renderer.toneMapping = THREE.NoToneMapping
+    renderer.toneMappingExposure = 1
     fitRendererToContainer(renderer, camera, clientWidth, clientHeight)
 
     const gridRoot = new THREE.Group()
