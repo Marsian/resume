@@ -14,6 +14,8 @@ import { getStrawberryBodyMaterial } from './strawberrySkin'
 import { getStrawberryBodyPolyGeometry } from './strawberryPolyGeometry'
 import { getOrangeBodyMaterial } from './orangeSkin'
 import { getOrangeBodyPolyGeometry, ORANGE_MAX_XZ } from './orangePolyGeometry'
+import { getPeachBodyMaterial } from './peachSkin'
+import { getPeachBodyPolyGeometry, PEACH_TOP_POLE_Y_RATIO } from './peachPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -158,40 +160,6 @@ function plumBloomTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let peachFuzzTex: THREE.CanvasTexture | null = null
-function peachFuzzTexture(): THREE.CanvasTexture {
-  if (peachFuzzTex) return peachFuzzTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Soft peach base
-  g.fillStyle = '#ff9060'
-  g.fillRect(0, 0, s, s)
-  // Fuzz fibers
-  for (let i = 0; i < 1200; i++) {
-    const x = Math.random() * s
-    const y = Math.random() * s
-    g.strokeStyle = `rgba(255,200,160,${0.06 + Math.random() * 0.08})`
-    g.lineWidth = 0.5
-    g.beginPath()
-    g.moveTo(x, y)
-    g.lineTo(x + (Math.random() - 0.5) * 2, y - 1 - Math.random() * 2)
-    g.stroke()
-  }
-  // Rosy blush areas
-  for (let i = 0; i < 30; i++) {
-    g.fillStyle = `rgba(220,80,60,${0.04 + Math.random() * 0.06})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 5 + Math.random() * 8, 0, Math.PI * 2)
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  peachFuzzTex = tex
-  return tex
-}
-
 
 let pearTex: THREE.CanvasTexture | null = null
 function pearTexture(): THREE.CanvasTexture {
@@ -275,22 +243,6 @@ function plumBodyMaterial(): THREE.MeshStandardMaterial {
   }
   return plumBodyMat
 }
-
-let peachBodyMat: THREE.MeshStandardMaterial | null = null
-function peachBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!peachBodyMat) {
-    peachBodyMat = new THREE.MeshStandardMaterial({
-      map: peachFuzzTexture(),
-      color: 0xff9a6a,
-      roughness: 0.48,
-      metalness: 0,
-      emissive: new THREE.Color(0x603820),
-      emissiveIntensity: 0.1,
-    })
-  }
-  return peachBodyMat
-}
-
 
 let pearBodyMat: THREE.MeshStandardMaterial | null = null
 function pearBodyMaterial(): THREE.MeshStandardMaterial {
@@ -722,39 +674,23 @@ function createPearMesh(radius: number): THREE.Group {
   return g
 }
 
-function createPeachMesh(radius: number): THREE.Group {
+function createPeachMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 18),
-    peachBodyMaterial(),
+    getPeachBodyPolyGeometry(radius),
+    getPeachBodyMaterial(),
   )
-  body.scale.set(1.02, 0.96, 0.98)
-  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
-
-  // Softer, more defined crease / suture line
-  const crease = new THREE.Mesh(
-    new THREE.TorusGeometry(radius * 0.46, radius * 0.035, 8, 24, Math.PI * 0.9),
-    new THREE.MeshStandardMaterial({
-      color: 0xc06040,
-      roughness: 0.55,
-      emissive: new THREE.Color(0x401510),
-      emissiveIntensity: 0.1,
-    }),
-  )
-  crease.rotation.x = Math.PI / 2
-  crease.rotation.z = 0.12
-  crease.position.set(0, radius * 0.08, radius * 0.72)
-  g.add(crease)
 
   // Stem
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.03, radius * 0.05, radius * 0.20, 6),
-    new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.9 }),
+    new THREE.CylinderGeometry(radius * 0.03, radius * 0.05, radius * 0.18, 6),
+    new THREE.MeshBasicMaterial({ color: 0x4a3520 }),
   )
-  stem.position.y = radius * 0.88
+  stem.position.y = radius * PEACH_TOP_POLE_Y_RATIO
   stem.rotation.z = 0.08
   g.add(stem)
   return g
@@ -874,7 +810,7 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
     case 'pear':
       return createPearMesh(radius)
     case 'peach':
-      return createPeachMesh(radius)
+      return createPeachMesh(radius, skinHex)
     case 'passionfruit':
       return createPassionfruitMesh(radius)
     case 'cherry':

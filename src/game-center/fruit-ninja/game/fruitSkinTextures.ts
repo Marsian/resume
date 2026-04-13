@@ -1993,3 +1993,216 @@ export function orangeSkinTexture(): THREE.CanvasTexture {
   orangeSkinTex = tex
   return tex
 }
+
+// ---------------------------------------------------------------------------
+// Peach skin: wiki-accurate warm pinkish-orange with rosy blush and fuzz.
+// UV: u = azimuth around Y (0–1), v = colatitude/π (0=top pole/stem, 1=bottom).
+//
+// Visual zones (from wiki peach reference):
+//   v ≈ 0.00–0.06 : top pole — stem cleft area, slightly darker
+//   v ≈ 0.06–0.20 : top transition — warm peach blending into body
+//   v ≈ 0.20–0.80 : main body — warm pinkish-orange with rosy red blush
+//   v ≈ 0.80–0.92 : bottom transition — slightly deeper
+//   v ≈ 0.92–1.00 : bottom tip — slightly darker point
+//
+// Key features: warm peach base color (#FF9A6A area), prominent rosy red blush
+// on one side, subtle fuzz texture across surface, suture/crease line running
+// along one meridian from stem to bottom.
+// ---------------------------------------------------------------------------
+
+let peachSkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing peach skin generation so the next `peachSkinTexture()` rebuilds the canvas. */
+export function resetPeachSkinTextureCache(): void {
+  peachSkinTex = null
+}
+
+export function peachSkinTexture(): THREE.CanvasTexture {
+  if (peachSkinTex) return peachSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki peach reference:
+  // - warm peach body: #FFD0A8 (pale peach-cream — wiki is light, not deep orange)
+  // - rosy blush: #E82848 (prominent vivid red-magenta blush — the signature feature)
+  // - deeper peach shadow: #E0A878
+  // - stem cleft area: #8A5A30 (darker near stem)
+  // - transition zone: #F0B888
+  const bodyR = 0xff, bodyG = 0xd0, bodyB = 0xa8
+  const blushR = 0xe8, blushG = 0x28, blushB = 0x48
+  const deepR = 0xe0, deepG = 0xa8, deepB = 0x78
+  const stemR = 0x8a, stemG = 0x5a, stemB = 0x30
+  const transR = 0xf0, transG = 0xb8, transB = 0x88
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (stem), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for organic variation ---
+      const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
+      const n2 = fbm(tu * 16 + 7.3, tv * 18 + 5.8)
+
+      // --- Fuzz texture (subtle downy hairs) ---
+      const fuzzNoise = fbm(tu * 30 + 3.7, tv * 35 + 5.2)
+      const fuzzMul = 0.98 + 0.02 * fuzzNoise
+
+      // --- Rosy blush: covers roughly one side of the peach ---
+      // Blush is centered around azimuth u ≈ 0.35, spreads with organic noise
+      // Wiki peach has a very prominent blush covering a large area
+      const blushCenter = 0.35
+      const blushDist = Math.abs(tu - blushCenter)
+      // Handle wrapping — blush doesn't wrap, it's on one side only
+      const blushNoise = fbm(tu * 6 + 1.5, tv * 8 + 2.8) * 0.12
+      const blushMask = smoothstep(0.38 + blushNoise, 0.08 + blushNoise, blushDist)
+      // Blush covers most of the body vertically
+      const blushVertical = smoothstep(0.08, 0.20, tv) * smoothstep(0.92, 0.65, tv)
+      const blushAmount = blushMask * blushVertical * (0.8 + 0.2 * n1)
+
+      // --- Suture/crease line: runs along one meridian (u ≈ 0.5) ---
+      const creaseU = 0.5
+      const creaseDist = Math.abs(tu - creaseU)
+      const creaseNoise = fbm(tu * 4 + 9.0, tv * 12 + 5.5) * 0.025
+      const creaseMask = smoothstep(0.045 + creaseNoise, 0.005, creaseDist)
+      // Crease runs from top to bottom but is most visible in the middle
+      const creaseVertical = smoothstep(0.05, 0.15, tv) * smoothstep(0.95, 0.85, tv)
+
+      // --- Latitude color gradient for body ---
+      const latFactor = smoothstep(0.80, 0.20, tv)
+
+      // --- Start with body peach color ---
+      let r = deepR + (bodyR - deepR) * latFactor
+      let gg = deepG + (bodyG - deepG) * latFactor
+      let b = deepB + (bodyB - deepB) * latFactor
+
+      // FBM noise variation
+      r += 10 * (n1 - 0.5)
+      gg += 6 * (n1 - 0.5)
+      b += 4 * (n1 - 0.5)
+
+      r += 5 * (n2 - 0.5)
+      gg += 3 * (n2 - 0.5)
+
+      // Fuzz
+      r *= fuzzMul
+      gg *= fuzzMul
+      b *= fuzzMul * 0.98
+
+      // --- Apply rosy blush ---
+      r = r * (1 - blushAmount) + blushR * blushAmount
+      gg = gg * (1 - blushAmount) + blushG * blushAmount
+      b = b * (1 - blushAmount) + blushB * blushAmount
+
+      // --- Apply suture crease (darker line) ---
+      const creaseDarken = creaseMask * creaseVertical
+      r *= (1 - creaseDarken * 0.55)
+      gg *= (1 - creaseDarken * 0.48)
+      b *= (1 - creaseDarken * 0.38)
+
+      // --- Speckle (fuzz highlights) ---
+      const speck = hash21(px + 53, py + 29)
+      if (speck < 0.015) {
+        r *= 0.95
+        gg *= 0.93
+        b *= 0.91
+      }
+      if (speck > 0.985) {
+        r = Math.min(255, r + 6)
+        gg = Math.min(255, gg + 5)
+        b = Math.min(255, b + 3)
+      }
+
+      // --- Smooth stem tip blending (top) ---
+      const tipR = stemR + 10 * (n1 - 0.5)
+      const tipG = stemG + 8 * (n1 - 0.5)
+      const tipB = stemB + 6 * (n1 - 0.5)
+      const midR = transR + 10 * (n1 - 0.5)
+      const midG = transG + 8 * (n1 - 0.5)
+      const midB = transB + 4 * (n1 - 0.5)
+
+      const topMid = smoothstep(0.20, 0.08, tv)
+      const topCore = smoothstep(0.08, 0.02, tv)
+      r = r * (1 - topMid) + midR * topMid
+      gg = gg * (1 - topMid) + midG * topMid
+      b = b * (1 - topMid) + midB * topMid
+      r = r * (1 - topCore) + tipR * topCore
+      gg = gg * (1 - topCore) + tipG * topCore
+      b = b * (1 - topCore) + tipB * topCore
+
+      // Bottom blend
+      const botMid = smoothstep(0.84, 0.92, tv)
+      const botCore = smoothstep(0.92, 0.98, tv)
+      r = r * (1 - botMid) + midR * botMid
+      gg = gg * (1 - botMid) + midG * botMid
+      b = b * (1 - botMid) + midB * botMid
+      r = r * (1 - botCore) + tipR * botCore
+      gg = gg * (1 - botCore) + tipG * botCore
+      b = b * (1 - botCore) + tipB * botCore
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const th = tu * Math.PI * 2
+      const nx = Math.sin(phi) * Math.cos(th)
+      const ny = Math.cos(phi)
+      const nz = Math.sin(phi) * Math.sin(th)
+      let ndotl = nx * Lx + ny * Ly + nz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill
+      const diffBoost = Math.pow(ndotl, 0.8) * 0.40
+      // Ambient fill — peach has warm shadows
+      const ambientFill = 0.12
+      // Soft specular — peach has a subtle waxy sheen despite the fuzz
+      const specRaw = Math.pow(ndotl, 2.5) * 0.28 + Math.pow(ndotl, 8) * 0.18
+      const specFalloff = smoothstep(0.38, 0.10, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost + ambientFill
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: warm soft highlight (fuzzy surface but wiki has noticeable sheen)
+      r += 255 * specBoost * 0.48
+      gg += 255 * specBoost * 0.42
+      b += 255 * specBoost * 0.25
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  peachSkinTex = tex
+  return tex
+}
