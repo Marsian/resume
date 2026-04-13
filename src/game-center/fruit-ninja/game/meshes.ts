@@ -26,6 +26,8 @@ import { getWatermelonBodyMaterial } from './watermelonSkin'
 import { getWatermelonBodyPolyGeometry, WATERMELON_AY } from './watermelonPolyGeometry'
 import { getKiwiBodyMaterial } from './kiwiSkin'
 import { getKiwiBodyPolyGeometry, KIWI_TOP_POLE_Y_RATIO } from './kiwiPolyGeometry'
+import { getPassionfruitBodyMaterial } from './passionfruitSkin'
+import { getPassionfruitBodyPolyGeometry } from './passionfruitPolyGeometry'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -90,42 +92,6 @@ function pineappleSkinTexture(): THREE.CanvasTexture {
   return tex
 }
 
-
-
-
-let passionSpeckleTex: THREE.CanvasTexture | null = null
-function passionSpeckleTexture(): THREE.CanvasTexture {
-  if (passionSpeckleTex) return passionSpeckleTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Dark purple base
-  g.fillStyle = '#2a1840'
-  g.fillRect(0, 0, s, s)
-  // Speckles
-  for (let i = 0; i < 300; i++) {
-    const x = Math.random() * s
-    const y = Math.random() * s
-    g.fillStyle = `rgba(200,180,220,${0.15 + Math.random() * 0.2})`
-    g.fillRect(x, y, 1 + (Math.random() * 2) | 0, 1)
-  }
-  // Subtle wrinkle lines
-  for (let i = 0; i < 60; i++) {
-    g.strokeStyle = `rgba(50,30,70,${0.1 + Math.random() * 0.1})`
-    g.lineWidth = 0.5
-    g.beginPath()
-    const sx = Math.random() * s
-    const sy = Math.random() * s
-    g.moveTo(sx, sy)
-    g.lineTo(sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 12)
-    g.stroke()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  passionSpeckleTex = tex
-  return tex
-}
 
 
 
@@ -241,23 +207,6 @@ function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
   return pineappleBodyMat
 }
 
-
-
-
-let passionBodyMat: THREE.MeshStandardMaterial | null = null
-function passionBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!passionBodyMat) {
-    passionBodyMat = new THREE.MeshStandardMaterial({
-      map: passionSpeckleTexture(),
-      color: 0x4a2868,
-      roughness: 0.52,
-      metalness: 0,
-      emissive: new THREE.Color(0x1a0a28),
-      emissiveIntensity: 0.2,
-    })
-  }
-  return passionBodyMat
-}
 
 
 
@@ -763,22 +712,46 @@ function createPeachMesh(radius: number): THREE.Group {
 function createPassionfruitMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 18),
-    passionBodyMaterial(),
+    getPassionfruitBodyPolyGeometry(radius),
+    getPassionfruitBodyMaterial(),
   )
-  body.scale.set(0.96, 0.90, 0.96)
   body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
   g.add(body)
 
-  // Small stem / calyx remnant at top
+  // Small stem / calyx remnant at top — wiki: short, visible woody stem
   const calyx = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.06, radius * 0.10, radius * 0.10, 6),
-    new THREE.MeshStandardMaterial({ color: 0x2a1a3a, roughness: 0.8 }),
+    new THREE.CylinderGeometry(radius * 0.05, radius * 0.10, radius * 0.15, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a3a22, roughness: 0.85 }),
   )
-  calyx.position.y = radius * 0.88
+  calyx.position.y = radius * 0.86
   g.add(calyx)
+
+  // Stem protruding from calyx — wiki: visible thin stem
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.025, radius * 0.035, radius * 0.18, 5),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a2a, roughness: 0.9 }),
+  )
+  stem.position.y = radius * 0.98
+  g.add(stem)
+
+  // Three small sepals radiating from calyx — wiki: dried calyx remnants
+  for (let i = 0; i < 3; i++) {
+    const sepal = new THREE.Mesh(
+      new THREE.BoxGeometry(radius * 0.025, radius * 0.10, radius * 0.07),
+      new THREE.MeshStandardMaterial({ color: 0x5a4a28, roughness: 0.9 }),
+    )
+    const angle = (i / 3) * Math.PI * 2
+    sepal.position.set(
+      Math.cos(angle) * radius * 0.06,
+      radius * 0.88,
+      Math.sin(angle) * radius * 0.06,
+    )
+    sepal.rotation.y = -angle
+    sepal.rotation.x = -0.3
+    g.add(sepal)
+  }
   return g
 }
 
