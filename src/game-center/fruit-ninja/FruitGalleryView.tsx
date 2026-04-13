@@ -40,7 +40,7 @@ const SKIN_BY_KIND: Record<FruitArchetype, number> = {
   plum: 0x6a2078,
   pear: 0xb8c840,
   peach: 0xff9a6a,
-  passionfruit: 0x3a2055,
+  passionfruit: 0x6b3828,
   cherry: 0xa81028,
 }
 

@@ -85,7 +85,7 @@ const FRUIT_KINDS: FruitSpawnKind[] = [
   { kind: 'plum', skin: 0x6a2078, flesh: 0xe0c0e0 },
   { kind: 'pear', skin: 0xb8c840, flesh: 0xfffff0 },
   { kind: 'peach', skin: 0xff9a6a, flesh: 0xffe0c8 },
-  { kind: 'passionfruit', skin: 0x3a2055, flesh: 0xf0d890 },
+  { kind: 'passionfruit', skin: 0x6b3828, flesh: 0xf0d890 },
   { kind: 'cherry', skin: 0xa81028, flesh: 0xff2848 },
 ]
 

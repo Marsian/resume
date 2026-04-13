@@ -27,17 +27,16 @@ function passionfruitDeform(nx: number, ny: number, nz: number, radius: number):
 
   const h = ny // -1 bottom, +1 top (stem)
 
-  // --- Base shape: noticeably oblate (wider than tall) ---
-  // Wiki passionfruit is clearly wider than tall — like a slightly squashed sphere
-  const scaleXZ = 1.08
-  const scaleY = 0.88
+  // --- Base shape: nearly spherical — wiki passionfruit is round, not squashed ---
+  const scaleXZ = 1.00
+  const scaleY = 1.00
 
   x *= scaleXZ
   z *= scaleXZ
   y *= scaleY
 
-  // --- Equatorial bulge: passionfruit is widest at middle ---
-  const bulgeAmount = 0.05
+  // --- Equatorial bulge: slight, nearly round ---
+  const bulgeAmount = 0.02
   const bulge = bulgeAmount * (1.0 - h * h)
   x += nx * bulge * radius
   z += nz * bulge * radius

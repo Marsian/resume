@@ -610,38 +610,39 @@ function createPassionfruitMesh(radius: number): THREE.Group {
   body.receiveShadow = true
   g.add(body)
 
-  // Small stem / calyx remnant at top — wiki: short, visible woody stem
+  // Calyx base at top
   const calyx = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.05, radius * 0.10, radius * 0.15, 6),
-    new THREE.MeshStandardMaterial({ color: 0x4a3a22, roughness: 0.85 }),
+    new THREE.CylinderGeometry(radius * 0.06, radius * 0.12, radius * 0.10, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a3822, roughness: 0.85 }),
   )
-  calyx.position.y = radius * 0.86
+  calyx.position.y = radius * 0.96
   g.add(calyx)
 
-  // Stem protruding from calyx — wiki: visible thin stem
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.025, radius * 0.035, radius * 0.18, 5),
-    new THREE.MeshStandardMaterial({ color: 0x5a4a2a, roughness: 0.9 }),
-  )
-  stem.position.y = radius * 0.98
-  g.add(stem)
-
-  // Three small sepals radiating from calyx — wiki: dried calyx remnants
+  // Three prominent dried sepals — wiki: clearly visible, curling outward
   for (let i = 0; i < 3; i++) {
     const sepal = new THREE.Mesh(
-      new THREE.BoxGeometry(radius * 0.025, radius * 0.10, radius * 0.07),
+      new THREE.BoxGeometry(radius * 0.035, radius * 0.25, radius * 0.10),
       new THREE.MeshStandardMaterial({ color: 0x5a4a28, roughness: 0.9 }),
     )
     const angle = (i / 3) * Math.PI * 2
     sepal.position.set(
-      Math.cos(angle) * radius * 0.06,
-      radius * 0.88,
-      Math.sin(angle) * radius * 0.06,
+      Math.cos(angle) * radius * 0.10,
+      radius * 0.98,
+      Math.sin(angle) * radius * 0.10,
     )
     sepal.rotation.y = -angle
-    sepal.rotation.x = -0.3
+    sepal.rotation.x = -0.6 // more outward curl
     g.add(sepal)
   }
+
+  // Short stem
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.02, radius * 0.04, radius * 0.15, 5),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a2a, roughness: 0.9 }),
+  )
+  stem.position.y = radius * 1.06
+  g.add(stem)
+
   return g
 }
 
