@@ -625,21 +625,30 @@ function createStrawberryMesh(radius: number, _skinHex: number): THREE.Group {
   body.userData.sharedMaterial = true
   g.add(body)
 
-  // Green calyx with sepals on top — larger and more prominent per wiki
+  // Green leaf-like calyx with pointed sepals on top — wiki style
   const calyxMat = new THREE.MeshBasicMaterial({
     color: 0x1E7A2E,
     side: THREE.DoubleSide,
     toneMapped: false,
   })
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2
-    const sepal = new THREE.Mesh(
-      new THREE.CircleGeometry(radius * 0.35, 8),
-      calyxMat,
-    )
-    sepal.position.set(Math.cos(a) * radius * 0.22, radius * 0.45, Math.sin(a) * radius * 0.22)
-    sepal.rotation.set(-0.6, a, 0)
-    sepal.scale.set(1, 0.55, 1)
+  // Build a leaf-shaped sepal using ShapeGeometry
+  const leafShape = new THREE.Shape()
+  leafShape.moveTo(0, 0)
+  leafShape.quadraticCurveTo(0.14, 0.16, 0.05, 0.36)
+  leafShape.lineTo(0, 0.40)
+  leafShape.lineTo(-0.05, 0.36)
+  leafShape.quadraticCurveTo(-0.14, 0.16, 0, 0)
+  const leafGeo = new THREE.ShapeGeometry(leafShape)
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2
+    const sepal = new THREE.Mesh(leafGeo, calyxMat)
+    // Position at top center, slightly spread
+    sepal.position.set(Math.cos(a) * radius * 0.08, radius * 0.44, Math.sin(a) * radius * 0.08)
+    // Rotate to fan outward from top center — spread more horizontally like a crown
+    sepal.rotation.order = 'YXZ'
+    sepal.rotation.y = a
+    sepal.rotation.x = -1.35
+    sepal.scale.set(radius * 1.0, radius * 1.0, radius * 1.0)
     g.add(sepal)
   }
   return g
