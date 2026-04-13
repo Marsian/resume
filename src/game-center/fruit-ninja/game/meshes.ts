@@ -12,6 +12,8 @@ import { getCoconutBodyMaterial } from './coconutSkin'
 import { getCoconutBodyPolyGeometry } from './coconutPolyGeometry'
 import { getStrawberryBodyMaterial } from './strawberrySkin'
 import { getStrawberryBodyPolyGeometry } from './strawberryPolyGeometry'
+import { getOrangeBodyMaterial } from './orangeSkin'
+import { getOrangeBodyPolyGeometry, ORANGE_MAX_XZ } from './orangePolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -121,38 +123,6 @@ function kiwiFuzzTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let orangePoreTex: THREE.CanvasTexture | null = null
-function orangePoreTexture(): THREE.CanvasTexture {
-  if (orangePoreTex) return orangePoreTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Bright orange base
-  g.fillStyle = '#ff9020'
-  g.fillRect(0, 0, s, s)
-  // Dimpled pores
-  for (let i = 0; i < 500; i++) {
-    const x = Math.random() * s
-    const y = Math.random() * s
-    const r = 0.4 + Math.random() * 1.0
-    g.fillStyle = `rgba(180,70,0,${0.12 + Math.random() * 0.2})`
-    g.beginPath()
-    g.arc(x, y, r, 0, Math.PI * 2)
-    g.fill()
-  }
-  // Subtle highlight specks
-  for (let i = 0; i < 100; i++) {
-    g.fillStyle = `rgba(255,200,100,${0.05 + Math.random() * 0.08})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 0.5 + Math.random(), 0, Math.PI * 2)
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  orangePoreTex = tex
-  return tex
-}
 
 let passionSpeckleTex: THREE.CanvasTexture | null = null
 function passionSpeckleTexture(): THREE.CanvasTexture {
@@ -315,20 +285,6 @@ function kiwiBodyMaterial(): THREE.MeshStandardMaterial {
   return kiwiBodyMat
 }
 
-let orangeBodyMat: THREE.MeshStandardMaterial | null = null
-function orangeBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!orangeBodyMat) {
-    orangeBodyMat = new THREE.MeshStandardMaterial({
-      map: orangePoreTexture(),
-      color: 0xff8c00,
-      roughness: 0.36,
-      metalness: 0,
-      emissive: new THREE.Color(0x604000),
-      emissiveIntensity: 0.08,
-    })
-  }
-  return orangeBodyMat
-}
 
 let passionBodyMat: THREE.MeshStandardMaterial | null = null
 function passionBodyMaterial(): THREE.MeshStandardMaterial {
@@ -703,24 +659,24 @@ function createKiwiMesh(radius: number): THREE.Group {
   return g
 }
 
-function createOrangeMesh(radius: number): THREE.Group {
+function createOrangeMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 18),
-    orangeBodyMaterial(),
+    getOrangeBodyPolyGeometry(radius),
+    getOrangeBodyMaterial(),
   )
-  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
 
-  // Small navel / nub at top
+  // Small navel / nub at top (stem attachment point)
   const navel = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.08, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x5a8828, roughness: 0.7 }),
+    new THREE.SphereGeometry(radius * 0.06, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0x5a8828 }),
   )
-  navel.position.y = radius * 0.92
-  navel.scale.set(1.2, 0.6, 1.2)
+  navel.position.y = radius * 0.90
+  navel.scale.set(1.2, 0.5, 1.2)
   g.add(navel)
   return g
 }
@@ -943,7 +899,7 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
     case 'kiwi':
       return createKiwiMesh(radius)
     case 'orange':
-      return createOrangeMesh(radius)
+      return createOrangeMesh(radius, skinHex)
     case 'plum':
       return createPlumMesh(radius)
     case 'pear':

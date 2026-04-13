@@ -10,6 +10,7 @@ import {
   WATERMELON_AX,
   WATERMELON_AZ,
 } from './watermelonPolyGeometry'
+import { getOrangeBodyMaterial } from './orangeSkin'
 
 /** Lighter "pulp" tone from skin color (fallback when spawn did not set flesh). */
 export function fleshColorFromSkin(skin: THREE.Color): THREE.Color {
@@ -323,6 +324,9 @@ function getSkinMatForFruit(
   }
   if (fruitType === 'apple') {
     return getAppleBodyMaterial()
+  }
+  if (fruitType === 'orange') {
+    return getOrangeBodyMaterial()
   }
   return getSkinMat(skin)
 }
