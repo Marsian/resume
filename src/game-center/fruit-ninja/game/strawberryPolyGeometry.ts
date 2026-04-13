@@ -50,14 +50,13 @@ function strawberryDeform(nx: number, ny: number, nz: number, radius: number): [
   const ridgePattern = 1.0 + 0.025 * Math.cos(ridgeFreq * phi)
 
   // --- Cone taper + rounded bottom ---
-  // Wiki strawberry: wide top/shoulders, tapering down to a rounded bottom (NOT pointed)
-  // Upper body stays wide; lower body gradually narrows; bottom pole is rounded
+  // Wiki strawberry: wide top/shoulders, tapering down to a thick rounded bottom
+  // Upper body stays wide; lower body gradually narrows; bottom pole is thick and round
   let bottomDR = 1.0
   if (h < -0.20) {
-    // Taper starts below h=-0.20 (below the shoulder area)
     const t = (-0.20 - h) / 0.80  // 0 at h=-0.20, 1 at bottom pole
-    bottomDR = 1.0 - 0.65 * t * t
-    // At bottom pole: bottomDR = 0.35 → rounded, not pointed
+    // Gentle taper — bottom pole stays thick (bottomDR = 0.55)
+    bottomDR = 1.0 - 0.45 * t * t
   }
 
   // --- Top flattening: where the calyx sits, slightly wider and flatter ---

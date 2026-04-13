@@ -1428,8 +1428,8 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
       // --- Seed pattern: yellow dots in diagonal rows ---
       // Strawberries have seeds arranged in diagonal spiraling rows
       // Use a simple checker-like grid with offset for diagonal effect
-      const seedFreqU = 9   // seeds per wrap-around
-      const seedFreqV = 9   // rows of seeds top to bottom (fewer rows = bigger seeds)
+      const seedFreqU = 12   // seeds per wrap-around (more = smaller, denser)
+      const seedFreqV = 14   // rows of seeds top to bottom (more = smaller, denser)
       const diagOffset = 0.50  // diagonal offset per row for spiral pattern
 
       // Get tile-local position
@@ -1455,8 +1455,8 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
       const dV = fracV - 0.5
       const seedDistF = Math.sqrt(dU * dU * 1.3 + dV * dV * 0.8) * 2.0  // 0 at center, 1 at corner
 
-      // Seed is a larger circle in the center of each tile
-      const seedRadius = 0.48
+      // Seed is a smaller circle in the center of each tile (smaller but denser)
+      const seedRadius = 0.32
       const isSeed = seedDistF < seedRadius
       const seedRing = isSeed ? smoothstep(seedRadius, seedRadius * 0.6, seedDistF) : 0
       const seedCenter = isSeed ? smoothstep(seedRadius * 0.6, seedRadius * 0.15, seedDistF) : 0

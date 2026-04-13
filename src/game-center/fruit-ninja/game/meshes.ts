@@ -626,6 +626,9 @@ function createStrawberryMesh(radius: number, _skinHex: number): THREE.Group {
   g.add(body)
 
   // Green leaf calyx on top — wiki style
+  // 5 long narrow sepals radiating from a small center ring, forming a
+  // pentagonal outline when viewed from above. Each sepal is a narrow
+  // leaf drawn in the XY plane with its base at origin, tip pointing +Y.
   const calyxMat = new THREE.MeshStandardMaterial({
     color: 0x1E7A2E,
     roughness: 0.55,
@@ -634,13 +637,13 @@ function createStrawberryMesh(radius: number, _skinHex: number): THREE.Group {
     emissiveIntensity: 0.12,
   })
 
-  // Flat leaf-shaped sepal in XY plane, tip pointing +Y
+  // Narrow elongated sepal shape — base at origin, tip at +Y
   const leafShape = new THREE.Shape()
   leafShape.moveTo(0, 0)
-  leafShape.quadraticCurveTo(0.28, 0.04, 0.14, 0.28)
-  leafShape.lineTo(0, 0.36)
-  leafShape.lineTo(-0.14, 0.28)
-  leafShape.quadraticCurveTo(-0.28, 0.04, 0, 0)
+  leafShape.quadraticCurveTo(0.16, 0.06, 0.09, 0.32)
+  leafShape.lineTo(0, 0.52)
+  leafShape.lineTo(-0.09, 0.32)
+  leafShape.quadraticCurveTo(-0.16, 0.06, 0, 0)
   const leafGeo = new THREE.ShapeGeometry(leafShape)
 
   // The body geometry top pole y
@@ -652,11 +655,11 @@ function createStrawberryMesh(radius: number, _skinHex: number): THREE.Group {
     const wrapper = new THREE.Group()
     wrapper.position.set(0, topY, 0)
     wrapper.rotation.y = a
-    // Pivot: tilt the leaf outward from vertical — positive Z rotation leans it away from center
+    // Pivot: tilt the leaf outward — positive Z leans tip away from center
     const pivot = new THREE.Group()
-    pivot.rotation.z = 1.30
+    pivot.rotation.z = 1.45
     const sepal = new THREE.Mesh(leafGeo, calyxMat)
-    sepal.scale.set(radius, radius, radius)
+    sepal.scale.set(radius * 1.2, radius * 1.2, radius * 1.2)
     pivot.add(sepal)
     wrapper.add(pivot)
     g.add(wrapper)
