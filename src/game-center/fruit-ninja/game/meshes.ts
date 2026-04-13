@@ -22,6 +22,8 @@ import {
 import type { FruitArchetype } from './spawn'
 import { getWatermelonBodyMaterial } from './watermelonSkin'
 import { getWatermelonBodyPolyGeometry, WATERMELON_AY } from './watermelonPolyGeometry'
+import { getKiwiBodyMaterial } from './kiwiSkin'
+import { getKiwiBodyPolyGeometry, KIWI_TOP_POLE_Y_RATIO } from './kiwiPolyGeometry'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -86,40 +88,7 @@ function pineappleSkinTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let kiwiFuzzTex: THREE.CanvasTexture | null = null
-function kiwiFuzzTexture(): THREE.CanvasTexture {
-  if (kiwiFuzzTex) return kiwiFuzzTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  g.fillStyle = '#6a4f18'
-  g.fillRect(0, 0, s, s)
-  // Fuzz fibers — short strokes radiating from random points
-  for (let i = 0; i < 1800; i++) {
-    const x = Math.random() * s
-    const y = Math.random() * s
-    const angle = Math.random() * Math.PI * 2
-    const len = 1.5 + Math.random() * 2.5
-    g.strokeStyle = Math.random() > 0.5 ? 'rgba(90,65,20,0.5)' : 'rgba(130,100,40,0.4)'
-    g.lineWidth = 0.6
-    g.beginPath()
-    g.moveTo(x, y)
-    g.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len)
-    g.stroke()
-  }
-  // Lighter patches for variation
-  for (let i = 0; i < 40; i++) {
-    g.fillStyle = `rgba(120,95,35,${0.08 + Math.random() * 0.1})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 3 + Math.random() * 5, 0, Math.PI * 2)
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  kiwiFuzzTex = tex
-  return tex
-}
+
 
 let orangePoreTex: THREE.CanvasTexture | null = null
 function orangePoreTexture(): THREE.CanvasTexture {
@@ -302,18 +271,7 @@ function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
   return pineappleBodyMat
 }
 
-let kiwiBodyMat: THREE.MeshStandardMaterial | null = null
-function kiwiBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!kiwiBodyMat) {
-    kiwiBodyMat = new THREE.MeshStandardMaterial({
-      map: kiwiFuzzTexture(),
-      color: 0x8a6a1e,
-      roughness: 0.88,
-      metalness: 0,
-    })
-  }
-  return kiwiBodyMat
-}
+
 
 let orangeBodyMat: THREE.MeshStandardMaterial | null = null
 function orangeBodyMaterial(): THREE.MeshStandardMaterial {
@@ -683,23 +641,34 @@ function createStrawberryMesh(radius: number, _skinHex: number): THREE.Group {
 function createKiwiMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 22, 16),
-    kiwiBodyMaterial(),
+    getKiwiBodyPolyGeometry(radius),
+    getKiwiBodyMaterial(),
   )
-  // Slightly elongated oval
-  body.scale.set(1.06, 0.86, 1.02)
-  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
 
-  // Small brown nub / stem remnant
+  // Wiki kiwi has a small stem remnant with a slightly raised ring around it
+  const topY = radius * KIWI_TOP_POLE_Y_RATIO
+
+  // Stem nub — slightly larger than before for visibility
   const nub = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.04, radius * 0.07, radius * 0.14, 6),
-    new THREE.MeshStandardMaterial({ color: 0x5a4a28, roughness: 0.9 }),
+    new THREE.CylinderGeometry(radius * 0.035, radius * 0.06, radius * 0.12, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: 0.9 }),
   )
-  nub.position.set(0, radius * 0.86, 0)
+  nub.position.set(0, topY + radius * 0.04, 0)
   g.add(nub)
+
+  // Slightly darker ring around the stem attachment (like wiki kiwi)
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.08, radius * 0.015, 6, 12),
+    new THREE.MeshStandardMaterial({ color: 0x5a4828, roughness: 0.95 }),
+  )
+  ring.rotation.x = Math.PI / 2
+  ring.position.set(0, topY + radius * 0.01, 0)
+  g.add(ring)
+
   return g
 }
 
