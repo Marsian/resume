@@ -42,17 +42,18 @@ function peachDeform(nx: number, ny: number, nz: number, radius: number, phi: nu
     cleftDR = 1.0 - 0.08 * t * t
   }
 
-  // --- Suture line: subtle groove running along phi = 0 (the UV seam) ---
-  // Using wrap-around distance so the groove is continuous across phi=0/2π
+  // --- Suture line: real groove running along phi = 0 (the UV seam) ---
+  // Wiki peach has a clearly visible suture cleft — a real physical groove,
+  // not just a painted line. The geometry dent creates natural shadow.
   let sutureDent = 0
   {
     // phi ranges 0..2π. Suture at phi=0 (same as phi=2π).
     // Wrap-around distance:
     const d = Math.min(phi, Math.PI * 2 - phi)
-    const sutureMask = Math.exp(-(d * d) / (0.12 * 0.12))
+    const sutureMask = Math.exp(-(d * d) / (0.08 * 0.08))
     // Suture runs full height but is most visible in the equatorial region
     const sutureVertical = 1.0 - 0.4 * h * h
-    sutureDent = -0.04 * radius * sutureMask * Math.max(0, sutureVertical)
+    sutureDent = -0.12 * radius * sutureMask * Math.max(0, sutureVertical)
   }
 
   // --- Bottom: very slight taper ---
@@ -117,6 +118,39 @@ function buildThetaSteps(thetaStart: number, thetaLength: number): number[] {
   return steps
 }
 
+/**
+ * Build non-uniform phi (longitude) steps.
+ * Dense segments near the suture groove (phi ≈ 0 / 2π) for sharper crease.
+ * The rest of the sphere uses normal density.
+ */
+function buildPhiSteps(lonSegments: number): number[] {
+  // Suture zone: phi within ±0.3 rad of 0 (and 2π)
+  // We allocate extra segments in this zone
+  const sutureWidth = 0.35 // radians on each side
+  const sutureSegs = 12    // extra density in suture zone
+  const normalSegs = lonSegments - sutureSegs
+
+  const steps: number[] = [0]
+
+  // Suture zone: 0 to sutureWidth
+  for (let i = 1; i <= sutureSegs / 2; i++) {
+    steps.push((i / (sutureSegs / 2)) * sutureWidth)
+  }
+  // Normal zone: sutureWidth to 2π - sutureWidth
+  for (let i = 1; i < normalSegs; i++) {
+    steps.push(sutureWidth + (i / normalSegs) * (Math.PI * 2 - 2 * sutureWidth))
+  }
+  // Suture zone: 2π - sutureWidth to 2π
+  for (let i = 1; i <= sutureSegs / 2; i++) {
+    steps.push(Math.PI * 2 - sutureWidth + (i / (sutureSegs / 2)) * sutureWidth)
+  }
+
+  // Ensure last step is exactly 2π
+  steps[steps.length - 1] = Math.PI * 2
+
+  return steps
+}
+
 function buildPeachCustomGeometry(
   radius: number,
   lonSegments: number,
@@ -125,6 +159,8 @@ function buildPeachCustomGeometry(
 ): THREE.BufferGeometry {
   const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
   const latCount = thetaSteps.length
+  const phiSteps = buildPhiSteps(lonSegments)
+  const phiCount = phiSteps.length
 
   const vertices: number[] = []
   const uvs: number[] = []
@@ -136,9 +172,9 @@ function buildPeachCustomGeometry(
     const cosTheta = Math.cos(theta)
     const v = theta / Math.PI
 
-    for (let lon = 0; lon <= lonSegments; lon++) {
-      const phi = (lon / lonSegments) * Math.PI * 2
-      const u = lon / lonSegments
+    for (let lon = 0; lon < phiCount; lon++) {
+      const phi = phiSteps[lon]!
+      const u = phi / (Math.PI * 2)
 
       const nx = sinTheta * Math.cos(phi)
       const ny = cosTheta
@@ -151,9 +187,9 @@ function buildPeachCustomGeometry(
     }
   }
 
-  const stride = lonSegments + 1
+  const stride = phiCount
   for (let lat = 0; lat < latCount - 1; lat++) {
-    for (let lon = 0; lon < lonSegments; lon++) {
+    for (let lon = 0; lon < phiCount - 1; lon++) {
       const a = lat * stride + lon
       const b = a + stride
       const c = a + 1

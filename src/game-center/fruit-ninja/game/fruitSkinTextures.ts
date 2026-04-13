@@ -2287,7 +2287,6 @@ export function peachSkinTexture(): THREE.CanvasTexture {
   // Suture at u≈0 so it aligns with the geometry groove at phi=0 (the UV seam),
   // which hides the seam behind the suture crease.
   const blushCenter = 0.35
-  const creaseU = 0.0
 
   for (let py = 0; py < s; py++) {
     const tv = py / (s - 1) // 0 = top (stem), 1 = bottom
@@ -2311,14 +2310,6 @@ export function peachSkinTexture(): THREE.CanvasTexture {
       // Blush covers most of the body vertically
       const blushVertical = smoothstep(0.08, 0.20, tv) * smoothstep(0.92, 0.65, tv)
       const blushAmount = blushMask * blushVertical * (0.8 + 0.2 * n1)
-
-      // --- Suture/crease line: wrap-around distance for seamless seam ---
-      let creaseDist = Math.abs(tu - creaseU)
-      creaseDist = Math.min(creaseDist, 1 - creaseDist) // wrap-around
-      const creaseNoise = fbm(tu * 4 + 9.0, tv * 12 + 5.5) * 0.015
-      const creaseMask = smoothstep(0.025 + creaseNoise, 0.003, creaseDist)
-      // Crease runs from top to bottom but is most visible in the middle
-      const creaseVertical = smoothstep(0.05, 0.15, tv) * smoothstep(0.95, 0.85, tv)
 
       // --- Latitude color gradient for body ---
       const latFactor = smoothstep(0.80, 0.20, tv)
@@ -2346,11 +2337,9 @@ export function peachSkinTexture(): THREE.CanvasTexture {
       gg = gg * (1 - blushAmount) + blushG * blushAmount
       b = b * (1 - blushAmount) + blushB * blushAmount
 
-      // --- Apply suture crease (darker line) ---
-      const creaseDarken = creaseMask * creaseVertical
-      r *= (1 - creaseDarken * 0.65)
-      gg *= (1 - creaseDarken * 0.55)
-      b *= (1 - creaseDarken * 0.40)
+      // --- Suture crease: NO fake shadow line ---
+      // The suture groove is now a real geometry dent, so no dark line needed in texture.
+      // The natural shadow from the concave surface provides the visual depth.
 
       // --- Speckle (fuzz highlights) ---
       const speck = hash21(px + 53, py + 29)
