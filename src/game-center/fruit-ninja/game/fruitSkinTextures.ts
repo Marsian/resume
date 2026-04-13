@@ -1125,3 +1125,250 @@ export function mangoSkinTexture(): THREE.CanvasTexture {
   mangoSkinTex = tex
   return tex
 }
+
+let coconutSkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing coconut skin generation so the next `coconutSkinTexture()` rebuilds the canvas. */
+export function resetCoconutSkinTextureCache(): void {
+  coconutSkinTex = null
+}
+
+export function coconutSkinTexture(): THREE.CanvasTexture {
+  if (coconutSkinTex) return coconutSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki coconut reference:
+  // - deep brown husk body:    #523824 (warm dark brown — wiki coconut has warm reddish undertone)
+  // - very dark fiber shadow:  #281608 (deep brown-black)
+  // - lighter fiber highlight: #705438 (warm tan, for fiber highlights)
+  // - top eye area:            #361E10 (darker near eyes)
+  // - bottom area:             #604228 (slightly warmer)
+  const bodyR = 0x52, bodyG = 0x38, bodyB = 0x24
+  const darkR = 0x28, darkG = 0x16, darkB = 0x08
+  const lightR = 0x70, lightG = 0x54, lightB = 0x38
+  const topR = 0x36, topG = 0x1E, topB = 0x10
+  const bottomR = 0x60, bottomG = 0x42, bottomB = 0x28
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (eyes), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for organic fiber variation ---
+      const n1 = fbm(tu * 8 + 1.7, tv * 10 + 2.4)
+      const n2 = fbm(tu * 16 + 5.3, tv * 18 + 7.8)
+      const n3 = fbm(tu * 24 + 9.1, tv * 28 + 11.6)
+
+      // --- Fiber texture: coconuts have prominent longitudinal fibers ---
+      // Primary fiber ridges — visible but not too strong (wiki is smoother)
+      const fiberRidge = 0.94 + 0.06 * Math.cos(tu * Math.PI * 2 * 10 + n1 * 2.5)
+
+      // Cross-fiber mesh (intersecting diagonal fibers in real husk)
+      const crossFiber1 = 0.96 + 0.04 * Math.cos(tu * Math.PI * 2 * 6 + tv * Math.PI * 22 + n1 * 1.8)
+      const crossFiber2 = 0.97 + 0.03 * Math.cos(tu * Math.PI * 2 * 4 - tv * Math.PI * 18 + n2 * 1.5)
+
+      // Fine fiber detail — very subtle
+      const fineFiber = 0.98 + 0.02 * Math.cos(tu * Math.PI * 2 * 20 + tv * Math.PI * 40 + n3 * 3.0)
+
+      // --- Bumpy husk texture (coconut surface is rough and fibrous) ---
+      const bumpNoise = fbm(tu * 35 + 4.7, tv * 40 + 6.2)
+
+      // --- Latitude color gradient ---
+      // Body is deep brown, slightly warmer in the middle, darker at top (eyes area)
+      const topMix = smoothstep(0.25, 0.06, tv)
+      const bottomMix = smoothstep(0.85, 0.98, tv)
+
+      // Start with base deep brown
+      let r = bodyR + 14 * (n1 - 0.5)
+      let gg = bodyG + 10 * (n1 - 0.5)
+      let b = bodyB + 7 * (n1 - 0.5)
+
+      // FBM noise variation — more pronounced for fibrous look
+      r += 8 * (n2 - 0.5)
+      gg += 6 * (n2 - 0.5)
+      b += 4 * (n2 - 0.5)
+
+      // Extra fine noise for fiber detail
+      r += 4 * (n3 - 0.5)
+      gg += 3 * (n3 - 0.5)
+      b += 2 * (n3 - 0.5)
+
+      // Bumpy texture — subtle husk roughness (wiki coconut has smoother look)
+      const bumpMul = 0.92 + 0.08 * bumpNoise
+      r *= bumpMul
+      gg *= bumpMul
+      b *= bumpMul * 0.97
+
+      // Apply fiber ridges (stronger effect)
+      r *= fiberRidge * crossFiber1 * crossFiber2 * fineFiber
+      gg *= fiberRidge * crossFiber1 * crossFiber2 * fineFiber
+      b *= fiberRidge * crossFiber1 * crossFiber2 * fineFiber
+
+      // --- Three "eyes" at the top ---
+      // Wiki coconut: three visible dark spots arranged in a triangle at the top
+      // They are clearly visible but natural-looking — darker circular depressions
+      const eyeAngles = [Math.PI / 2, Math.PI * 7 / 6, Math.PI * 11 / 6]
+      const eyeRadial = 0.07   // distance from center
+      const eyeSize = 0.022    // radius of each eye
+      let eyeDarkness = 0.0
+
+      for (const angle of eyeAngles) {
+        const ecx = 0.5 + Math.cos(angle) * eyeRadial
+        const ecy = 0.058 + Math.sin(angle) * eyeRadial * 0.45
+        const dx = tu - ecx
+        const dy = tv - ecy
+        const dist = Math.sqrt(dx * dx + dy * dy)
+
+        if (dist < eyeSize * 3.0) {
+          // Clear but natural darkening
+          const eyeFactor = smoothstep(eyeSize * 2.0, eyeSize * 0.3, dist)
+          eyeDarkness = Math.max(eyeDarkness, eyeFactor * 0.75)
+        }
+      }
+
+      // Apply eye darkening (visible dark spots — darker than husk)
+      if (eyeDarkness > 0) {
+        const eyeR = darkR + 10
+        const eyeG = darkG + 5
+        const eyeB2 = darkB + 3
+        r = r * (1 - eyeDarkness) + eyeR * eyeDarkness
+        gg = gg * (1 - eyeDarkness) + eyeG * eyeDarkness
+        b = b * (1 - eyeDarkness) + eyeB2 * eyeDarkness
+      }
+
+      // --- Top area blending (darker near eyes) ---
+      const topEdgeNoise = fbm(tu * 6 + 1.2, tv * 8 + 2.5) * 0.06
+      const topBlend = Math.min(1, Math.max(0, topMix + topEdgeNoise))
+
+      const topTransR = bodyR * 0.65 + topR * 0.35 + 8 * (n1 - 0.5)
+      const topTransG = bodyG * 0.65 + topG * 0.35 + 6 * (n1 - 0.5)
+      const topTransB = bodyB * 0.65 + topB * 0.35 + 4 * (n1 - 0.5)
+
+      const topMid = smoothstep(0.30, 0.18, tv)
+      r = r * (1 - topMid) + topTransR * topMid
+      gg = gg * (1 - topMid) + topTransG * topMid
+      b = b * (1 - topMid) + topTransB * topMid
+
+      const topColorR = topR + 10 * (n1 - 0.5)
+      const topColorG = topG + 6 * (n1 - 0.5)
+      const topColorB = topB + 5 * (n1 - 0.5)
+      r = r * (1 - topBlend) + topColorR * topBlend
+      gg = gg * (1 - topBlend) + topColorG * topBlend
+      b = b * (1 - topBlend) + topColorB * topBlend
+
+      // --- Bottom area blending (slightly warmer) ---
+      const bottomEdgeNoise = fbm(tu * 5 + 3.7, tv * 7 + 4.2) * 0.06
+      const bottomBlend = Math.min(1, Math.max(0, bottomMix + bottomEdgeNoise))
+
+      const botTransR = bodyR * 0.80 + bottomR * 0.20 + 8 * (n1 - 0.5)
+      const botTransG = bodyG * 0.80 + bottomG * 0.20 + 6 * (n1 - 0.5)
+      const botTransB = bodyB * 0.80 + bottomB * 0.20 + 4 * (n1 - 0.5)
+
+      const botMid = smoothstep(0.82, 0.90, tv)
+      r = r * (1 - botMid) + botTransR * botMid
+      gg = gg * (1 - botMid) + botTransG * botMid
+      b = b * (1 - botMid) + botTransB * botMid
+
+      const botColorR = bottomR + 8 * (n1 - 0.5)
+      const botColorG = bottomG + 6 * (n1 - 0.5)
+      const botColorB = bottomB + 5 * (n1 - 0.5)
+      r = r * (1 - bottomBlend) + botColorR * bottomBlend
+      gg = gg * (1 - bottomBlend) + botColorG * bottomBlend
+      b = b * (1 - bottomBlend) + botColorB * bottomBlend
+
+      // --- Coarse fiber speckle (abundant for husk look) ---
+      const speck = hash21(px + 17, py + 43)
+      if (speck < 0.07) {
+        r *= 0.88
+        gg *= 0.89
+        b *= 0.86
+      }
+      if (speck > 0.97) {
+        r = Math.min(255, r + 12)
+        gg = Math.min(255, gg + 8)
+        b = Math.min(255, b + 5)
+      }
+
+      // --- Equatorial fiber band ---
+      const eqBandDist = Math.abs(tv - 0.48)
+      if (eqBandDist < 0.10) {
+        const bandFactor = 1.0 - smoothstep(0.04, 0.10, eqBandDist)
+        // Slightly lighter fiber band with more fiber detail
+        r = r * (1 - bandFactor * 0.10) + lightR * bandFactor * 0.10
+        gg = gg * (1 - bandFactor * 0.10) + lightG * bandFactor * 0.10
+        b = b * (1 - bandFactor * 0.10) + lightB * bandFactor * 0.10
+      }
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const theta = tu * Math.PI * 2
+      const nlx = Math.sin(phi) * Math.cos(theta)
+      const nly = Math.cos(phi)
+      const nlz = Math.sin(phi) * Math.sin(theta)
+      let ndotl = nlx * Lx + nly * Ly + nlz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill — wiki coconut has clear light/shadow sides
+      const diffBoost = Math.pow(ndotl, 1.0) * 0.40
+      // Warm ambient fill in shadow — wiki coconut shadow side is warm, not cold
+      const shadowWarmth = (1.0 - ndotl) * 0.06
+      // Specular — wiki coconut has a bright soft highlight
+      const specRaw = Math.pow(ndotl, 2) * 0.10 + Math.pow(ndotl, 6) * 0.15
+      const specFalloff = smoothstep(0.50, 0.10, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Warm shadow fill — subtle reddish warmth in shadow areas
+      r += shadowWarmth * 255 * 0.06
+      gg += shadowWarmth * 255 * 0.02
+      b -= shadowWarmth * 10
+
+      // Specular: bright warm-white highlight — soft but visible
+      r += 255 * specBoost * 0.40
+      gg += 255 * specBoost * 0.38
+      b += 255 * specBoost * 0.30
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  coconutSkinTex = tex
+  return tex
+}

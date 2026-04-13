@@ -8,6 +8,8 @@ import { getLimeBodyMaterial } from './limeSkin'
 import { getLimeBodyPolyGeometry } from './limePolyGeometry'
 import { getMangoBodyMaterial } from './mangoSkin'
 import { getMangoBodyPolyGeometry } from './mangoPolyGeometry'
+import { getCoconutBodyMaterial } from './coconutSkin'
+import { getCoconutBodyPolyGeometry } from './coconutPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import {
   applyTubeRadiusProfile,
@@ -184,41 +186,6 @@ function passionSpeckleTexture(): THREE.CanvasTexture {
   return tex
 }
 
-let coconutHuskTex: THREE.CanvasTexture | null = null
-function coconutHuskTexture(): THREE.CanvasTexture {
-  if (coconutHuskTex) return coconutHuskTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Brown base
-  g.fillStyle = '#5a3f28'
-  g.fillRect(0, 0, s, s)
-  // Fiber lines
-  for (let i = 0; i < 400; i++) {
-    const x = Math.random() * s
-    const y = Math.random() * s
-    const angle = -0.3 + Math.random() * 0.6
-    const len = 3 + Math.random() * 8
-    g.strokeStyle = Math.random() > 0.5 ? 'rgba(40,25,12,0.2)' : 'rgba(90,65,40,0.15)'
-    g.lineWidth = 0.5
-    g.beginPath()
-    g.moveTo(x, y)
-    g.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len)
-    g.stroke()
-  }
-  // Coarser fiber patches
-  for (let i = 0; i < 50; i++) {
-    g.fillStyle = `rgba(80,55,30,${0.08 + Math.random() * 0.1})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 4, 0, Math.PI * 2)
-    g.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  coconutHuskTex = tex
-  return tex
-}
 
 let strawberryTex: THREE.CanvasTexture | null = null
 function strawberryTexture(): THREE.CanvasTexture {
@@ -408,20 +375,6 @@ function passionBodyMaterial(): THREE.MeshStandardMaterial {
   return passionBodyMat
 }
 
-let coconutBodyMat: THREE.MeshStandardMaterial | null = null
-function coconutBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!coconutBodyMat) {
-    coconutBodyMat = new THREE.MeshStandardMaterial({
-      map: coconutHuskTexture(),
-      color: 0x6a5038,
-      roughness: 0.70,
-      metalness: 0,
-      emissive: new THREE.Color(0x201508),
-      emissiveIntensity: 0.1,
-    })
-  }
-  return coconutBodyMat
-}
 
 let strawberryBodyMat: THREE.MeshStandardMaterial | null = null
 function strawberryBodyMaterial(): THREE.MeshStandardMaterial {
@@ -692,45 +645,16 @@ function createPineappleMesh(radius: number): THREE.Group {
   return g
 }
 
-function createCoconutMesh(radius: number): THREE.Group {
+function createCoconutMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 18),
-    coconutBodyMaterial(),
+    getCoconutBodyPolyGeometry(radius),
+    getCoconutBodyMaterial(),
   )
-  // Slightly oblong
-  body.scale.set(0.94, 0.90, 0.96)
-  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
-
-  // Three characteristic "eyes" — more visible
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a0e06, roughness: 0.95, metalness: 0 })
-  const eyePositions = [
-    { a: 0.2, y: 0.30 },
-    { a: 2.3, y: 0.30 },
-    { a: 4.4, y: 0.30 },
-  ]
-  for (const ep of eyePositions) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.09, 10, 8), eyeMat)
-    eye.position.set(
-      Math.cos(ep.a) * radius * 0.60,
-      radius * ep.y,
-      Math.sin(ep.a) * radius * 0.56,
-    )
-    eye.scale.set(1, 0.7, 1)
-    g.add(eye)
-  }
-
-  // Equatorial fiber ring / tuft
-  const fiberRing = new THREE.Mesh(
-    new THREE.TorusGeometry(radius * 0.78, radius * 0.04, 6, 24),
-    new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.9 }),
-  )
-  fiberRing.rotation.x = Math.PI / 2
-  fiberRing.position.y = radius * 0.15
-  g.add(fiberRing)
   return g
 }
 
@@ -1049,7 +973,7 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
     case 'pineapple':
       return createPineappleMesh(radius)
     case 'coconut':
-      return createCoconutMesh(radius)
+      return createCoconutMesh(radius, skinHex)
     case 'strawberry':
       return createStrawberryMesh(radius)
     case 'kiwi':
