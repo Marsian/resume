@@ -1803,3 +1803,193 @@ export function kiwiSkinTexture(): THREE.CanvasTexture {
   kiwiSkinTex = tex
   return tex
 }
+
+// ---------------------------------------------------------------------------
+// Orange skin: wiki-accurate bright orange with dimpled peel texture.
+// UV: u = azimuth around Y (0–1), v = colatitude/π (0=top pole/navel, 1=bottom).
+//
+// Visual zones (from wiki orange reference):
+//   v ≈ 0.00–0.06 : top pole — navel area, darker orange-brown with green tint
+//   v ≈ 0.06–0.16 : top transition — darker orange blending into body
+//   v ≈ 0.16–0.84 : main body — bright orange with dimpled peel texture
+//   v ≈ 0.84–0.94 : bottom transition — slightly darker orange
+//   v ≈ 0.94–1.00 : bottom — darker orange-brown
+//
+// Key features: bright orange body, dimpled/porous peel (small oil glands),
+// subtle navel indent at top with greenish tint, smooth wax-like sheen.
+// ---------------------------------------------------------------------------
+
+let orangeSkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing orange skin generation so the next `orangeSkinTexture()` rebuilds the canvas. */
+export function resetOrangeSkinTextureCache(): void {
+  orangeSkinTex = null
+}
+
+export function orangeSkinTexture(): THREE.CanvasTexture {
+  if (orangeSkinTex) return orangeSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki orange reference:
+  // - bright orange body: #FF9030 (vivid bright orange — wiki has warm saturated glow)
+  // - warm highlight: #FFB860
+  // - deeper shadow: #D87820
+  // - navel area (top): darker greenish-orange #6A5020
+  // - transition zone: warm dark orange #C07028
+  const bodyR = 0xff, bodyG = 0x90, bodyB = 0x30
+  const warmR = 0xff, warmG = 0xb8, warmB = 0x60
+  const deepR = 0xd8, deepG = 0x78, deepB = 0x20
+  const navelR = 0x6a, navelG = 0x50, navelB = 0x20
+  const transR = 0xc0, transG = 0x70, transB = 0x28
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (navel), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for organic variation ---
+      const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
+      const n2 = fbm(tu * 16 + 7.3, tv * 18 + 5.8)
+
+      // --- Dimpled peel texture (oil glands) ---
+      // Oranges have characteristic small dimples/pores across the peel
+      // Keep subtle — wiki has a smooth look with just a hint of texture
+      const poreNoise = fbm(tu * 35 + 1.5, tv * 40 + 4.8)
+      const poreDetail = fbm(tu * 70 + 8.2, tv * 80 + 3.1)
+      // Create small circular dimples — subtle for wiki's smoother appearance
+      const porePattern = 0.985 + 0.015 * poreDetail
+      const dimple = 0.98 + 0.02 * poreNoise
+
+      // --- Latitude color gradient for body ---
+      const latFactor = smoothstep(0.80, 0.20, tv)
+
+      // --- Start with body orange ---
+      let r = deepR + (bodyR - deepR) * latFactor
+      let gg = deepG + (bodyG - deepG) * latFactor
+      let b = deepB + (bodyB - deepB) * latFactor
+
+      // FBM noise variation
+      r += 10 * (n1 - 0.5)
+      gg += 6 * (n1 - 0.5)
+      b += 4 * (n1 - 0.5)
+
+      r += 5 * (n2 - 0.5)
+      gg += 3 * (n2 - 0.5)
+
+      // Dimpled peel — characteristic orange peel texture
+      r *= dimple * porePattern
+      gg *= dimple * porePattern
+      b *= dimple * porePattern * 0.97
+
+      // Speckle (oil gland highlights and shadows) — subtle for wiki's smooth look
+      const speck = hash21(px + 53, py + 29)
+      if (speck < 0.02) {
+        // Dark pore pits
+        r *= 0.95
+        gg *= 0.93
+        b *= 0.91
+      }
+      if (speck > 0.985) {
+        // Bright oil gland specks
+        r = Math.min(255, r + 8)
+        gg = Math.min(255, gg + 6)
+        b = Math.min(255, b + 3)
+      }
+
+      // --- Smooth navel tip blending (top only for orange) ---
+      // Top: body → transition → navel area (greenish-dark)
+      const tipR = navelR + 12 * (n1 - 0.5)
+      const tipG = navelG + 10 * (n1 - 0.5)
+      const tipB = navelB + 6 * (n1 - 0.5)
+      const midR = transR + 10 * (n1 - 0.5)
+      const midG = transG + 8 * (n1 - 0.5)
+      const midB = transB + 4 * (n1 - 0.5)
+
+      // Top blend: body → mid orange → navel greenish
+      const topMid = smoothstep(0.20, 0.08, tv)
+      const topCore = smoothstep(0.08, 0.02, tv)
+      r = r * (1 - topMid) + midR * topMid
+      gg = gg * (1 - topMid) + midG * topMid
+      b = b * (1 - topMid) + midB * topMid
+      r = r * (1 - topCore) + tipR * topCore
+      gg = gg * (1 - topCore) + tipG * topCore
+      b = b * (1 - topCore) + tipB * topCore
+
+      // Bottom blend: body → slightly darker
+      const botMid = smoothstep(0.84, 0.92, tv)
+      const botCore = smoothstep(0.92, 0.98, tv)
+      r = r * (1 - botMid) + midR * botMid
+      gg = gg * (1 - botMid) + midG * botMid
+      b = b * (1 - botMid) + midB * botMid
+      r = r * (1 - botCore) + tipR * botCore
+      gg = gg * (1 - botCore) + tipG * botCore
+      b = b * (1 - botCore) + tipB * botCore
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const th = tu * Math.PI * 2
+      const nx = Math.sin(phi) * Math.cos(th)
+      const ny = Math.cos(phi)
+      const nz = Math.sin(phi) * Math.sin(th)
+      let ndotl = nx * Lx + ny * Ly + nz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill — wider glow like wiki, more ambient on shadow side
+      const diffBoost = Math.pow(ndotl, 0.7) * 0.42
+      // Ambient fill to brighten shadow side (wiki shows warm even in shadows)
+      const ambientFill = 0.10
+      // Soft specular highlight — wiki orange has a broad glossy sheen
+      const specRaw = Math.pow(ndotl, 2.5) * 0.35 + Math.pow(ndotl, 8) * 0.22
+      const specFalloff = smoothstep(0.35, 0.08, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost + ambientFill
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: warm white highlight (orange-tinted)
+      r += 255 * specBoost * 0.48
+      gg += 255 * specBoost * 0.42
+      b += 255 * specBoost * 0.24
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  orangeSkinTex = tex
+  return tex
+}
