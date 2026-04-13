@@ -1372,3 +1372,249 @@ export function coconutSkinTexture(): THREE.CanvasTexture {
   coconutSkinTex = tex
   return tex
 }
+
+let strawberrySkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing strawberry skin generation so the next `strawberrySkinTexture()` rebuilds the canvas. */
+export function resetStrawberrySkinTextureCache(): void {
+  strawberrySkinTex = null
+}
+
+export function strawberrySkinTexture(): THREE.CanvasTexture {
+  if (strawberrySkinTex) return strawberrySkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki strawberry reference:
+  // - bright red body:         #E42020 (warm vivid red)
+  // - deep red shadow:         #981214 (dark warm red)
+  // - highlight red:           #FF4848 (bright warm red)
+  // - seed yellow:             #F0D888 (golden yellow)
+  // - top calyx area:          #801414 (darker red near stem)
+  // - bottom tip:              #B01616 (deep red at tip)
+  const bodyR = 0xE4, bodyG = 0x20, bodyB = 0x20
+  const deepR = 0x98, deepG = 0x12, deepB = 0x14
+  const highlightR = 0xFF, highlightG = 0x48, highlightB = 0x48
+  const seedR = 0xF0, seedG = 0xD8, seedB = 0x88
+  const topR = 0x80, topG = 0x14, topB = 0x14
+  const bottomR = 0xB0, bottomG = 0x16, bottomB = 0x16
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (calyx), 1 = bottom (tip)
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for organic color variation ---
+      const n1 = fbm(tu * 8 + 1.7, tv * 10 + 2.4)
+      const n2 = fbm(tu * 16 + 5.3, tv * 18 + 7.8)
+      const n3 = fbm(tu * 24 + 9.1, tv * 28 + 11.6)
+
+      // --- Longitudinal grooves: strawberries have subtle ridge/groove pattern ---
+      const grooveDepth = 0.96 + 0.04 * Math.cos(tu * Math.PI * 2 * 8 + n1 * 1.2)
+
+      // --- Bumpy texture (strawberry surface has small bumps from seeds) ---
+      const bumpNoise = fbm(tu * 30 + 4.7, tv * 35 + 6.2)
+
+      // --- Seed pattern: yellow dots in diagonal rows ---
+      // Strawberries have seeds arranged in diagonal spiraling rows
+      // Use a simple checker-like grid with offset for diagonal effect
+      const seedFreqU = 9   // seeds per wrap-around
+      const seedFreqV = 12  // rows of seeds top to bottom
+      const diagOffset = 0.45  // half-tile offset per row for diagonal pattern
+
+      // Get tile-local position
+      const localU = tu * seedFreqU
+      const localV = tv * seedFreqV
+      const rowI = Math.floor(localV)
+      const colI = Math.floor(localU)
+      const fracU = localU - colI
+      const fracV = localV - rowI
+
+      // Apply diagonal offset: shift every other row
+      const shiftedFracU = fracU + (rowI % 2 === 0 ? 0 : 0.5 / seedFreqU * seedFreqU)
+      const adjustedFracU = shiftedFracU - Math.floor(shiftedFracU)
+
+      // Spiral twist: rotate each row slightly
+      const twist = rowI * diagOffset / seedFreqU
+      const spiralFracU = adjustedFracU + twist
+      const finalFracU = spiralFracU - Math.floor(spiralFracU)
+
+      // Distance from nearest seed center (center of tile)
+      const dU = finalFracU - 0.5
+      const dV = fracV - 0.5
+      const seedDistF = Math.sqrt(dU * dU + dV * dV) * 2.0  // 0 at center, 1 at corner
+
+      // Seed is a small circle in the center of each tile
+      const seedRadius = 0.32
+      const isSeed = seedDistF < seedRadius
+      const seedRing = isSeed ? smoothstep(seedRadius, seedRadius * 0.6, seedDistF) : 0
+      const seedCenter = isSeed ? smoothstep(seedRadius * 0.6, seedRadius * 0.15, seedDistF) : 0
+
+      // --- Latitude color gradient ---
+      // Upper body: brighter red; lower body: deeper red toward tip
+      const latFactor = smoothstep(0.80, 0.25, tv)
+
+      // Start with base red
+      let r = deepR + (bodyR - deepR) * latFactor
+      let gg = deepG + (bodyG - deepG) * latFactor
+      let b = deepB + (bodyB - deepB) * latFactor
+
+      // FBM noise variation
+      r += 12 * (n1 - 0.5)
+      gg += 4 * (n1 - 0.5)
+      b += 4 * (n1 - 0.5)
+
+      r += 6 * (n2 - 0.5)
+      gg += 2 * (n2 - 0.5)
+      b += 2 * (n2 - 0.5)
+
+      r += 3 * (n3 - 0.5)
+      gg += 1 * (n3 - 0.5)
+
+      // Bumpy texture — subtle skin bumps
+      const bumpMul = 0.95 + 0.05 * bumpNoise
+      r *= bumpMul
+      gg *= bumpMul
+      b *= bumpMul * 0.98
+
+      // Apply grooves
+      r *= grooveDepth
+      gg *= grooveDepth
+      b *= grooveDepth
+
+      // --- Apply seeds ---
+      if (seedRing > 0) {
+        // Seed depression — darker ring around seed for depth
+        const ringDarken = seedRing * (1.0 - seedCenter)
+        r *= 1.0 - ringDarken * 0.28
+        gg *= 1.0 - ringDarken * 0.22
+        b *= 1.0 - ringDarken * 0.18
+      }
+      if (seedCenter > 0) {
+        // Yellow seed center — prominent and visible
+        const seedBlend = seedCenter * 0.90
+        r = r * (1 - seedBlend) + seedR * seedBlend
+        gg = gg * (1 - seedBlend) + seedG * seedBlend
+        b = b * (1 - seedBlend) + seedB * seedBlend
+      }
+
+      // --- Top area blending (darker near calyx) ---
+      const topMix = smoothstep(0.20, 0.05, tv)
+      const topEdgeNoise = fbm(tu * 6 + 1.2, tv * 8 + 2.5) * 0.06
+      const topBlend = Math.min(1, Math.max(0, topMix + topEdgeNoise))
+
+      const topTransR = bodyR * 0.70 + topR * 0.30 + 8 * (n1 - 0.5)
+      const topTransG = bodyG * 0.70 + topG * 0.30 + 4 * (n1 - 0.5)
+      const topTransB = bodyB * 0.70 + topB * 0.30 + 4 * (n1 - 0.5)
+
+      const topMid = smoothstep(0.26, 0.14, tv)
+      r = r * (1 - topMid) + topTransR * topMid
+      gg = gg * (1 - topMid) + topTransG * topMid
+      b = b * (1 - topMid) + topTransB * topMid
+
+      const topColorR = topR + 8 * (n1 - 0.5)
+      const topColorG = topG + 4 * (n1 - 0.5)
+      const topColorB = topB + 4 * (n1 - 0.5)
+      r = r * (1 - topBlend) + topColorR * topBlend
+      gg = gg * (1 - topBlend) + topColorG * topBlend
+      b = b * (1 - topBlend) + topColorB * topBlend
+
+      // --- Bottom tip blending (deeper red) ---
+      const bottomMix = smoothstep(0.88, 0.98, tv)
+      const bottomEdgeNoise = fbm(tu * 5 + 3.7, tv * 7 + 4.2) * 0.06
+      const bottomBlend = Math.min(1, Math.max(0, bottomMix + bottomEdgeNoise))
+
+      const botTransR = bodyR * 0.80 + bottomR * 0.20 + 8 * (n1 - 0.5)
+      const botTransG = bodyG * 0.80 + bottomG * 0.20 + 4 * (n1 - 0.5)
+      const botTransB = bodyB * 0.80 + bottomB * 0.20 + 4 * (n1 - 0.5)
+
+      const botMid = smoothstep(0.85, 0.92, tv)
+      r = r * (1 - botMid) + botTransR * botMid
+      gg = gg * (1 - botMid) + botTransG * botMid
+      b = b * (1 - botMid) + botTransB * botMid
+
+      const botColorR = bottomR + 8 * (n1 - 0.5)
+      const botColorG = bottomG + 4 * (n1 - 0.5)
+      const botColorB = bottomB + 4 * (n1 - 0.5)
+      r = r * (1 - bottomBlend) + botColorR * bottomBlend
+      gg = gg * (1 - bottomBlend) + botColorG * bottomBlend
+      b = b * (1 - bottomBlend) + botColorB * bottomBlend
+
+      // --- Subtle speckle ---
+      const speck = hash21(px + 31, py + 59)
+      if (speck < 0.02) {
+        r *= 0.95
+        gg *= 0.95
+        b *= 0.94
+      }
+      if (speck > 0.99) {
+        r = Math.min(255, r + 8)
+        gg = Math.min(255, gg + 3)
+        b = Math.min(255, b + 3)
+      }
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const theta = tu * Math.PI * 2
+      const nlx = Math.sin(phi) * Math.cos(theta)
+      const nly = Math.cos(phi)
+      const nlz = Math.sin(phi) * Math.sin(theta)
+      let ndotl = nlx * Lx + nly * Ly + nlz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill
+      const diffBoost = Math.pow(ndotl, 1.0) * 0.38
+      // Specular — strawberry has a visible glossy sheen
+      const specRaw = Math.pow(ndotl, 2) * 0.12 + Math.pow(ndotl, 6) * 0.14
+      const specFalloff = smoothstep(0.48, 0.10, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: warm red-white highlight (glossy berry)
+      r += 255 * specBoost * 0.48
+      gg += 255 * specBoost * 0.36
+      b += 255 * specBoost * 0.30
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  strawberrySkinTex = tex
+  return tex
+}
