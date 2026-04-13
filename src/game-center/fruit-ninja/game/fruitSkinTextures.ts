@@ -1995,6 +1995,245 @@ export function orangeSkinTexture(): THREE.CanvasTexture {
 }
 
 // ---------------------------------------------------------------------------
+// Passionfruit skin: wiki-accurate dark purple-brown wrinkled skin.
+// UV: u = azimuth around Y (0–1), v = colatitude/π (0=top pole, 1=bottom).
+//
+// Key features from wiki reference:
+//   - Dark purple-brown skin with strong wrinkle/shrink texture
+//   - Wrinkles form a network of ridges (lighter) and valleys (darker)
+//   - Ridges are warmer purple-brown, valleys are nearly black-purple
+//   - Surface has a matte, slightly shriveled appearance
+//   - Lighter speckles/dots scattered across surface
+//   - Stem end has a small green-brown calyx remnant
+//   - Overall small round/oblate shape
+// ---------------------------------------------------------------------------
+
+let passionfruitSkinTex: THREE.CanvasTexture | null = null
+
+export function resetPassionfruitSkinTextureCache(): void {
+  passionfruitSkinTex = null
+}
+
+export function passionfruitSkinTexture(): THREE.CanvasTexture {
+  if (passionfruitSkinTex) return passionfruitSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki passionfruit reference:
+  // The wiki shows a dark purple-brown fruit with prominent wrinkling.
+  // Key colors — wiki passionfruit is distinctly brownish-purple, not pure purple:
+  // - wrinkle ridge (lighter, warm brown-purple):  #A87878 / #B88888
+  // - mid body (base brown-purple):                #643C50
+  // - wrinkle valley (dark purple-brown):           #220C22
+  // - very dark valley:                             #140616
+  // - speckle highlight:                            #C09898
+  // - stem area:                                    #3A2228
+  const ridgeR = 0xa8, ridgeG = 0x78, ridgeB = 0x78
+  const warmRidgeR = 0xb8, warmRidgeG = 0x88, warmRidgeB = 0x88
+  const bodyR = 0x64, bodyG = 0x3c, bodyB = 0x50
+  const valleyR = 0x22, valleyG = 0x0c, valleyB = 0x22
+  const deepValleyR = 0x14, deepValleyG = 0x06, deepValleyB = 0x16
+  const speckleR = 0xc0, speckleG = 0x98, speckleB = 0x98
+  const stemR = 0x3a, stemG = 0x22, stemB = 0x28
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (stem), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise layers ---
+      const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
+      const n2 = fbm(tu * 16 + 7.3, tv * 18 + 5.8)
+      const n3 = fbm(tu * 32 + 11.1, tv * 36 + 9.2)
+
+      // --- Wrinkle pattern: the dominant visual feature ---
+      // Passionfruit wrinkles form an organic network of ridges and valleys.
+      // Wiki shows coarser, more pronounced wrinkles rather than fine dense ones.
+      // Use domain-warped noise to create the irregular, shriveled look.
+      const w1 = fbm(tu * 4 + 1.3, tv * 5 + 2.8)  // coarser base
+      const w2 = fbm(tu * 10 + 5.7, tv * 12 + 4.2)  // medium detail
+
+      // Domain warping: warp the input coordinates with noise
+      // This creates the organic, vine-like wrinkle network
+      const warpX = fbm(tu * 4 + 3.1, tv * 5 + 2.7) * 0.15
+      const warpY = fbm(tu * 4 + 7.8, tv * 5 + 5.3) * 0.15
+
+      const w3 = fbm((tu + warpX) * 16 + 9.1, (tv + warpY) * 18 + 7.5)
+      const w4 = fbm((tu + warpX) * 30 + 13.8, (tv + warpY) * 34 + 11.3)
+
+      // Combine wrinkle layers — domain-warped for organic shapes
+      // Weight heavily toward coarser features (wiki: prominent, not fine)
+      const wrinkleField = w1 * 0.35 + w2 * 0.30 + w3 * 0.22 + w4 * 0.13
+
+      // Create the ridge/valley pattern using warped sine
+      // Fewer wrinkle periods for coarser, more prominent ridges
+      const wrinklePhase = wrinkleField * Math.PI * 5
+      const wrinkleRaw = Math.sin(wrinklePhase)
+
+      // Sharpen ridges: make them broader (more like real shriveled skin)
+      // Positive = ridge (lighter), negative = valley (darker)
+      const wrinkleSharp = smoothstep(-0.25, 0.55, wrinkleRaw) -
+                           smoothstep(-0.55, 0.25, -wrinkleRaw) * 0.5
+      // Map to 0..1 where 0=deep valley, 1=ridge top
+      const wrinkleHeight = 0.5 + 0.5 * wrinkleSharp
+
+      // Secondary finer wrinkle overlay with domain warping
+      const fineWrinkle = Math.sin(w3 * Math.PI * 10 + w4 * 2.5)
+      const fineSharp = 0.5 + 0.5 * Math.sign(fineWrinkle) * Math.pow(Math.abs(fineWrinkle), 0.5)
+
+      // --- Fine speckle dots across the surface ---
+      const speckle = fbm(tu * 80 + 21.5, tv * 85 + 33.2)
+      const speckleDot = speckle > 0.60 ? (speckle - 0.60) * 2.8 : 0
+
+      // --- Latitude color gradient: slightly lighter at equator, darker at poles ---
+      const latFactor = smoothstep(0.85, 0.15, tv) // 1 at equator, 0 at poles
+
+      // --- Start with base body color ---
+      let r = bodyR + (ridgeR - bodyR) * latFactor * 0.3
+      let gg = bodyG + (ridgeG - bodyG) * latFactor * 0.3
+      let b = bodyB + (ridgeB - bodyB) * latFactor * 0.3
+
+      // FBM noise variation across surface
+      r += 8 * (n1 - 0.5)
+      gg += 5 * (n1 - 0.5)
+      b += 6 * (n1 - 0.5)
+
+      // --- Apply primary wrinkle texture with strong contrast ---
+      // Map wrinkle height to color: valleys are very dark, ridges are warmer/lighter
+      if (wrinkleHeight > 0.50) {
+        // Ridge zone — lighter, warmer brown-purple
+        const ridgeMix = smoothstep(0.50, 0.78, wrinkleHeight)
+        r = r * (1 - ridgeMix) + ridgeR * ridgeMix
+        gg = gg * (1 - ridgeMix) + ridgeG * ridgeMix
+        b = b * (1 - ridgeMix) + ridgeB * ridgeMix
+        // Warm highlights on ridge tops — stronger for wiki accuracy
+        if (wrinkleHeight > 0.72) {
+          const warmMix = smoothstep(0.72, 0.92, wrinkleHeight) * 0.65
+          r = r * (1 - warmMix) + warmRidgeR * warmMix
+          gg = gg * (1 - warmMix) + warmRidgeG * warmMix
+          b = b * (1 - warmMix) + warmRidgeB * warmMix
+        }
+      } else if (wrinkleHeight < 0.44) {
+        // Valley zone — very dark purple-brown
+        const valleyMix = smoothstep(0.44, 0.20, wrinkleHeight)
+        r = r * (1 - valleyMix) + valleyR * valleyMix
+        gg = gg * (1 - valleyMix) + valleyG * valleyMix
+        b = b * (1 - valleyMix) + valleyB * valleyMix
+        // Deep valleys are nearly black
+        if (wrinkleHeight < 0.22) {
+          const deepMix = smoothstep(0.22, 0.05, wrinkleHeight) * 0.8
+          r = r * (1 - deepMix) + deepValleyR * deepMix
+          gg = gg * (1 - deepMix) + deepValleyG * deepMix
+          b = b * (1 - deepMix) + deepValleyB * deepMix
+        }
+      }
+
+      // --- Apply secondary fine wrinkle texture ---
+      const fineMix = Math.abs(fineSharp - 0.5) * 0.15
+      if (fineSharp > 0.5) {
+        r = r * (1 - fineMix) + ridgeR * fineMix
+        gg = gg * (1 - fineMix) + ridgeG * fineMix
+        b = b * (1 - fineMix) + ridgeB * fineMix
+      } else {
+        r = r * (1 - fineMix) + valleyR * fineMix
+        gg = gg * (1 - fineMix) + valleyG * fineMix
+        b = b * (1 - fineMix) + valleyB * fineMix
+      }
+
+      // --- Fine speckle dots ---
+      if (speckleDot > 0) {
+        const dotMix = Math.min(1, speckleDot * 0.35)
+        r = r * (1 - dotMix) + speckleR * dotMix
+        gg = gg * (1 - dotMix) + speckleG * dotMix
+        b = b * (1 - dotMix) + speckleB * dotMix
+      }
+
+      // --- Subtle micro-bumps ---
+      const microBump = 0.97 + 0.03 * n3
+      r *= microBump
+      gg *= microBump
+      b *= microBump
+
+      // --- Stem area: slightly darker near top pole ---
+      const stemMix = smoothstep(0.10, 0.02, tv)
+      r = r * (1 - stemMix) + stemR * stemMix
+      gg = gg * (1 - stemMix) + stemG * stemMix
+      b = b * (1 - stemMix) + stemB * stemMix
+
+      // --- Bottom area: slightly darker near bottom pole ---
+      const bottomMix = smoothstep(0.90, 0.98, tv)
+      r = r * (1 - bottomMix) + valleyR * bottomMix * 0.6
+      gg = gg * (1 - bottomMix) + valleyG * bottomMix * 0.6
+      b = b * (1 - bottomMix) + valleyB * bottomMix * 0.6
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const th = tu * Math.PI * 2
+      const nx = Math.sin(phi) * Math.cos(th)
+      const ny = Math.cos(phi)
+      const nz = Math.sin(phi) * Math.sin(th)
+      let ndotl = nx * Lx + ny * Ly + nz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill
+      const diffBoost = Math.pow(ndotl, 0.7) * 0.46
+      // Ambient fill to keep dark fruit visible in shadow
+      const ambientFill = 0.24
+      // Specular: passionfruit skin has a slight sheen on ridges
+      const specRaw = Math.pow(ndotl, 3) * 0.22 + Math.pow(ndotl, 10) * 0.15
+      const specFalloff = smoothstep(0.35, 0.08, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost + ambientFill
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: subtle purple-white highlight
+      r += 200 * specBoost * 0.38
+      gg += 180 * specBoost * 0.32
+      b += 220 * specBoost * 0.40
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  passionfruitSkinTex = tex
+  return tex
+}
+// ---------------------------------------------------------------------------
 // Peach skin: wiki-accurate warm pinkish-orange with rosy blush and fuzz.
 // UV: u = azimuth around Y (0–1), v = colatitude/π (0=top pole/stem, 1=bottom).
 //
