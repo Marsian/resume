@@ -2468,19 +2468,19 @@ export function plumSkinTexture(): THREE.CanvasTexture {
   const data = img.data
 
   // Palette sampled from wiki plum reference:
-  // Wiki plum is wine red — clearly red, not purple or blue
-  // - wine red body:           #7A1828 (deep wine red — dominant)
-  // - deep shadow:             #580A18 (deep dark wine)
-  // - lighter highlight:       #9A2838 (warm red highlight)
-  // - bloom / dusty coating:   #D0C8D0 (grey-white bloom — very visible, almost whitish)
-  // - top stem area:           #681220 (darker near stem)
-  // - bottom:                  #6A1422 (slightly darker)
-  const bodyR = 0x7A, bodyG = 0x18, bodyB = 0x28
-  const deepR = 0x58, deepG = 0x0A, deepB = 0x18
-  const lightR = 0x9A, lightG = 0x28, lightB = 0x38
-  const bloomR = 0xD0, bloomG = 0xC8, bloomB = 0xD0
-  const topR = 0x68, topG = 0x12, topB = 0x20
-  const bottomR = 0x6A, bottomG = 0x14, bottomB = 0x22
+  // Wiki plum is dark wine red — clearly red, not purple or blue, DARK
+  // - wine red body:           #8A1820 (deep wine red — dominant, clearly RED)
+  // - deep shadow:             #620A12 (very deep dark wine)
+  // - lighter highlight:       #A82830 (warm red highlight)
+  // - bloom / dusty coating:   #B8A0A8 (pinkish-grey bloom — subtle, thin layer)
+  // - top stem area:           #7A1018 (darker near stem)
+  // - bottom:                  #7C121A (slightly darker)
+  const bodyR = 0x58, bodyG = 0x0C, bodyB = 0x12
+  const deepR = 0x3A, deepG = 0x06, deepB = 0x0A
+  const lightR = 0x78, lightG = 0x18, lightB = 0x20
+  const bloomR = 0xB8, bloomG = 0xA0, bloomB = 0xA8
+  const topR = 0x7A, topG = 0x10, topB = 0x18
+  const bottomR = 0x7C, bottomG = 0x12, bottomB = 0x1A
 
   // Wiki-style lighting: top-front light source
   const lx = 0.15, ly = 0.85, lz = 0.50
@@ -2502,10 +2502,9 @@ export function plumSkinTexture(): THREE.CanvasTexture {
       let b = bodyB + (lightB - bodyB) * n1 * 0.30 + (deepB - bodyB) * (1 - n1) * 0.15
 
       // --- Dusty bloom / waxy coating ---
-      // Wiki plum has a very prominent powdery bloom that mutes the purple
-      // and gives a grey-white dusty appearance in patches
+      // Wiki plum has a thin frosty bloom — red should be clearly visible underneath
       const bloomNoise = fbm(tu * 12 + 3.1, tv * 14 + 5.5)
-      const bloomStrength = 0.35 + 0.40 * bloomNoise
+      const bloomStrength = 0.10 + 0.15 * bloomNoise
       r = r * (1 - bloomStrength) + bloomR * bloomStrength
       gg = gg * (1 - bloomStrength) + bloomG * bloomStrength
       b = b * (1 - bloomStrength) + bloomB * bloomStrength
@@ -2575,22 +2574,21 @@ export function plumSkinTexture(): THREE.CanvasTexture {
   }
   g.putImageData(img, 0, 0)
 
-  // Draw bloom speckles on top — the powdery coating is made of tiny dots
-  // Wiki plum's bloom is VERY prominent — large patches of grey-white dust
-  for (let i = 0; i < 10000; i++) {
+  // Draw bloom speckles on top — thin frosty layer, red should show through
+  for (let i = 0; i < 3000; i++) {
     const x = Math.random() * s
     const y = Math.random() * s
-    const size = 0.8 + Math.random() * 3
-    g.fillStyle = `rgba(215,210,220,${0.06 + Math.random() * 0.12})`
+    const size = 0.6 + Math.random() * 2
+    g.fillStyle = `rgba(200,180,190,${0.04 + Math.random() * 0.06})`
     g.beginPath()
     g.arc(x, y, size, 0, Math.PI * 2)
     g.fill()
   }
-  // Larger bloom patches — these create the distinctive powdery areas
-  for (let i = 0; i < 150; i++) {
-    g.fillStyle = `rgba(210,205,218,${0.06 + Math.random() * 0.12})`
+  // A few larger frosty patches
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = `rgba(190,175,185,${0.03 + Math.random() * 0.05})`
     g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 5 + Math.random() * 12, 0, Math.PI * 2)
+    g.arc(Math.random() * s, Math.random() * s, 4 + Math.random() * 8, 0, Math.PI * 2)
     g.fill()
   }
 

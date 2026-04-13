@@ -520,7 +520,7 @@ function createPlumMesh(radius: number): THREE.Group {
 
   // Long stem — wiki plum has a prominent long stem
   const topY = radius * PLUM_TOP_POLE_Y_RATIO
-  const stemHeight = radius * 0.65
+  const stemHeight = radius * 1.0
   const stem = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.025, radius * 0.04, stemHeight, 6),
     new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.85 }),
