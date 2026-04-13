@@ -4,6 +4,7 @@ import type { FruitArchetype } from './spawn'
 import { getAppleBodyMaterial } from './appleSkin'
 import { getAppleHalfPolyGeometry, APPLE_MAX_XZ } from './applePolyGeometry'
 import { getKiwiHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
+import { getPlumHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import { getWatermelonBodyMaterial } from './watermelonSkin'
 import {
@@ -257,14 +258,44 @@ function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): TH
     g.ellipse(s / 2, s / 2, 14, 20, 0, 0, Math.PI * 2)
     g.stroke()
   } else if (fruitType === 'plum') {
-    // Lavender/pink flesh with stone outline
-    g.strokeStyle = 'rgba(180,140,180,0.2)'
-    g.lineWidth = 2
+    // Wiki plum flesh: golden/amber with stone outline and fiber lines
+    // Amber/golden flesh base
+    g.fillStyle = '#E8C050'
     g.beginPath()
-    g.ellipse(s / 2, s / 2, 12, 18, 0, 0, Math.PI * 2)
+    g.arc(s / 2, s / 2, s * 0.48, 0, Math.PI * 2)
+    g.fill()
+    // Slightly darker ring at edge
+    const fleshGrad = g.createRadialGradient(s / 2, s / 2, s * 0.30, s / 2, s / 2, s * 0.48)
+    fleshGrad.addColorStop(0, 'rgba(232,192,80,0)')
+    fleshGrad.addColorStop(1, 'rgba(180,130,40,0.30)')
+    g.fillStyle = fleshGrad
+    g.beginPath()
+    g.arc(s / 2, s / 2, s * 0.48, 0, Math.PI * 2)
+    g.fill()
+    // Stone outline — elongated oval in center
+    g.strokeStyle = 'rgba(160,120,40,0.25)'
+    g.lineWidth = 1.5
+    g.beginPath()
+    g.ellipse(s / 2, s / 2, s * 0.08, s * 0.14, 0, 0, Math.PI * 2)
     g.stroke()
-    for (let i = 0; i < 30; i++) {
-      g.fillStyle = 'rgba(220,200,220,0.08)'
+    // Stone fill
+    g.fillStyle = 'rgba(140,110,50,0.15)'
+    g.beginPath()
+    g.ellipse(s / 2, s / 2, s * 0.07, s * 0.13, 0, 0, Math.PI * 2)
+    g.fill()
+    // Radiating fiber lines from stone
+    g.strokeStyle = 'rgba(200,160,60,0.15)'
+    g.lineWidth = 0.6
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(s / 2 + Math.cos(a) * s * 0.10, s / 2 + Math.sin(a) * s * 0.15)
+      g.lineTo(s / 2 + Math.cos(a) * s * 0.42, s / 2 + Math.sin(a) * s * 0.42)
+      g.stroke()
+    }
+    // Subtle flesh texture variation
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = `rgba(255,220,100,${0.05 + Math.random() * 0.06})`
       g.beginPath()
       g.arc(Math.random() * s, Math.random() * s, 2 + Math.random() * 3, 0, Math.PI * 2)
       g.fill()
@@ -477,6 +508,9 @@ export function createFruitHalfMesh(
   } else if (fruitType === 'kiwi') {
     curved = new THREE.Mesh(getKiwiHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
     capScale = radius * KIWI_MAX_XZ * 1.01
+  } else if (fruitType === 'plum') {
+    curved = new THREE.Mesh(getPlumHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    capScale = radius * PLUM_MAX_XZ * 1.01
   } else {
     curved = new THREE.Mesh(sharedHemisphere, getSkinMatForFruit(fruitType, skinColor))
     curved.scale.setScalar(radius)

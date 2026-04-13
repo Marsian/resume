@@ -14,6 +14,8 @@ import { getStrawberryBodyMaterial } from './strawberrySkin'
 import { getStrawberryBodyPolyGeometry } from './strawberryPolyGeometry'
 import { getOrangeBodyMaterial } from './orangeSkin'
 import { getOrangeBodyPolyGeometry, ORANGE_MAX_XZ } from './orangePolyGeometry'
+import { getPlumBodyMaterial } from './plumSkin'
+import { getPlumBodyPolyGeometry, PLUM_TOP_POLE_Y_RATIO } from './plumPolyGeometry'
 import { getPeachBodyMaterial } from './peachSkin'
 import { getPeachBodyPolyGeometry, PEACH_TOP_POLE_Y_RATIO } from './peachPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
@@ -131,34 +133,6 @@ function passionSpeckleTexture(): THREE.CanvasTexture {
 
 
 
-let plumBloomTex: THREE.CanvasTexture | null = null
-function plumBloomTexture(): THREE.CanvasTexture {
-  if (plumBloomTex) return plumBloomTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Deep purple base
-  g.fillStyle = '#5a1868'
-  g.fillRect(0, 0, s, s)
-  // Dusty bloom overlay
-  for (let i = 0; i < 800; i++) {
-    g.fillStyle = `rgba(180,160,200,${0.02 + Math.random() * 0.05})`
-    g.beginPath()
-    g.arc(Math.random() * s, Math.random() * s, 1 + Math.random() * 2.5, 0, Math.PI * 2)
-    g.fill()
-  }
-  // Subtle glossy highlight zone
-  const grad = g.createRadialGradient(s * 0.35, s * 0.35, 0, s * 0.35, s * 0.35, s * 0.45)
-  grad.addColorStop(0, 'rgba(200,180,220,0.12)')
-  grad.addColorStop(1, 'rgba(200,180,220,0)')
-  g.fillStyle = grad
-  g.fillRect(0, 0, s, s)
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  plumBloomTex = tex
-  return tex
-}
 
 
 let pearTex: THREE.CanvasTexture | null = null
@@ -229,20 +203,6 @@ function passionBodyMaterial(): THREE.MeshStandardMaterial {
 
 
 
-let plumBodyMat: THREE.MeshStandardMaterial | null = null
-function plumBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!plumBodyMat) {
-    plumBodyMat = new THREE.MeshStandardMaterial({
-      map: plumBloomTexture(),
-      color: 0x6a2078,
-      roughness: 0.42,
-      metalness: 0.02,
-      emissive: new THREE.Color(0x280a30),
-      emissiveIntensity: 0.15,
-    })
-  }
-  return plumBodyMat
-}
 
 let pearBodyMat: THREE.MeshStandardMaterial | null = null
 function pearBodyMaterial(): THREE.MeshStandardMaterial {
@@ -605,26 +565,25 @@ function createOrangeMesh(radius: number, _skinHex: number): THREE.Group {
 function createPlumMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 22, 16),
-    plumBodyMaterial(),
+    getPlumBodyPolyGeometry(radius),
+    getPlumBodyMaterial(),
   )
-  // Slightly taller than wide
-  body.scale.set(0.94, 1.06, 0.94)
-  body.userData.sharedMaterial = true
   body.castShadow = true
   body.receiveShadow = true
+  body.userData.sharedMaterial = true
   g.add(body)
 
-  // Stem
+  // Long stem — wiki plum has a prominent long stem
+  const topY = radius * PLUM_TOP_POLE_Y_RATIO
+  const stemHeight = radius * 0.65
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.035, radius * 0.055, radius * 0.22, 6),
-    new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 }),
+    new THREE.CylinderGeometry(radius * 0.025, radius * 0.04, stemHeight, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.85 }),
   )
-  stem.position.y = radius * 0.98
-  stem.rotation.z = 0.1
+  stem.position.y = topY + stemHeight * 0.5
+  stem.rotation.z = 0.08
   g.add(stem)
 
-  addHighlightSphere(g, radius)
   return g
 }
 
