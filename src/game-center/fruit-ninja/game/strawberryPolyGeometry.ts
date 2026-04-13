@@ -27,16 +27,16 @@ function strawberryDeform(nx: number, ny: number, nz: number, radius: number): [
 
   const h = ny // -1 bottom (tip), +1 top (calyx)
 
-  // --- Base ellipsoid: wide and squat — like a rounded heart ---
-  // Wiki strawberry is very plump and wide, not tall
-  const scaleXZ = 1.03
-  const scaleY = 0.86
+  // --- Base ellipsoid: conical shape — wider at top, tapering to bottom ---
+  // Wiki strawberry is a rounded cone, taller than wide
+  const scaleXZ = 0.82
+  const scaleY = 1.10
 
-  // --- Shoulder bulge: widest near upper-middle (h ≈ +0.2) ---
+  // --- Shoulder bulge: widest near upper-middle (h ≈ +0.3) ---
   // Wiki strawberry is wide at the top, rounding down to a tip
-  const shoulderCenter = 0.22
-  const shoulderWidth = 0.55
-  const shoulderAmount = 0.12
+  const shoulderCenter = 0.30
+  const shoulderWidth = 0.50
+  const shoulderAmount = 0.14
   const shoulder = shoulderAmount * Math.exp(-((h - shoulderCenter) * (h - shoulderCenter)) / (2 * shoulderWidth * shoulderWidth))
   const totalXZ = scaleXZ + shoulder
 
@@ -49,15 +49,15 @@ function strawberryDeform(nx: number, ny: number, nz: number, radius: number): [
   const phi = Math.atan2(nz, nx)
   const ridgePattern = 1.0 + 0.025 * Math.cos(ridgeFreq * phi)
 
-  // --- Bottom taper: taper to a defined point ---
+  // --- Cone taper + rounded bottom ---
+  // Wiki strawberry: wide top/shoulders, tapering down to a rounded bottom (NOT pointed)
+  // Upper body stays wide; lower body gradually narrows; bottom pole is rounded
   let bottomDR = 1.0
-  let bottomDY = 0
-  if (h < -0.35) {
-    const t = (-0.35 - h) / 0.65
-    // Clear taper to a point
-    bottomDR = 1.0 - 0.60 * t * t
-    // Pull the tip down
-    bottomDY = -0.08 * t * t * radius
+  if (h < -0.20) {
+    // Taper starts below h=-0.20 (below the shoulder area)
+    const t = (-0.20 - h) / 0.80  // 0 at h=-0.20, 1 at bottom pole
+    bottomDR = 1.0 - 0.65 * t * t
+    // At bottom pole: bottomDR = 0.35 → rounded, not pointed
   }
 
   // --- Top flattening: where the calyx sits, slightly wider and flatter ---
@@ -71,7 +71,7 @@ function strawberryDeform(nx: number, ny: number, nz: number, radius: number): [
 
   x *= bottomDR * topDR * ridgePattern
   z *= bottomDR * topDR * ridgePattern
-  y += topDY + bottomDY
+  y += topDY
 
   return [x, y, z]
 }

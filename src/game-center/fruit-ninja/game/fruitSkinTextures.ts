@@ -1391,18 +1391,18 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
   const data = img.data
 
   // Palette sampled from wiki strawberry reference:
-  // - bright red body:         #E42020 (warm vivid red)
-  // - deep red shadow:         #981214 (dark warm red)
+  // - bright red body:         #F03828 (warm vivid red — slightly orange-shifted)
+  // - deep red shadow:         #A01818 (dark warm red)
   // - highlight red:           #FF4848 (bright warm red)
-  // - seed yellow:             #F0D888 (golden yellow)
-  // - top calyx area:          #801414 (darker red near stem)
-  // - bottom tip:              #B01616 (deep red at tip)
-  const bodyR = 0xE4, bodyG = 0x20, bodyB = 0x20
-  const deepR = 0x98, deepG = 0x12, deepB = 0x14
+  // - seed yellow:             #F8E078 (bright golden yellow)
+  // - top calyx area:          #881818 (darker red near stem)
+  // - bottom tip:              #B81818 (deep red at tip)
+  const bodyR = 0xF0, bodyG = 0x38, bodyB = 0x28
+  const deepR = 0xA0, deepG = 0x18, deepB = 0x18
   const highlightR = 0xFF, highlightG = 0x48, highlightB = 0x48
-  const seedR = 0xF0, seedG = 0xD8, seedB = 0x88
-  const topR = 0x80, topG = 0x14, topB = 0x14
-  const bottomR = 0xB0, bottomG = 0x16, bottomB = 0x16
+  const seedR = 0xFA, seedG = 0xE8, seedB = 0x60
+  const topR = 0x88, topG = 0x18, topB = 0x18
+  const bottomR = 0xB8, bottomG = 0x18, bottomB = 0x18
 
   // Wiki-style lighting: top-front light source
   const lx = 0.15, ly = 0.85, lz = 0.50
@@ -1429,8 +1429,8 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
       // Strawberries have seeds arranged in diagonal spiraling rows
       // Use a simple checker-like grid with offset for diagonal effect
       const seedFreqU = 9   // seeds per wrap-around
-      const seedFreqV = 12  // rows of seeds top to bottom
-      const diagOffset = 0.45  // half-tile offset per row for diagonal pattern
+      const seedFreqV = 9   // rows of seeds top to bottom (fewer rows = bigger seeds)
+      const diagOffset = 0.50  // diagonal offset per row for spiral pattern
 
       // Get tile-local position
       const localU = tu * seedFreqU
@@ -1450,12 +1450,13 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
       const finalFracU = spiralFracU - Math.floor(spiralFracU)
 
       // Distance from nearest seed center (center of tile)
+      // Elliptical seeds — slightly taller than wide
       const dU = finalFracU - 0.5
       const dV = fracV - 0.5
-      const seedDistF = Math.sqrt(dU * dU + dV * dV) * 2.0  // 0 at center, 1 at corner
+      const seedDistF = Math.sqrt(dU * dU * 1.3 + dV * dV * 0.8) * 2.0  // 0 at center, 1 at corner
 
-      // Seed is a small circle in the center of each tile
-      const seedRadius = 0.32
+      // Seed is a larger circle in the center of each tile
+      const seedRadius = 0.48
       const isSeed = seedDistF < seedRadius
       const seedRing = isSeed ? smoothstep(seedRadius, seedRadius * 0.6, seedDistF) : 0
       const seedCenter = isSeed ? smoothstep(seedRadius * 0.6, seedRadius * 0.15, seedDistF) : 0
@@ -1496,16 +1497,18 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
       if (seedRing > 0) {
         // Seed depression — darker ring around seed for depth
         const ringDarken = seedRing * (1.0 - seedCenter)
-        r *= 1.0 - ringDarken * 0.28
-        gg *= 1.0 - ringDarken * 0.22
-        b *= 1.0 - ringDarken * 0.18
+        r *= 1.0 - ringDarken * 0.58
+        gg *= 1.0 - ringDarken * 0.48
+        b *= 1.0 - ringDarken * 0.38
       }
       if (seedCenter > 0) {
-        // Yellow seed center — prominent and visible
-        const seedBlend = seedCenter * 0.90
-        r = r * (1 - seedBlend) + seedR * seedBlend
-        gg = gg * (1 - seedBlend) + seedG * seedBlend
-        b = b * (1 - seedBlend) + seedB * seedBlend
+        // Yellow seed center — prominent and visible, with a slight highlight
+        const seedBlend = seedCenter * 0.96
+        // Seed gets a brightness boost to simulate raised surface
+        const seedHighlight = 1.0 + seedCenter * 0.12
+        r = (r * (1 - seedBlend) + seedR * seedBlend) * seedHighlight
+        gg = (gg * (1 - seedBlend) + seedG * seedBlend) * seedHighlight
+        b = (b * (1 - seedBlend) + seedB * seedBlend) * seedHighlight
       }
 
       // --- Top area blending (darker near calyx) ---
@@ -1573,9 +1576,9 @@ export function strawberrySkinTexture(): THREE.CanvasTexture {
       ndotl = Math.max(0, ndotl)
 
       // Broad diffuse fill
-      const diffBoost = Math.pow(ndotl, 1.0) * 0.38
+      const diffBoost = Math.pow(ndotl, 1.0) * 0.42
       // Specular — strawberry has a visible glossy sheen
-      const specRaw = Math.pow(ndotl, 2) * 0.12 + Math.pow(ndotl, 6) * 0.14
+      const specRaw = Math.pow(ndotl, 2) * 0.14 + Math.pow(ndotl, 6) * 0.18
       const specFalloff = smoothstep(0.48, 0.10, tv)
       const specBoost = specRaw * specFalloff
 

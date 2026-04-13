@@ -625,32 +625,55 @@ function createStrawberryMesh(radius: number, _skinHex: number): THREE.Group {
   body.userData.sharedMaterial = true
   g.add(body)
 
-  // Green leaf-like calyx with pointed sepals on top — wiki style
-  const calyxMat = new THREE.MeshBasicMaterial({
+  // Green leaf calyx on top — wiki style
+  const calyxMat = new THREE.MeshStandardMaterial({
     color: 0x1E7A2E,
+    roughness: 0.55,
     side: THREE.DoubleSide,
-    toneMapped: false,
+    emissive: new THREE.Color(0x0A2A0A),
+    emissiveIntensity: 0.12,
   })
-  // Build a leaf-shaped sepal using ShapeGeometry
+
+  // Flat leaf-shaped sepal in XY plane, tip pointing +Y
   const leafShape = new THREE.Shape()
   leafShape.moveTo(0, 0)
-  leafShape.quadraticCurveTo(0.14, 0.16, 0.05, 0.36)
-  leafShape.lineTo(0, 0.40)
-  leafShape.lineTo(-0.05, 0.36)
-  leafShape.quadraticCurveTo(-0.14, 0.16, 0, 0)
+  leafShape.quadraticCurveTo(0.28, 0.04, 0.14, 0.28)
+  leafShape.lineTo(0, 0.36)
+  leafShape.lineTo(-0.14, 0.28)
+  leafShape.quadraticCurveTo(-0.28, 0.04, 0, 0)
   const leafGeo = new THREE.ShapeGeometry(leafShape)
+
+  // The body geometry top pole y
+  const topY = radius * 0.92
+
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2
+    // Wrapper: positioned at top center, rotated around Y to face outward
+    const wrapper = new THREE.Group()
+    wrapper.position.set(0, topY, 0)
+    wrapper.rotation.y = a
+    // Pivot: tilt the leaf outward from vertical — positive Z rotation leans it away from center
+    const pivot = new THREE.Group()
+    pivot.rotation.z = 1.30
     const sepal = new THREE.Mesh(leafGeo, calyxMat)
-    // Position at top center, slightly spread
-    sepal.position.set(Math.cos(a) * radius * 0.08, radius * 0.44, Math.sin(a) * radius * 0.08)
-    // Rotate to fan outward from top center — spread more horizontally like a crown
-    sepal.rotation.order = 'YXZ'
-    sepal.rotation.y = a
-    sepal.rotation.x = -1.35
-    sepal.scale.set(radius * 1.0, radius * 1.0, radius * 1.0)
-    g.add(sepal)
+    sepal.scale.set(radius, radius, radius)
+    pivot.add(sepal)
+    wrapper.add(pivot)
+    g.add(wrapper)
   }
+
+  // Small stem nub at center top
+  const stemMat = new THREE.MeshStandardMaterial({
+    color: 0x1A5A22,
+    roughness: 0.8,
+  })
+  const stemNub = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.05, radius * 0.08, radius * 0.12, 6),
+    stemMat,
+  )
+  stemNub.position.y = topY + radius * 0.10
+  g.add(stemNub)
+
   return g
 }
 
