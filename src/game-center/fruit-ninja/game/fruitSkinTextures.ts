@@ -2044,36 +2044,40 @@ export function peachSkinTexture(): THREE.CanvasTexture {
   const llen = Math.hypot(lx, ly, lz)
   const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
 
+  // Blush and suture centers in azimuth (0–1)
+  // Suture at u≈0 so it aligns with the geometry groove at phi=0 (the UV seam),
+  // which hides the seam behind the suture crease.
+  const blushCenter = 0.35
+  const creaseU = 0.0
+
   for (let py = 0; py < s; py++) {
     const tv = py / (s - 1) // 0 = top (stem), 1 = bottom
     for (let px = 0; px < s; px++) {
       const tu = px / (s - 1) // 0–1 around azimuth
 
-      // --- FBM noise for organic variation ---
+      // --- Seamless FBM noise: use periodic input in u so u=0 and u=1 match ---
       const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
       const n2 = fbm(tu * 16 + 7.3, tv * 18 + 5.8)
 
-      // --- Fuzz texture (subtle downy hairs) ---
+      // --- Fuzz texture (seamless in u) ---
       const fuzzNoise = fbm(tu * 30 + 3.7, tv * 35 + 5.2)
       const fuzzMul = 0.98 + 0.02 * fuzzNoise
 
-      // --- Rosy blush: covers roughly one side of the peach ---
-      // Blush is centered around azimuth u ≈ 0.35, spreads with organic noise
+      // --- Rosy blush: wrap-around distance for seamless seam ---
       // Wiki peach has a very prominent blush covering a large area
-      const blushCenter = 0.35
-      const blushDist = Math.abs(tu - blushCenter)
-      // Handle wrapping — blush doesn't wrap, it's on one side only
+      let blushDist = Math.abs(tu - blushCenter)
+      blushDist = Math.min(blushDist, 1 - blushDist) // wrap-around
       const blushNoise = fbm(tu * 6 + 1.5, tv * 8 + 2.8) * 0.12
       const blushMask = smoothstep(0.38 + blushNoise, 0.08 + blushNoise, blushDist)
       // Blush covers most of the body vertically
       const blushVertical = smoothstep(0.08, 0.20, tv) * smoothstep(0.92, 0.65, tv)
       const blushAmount = blushMask * blushVertical * (0.8 + 0.2 * n1)
 
-      // --- Suture/crease line: runs along one meridian (u ≈ 0.5) ---
-      const creaseU = 0.5
-      const creaseDist = Math.abs(tu - creaseU)
-      const creaseNoise = fbm(tu * 4 + 9.0, tv * 12 + 5.5) * 0.025
-      const creaseMask = smoothstep(0.045 + creaseNoise, 0.005, creaseDist)
+      // --- Suture/crease line: wrap-around distance for seamless seam ---
+      let creaseDist = Math.abs(tu - creaseU)
+      creaseDist = Math.min(creaseDist, 1 - creaseDist) // wrap-around
+      const creaseNoise = fbm(tu * 4 + 9.0, tv * 12 + 5.5) * 0.015
+      const creaseMask = smoothstep(0.025 + creaseNoise, 0.003, creaseDist)
       // Crease runs from top to bottom but is most visible in the middle
       const creaseVertical = smoothstep(0.05, 0.15, tv) * smoothstep(0.95, 0.85, tv)
 
@@ -2105,9 +2109,9 @@ export function peachSkinTexture(): THREE.CanvasTexture {
 
       // --- Apply suture crease (darker line) ---
       const creaseDarken = creaseMask * creaseVertical
-      r *= (1 - creaseDarken * 0.55)
-      gg *= (1 - creaseDarken * 0.48)
-      b *= (1 - creaseDarken * 0.38)
+      r *= (1 - creaseDarken * 0.65)
+      gg *= (1 - creaseDarken * 0.55)
+      b *= (1 - creaseDarken * 0.40)
 
       // --- Speckle (fuzz highlights) ---
       const speck = hash21(px + 53, py + 29)
