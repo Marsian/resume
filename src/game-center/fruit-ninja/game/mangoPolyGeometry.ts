@@ -28,9 +28,9 @@ function mangoDeform(nx: number, ny: number, nz: number, radius: number): [numbe
   const h = ny // -1 bottom (tip), +1 top (stem)
 
   // --- Base ellipsoid: slender and elongated ---
-  // Wiki mango is distinctly elongated — taller than wide, but not pencil-thin
-  const scaleXZ = 0.86
-  const scaleY = 1.18
+  // Real mango is distinctly elongated and narrow — taller than wide with a slim profile
+  const scaleXZ = 0.70
+  const scaleY = 1.28
 
   // --- Subtle shoulder bulge (slightly wider above center) ---
   const bulgeCenter = 0.10
@@ -43,12 +43,17 @@ function mangoDeform(nx: number, ny: number, nz: number, radius: number): [numbe
   z *= totalXZ
   y *= scaleY
 
-  // --- Subtle kidney curve: front slightly more convex ---
+  // --- Pronounced kidney/arc curve: mango has a clear curvature ---
+  // The whole fruit curves like a bean — front bulges out, back is slightly concave
   if (Math.abs(z) > 1e-8) {
-    const frontBias = 0.03 * Math.max(0, nz)
-    const backBias = -0.015 * Math.max(0, -nz)
+    const frontBias = 0.09 * Math.max(0, nz)
+    const backBias = -0.04 * Math.max(0, -nz)
     z += (frontBias + backBias) * radius
   }
+  // Global arc: shift the whole cross-section forward proportionally to distance from center
+  // This creates the overall curved banana/mango shape
+  const arcAmount = 0.06
+  z += arcAmount * (1.0 - h * h) * radius
 
   // --- Top flattening: near the stem, narrow ---
   let topDR = 1.0
