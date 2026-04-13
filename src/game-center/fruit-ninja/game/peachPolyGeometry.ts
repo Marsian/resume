@@ -1,12 +1,14 @@
 import * as THREE from 'three'
 
 /**
- * Peach-shaped polyhedron: slightly oblate with a characteristic cleft/indent
- * at the top (heart-shaped when viewed from above) and a subtle vertical
- * suture groove along one meridian.
+ * Peach-shaped polyhedron: nearly spherical with a subtle cleft at the top
+ * and a vertical suture groove along one meridian.
  *
  * UV mapping: standard equirectangular (u = azimuth, v = colatitude/pi).
  * v = 0 → top pole (stem cleft), v = 1 → bottom pole.
+ *
+ * The suture line sits at phi ≈ 0 (u ≈ 0 / u ≈ 1), which is the texture
+ * seam. This way the suture groove hides the UV seam.
  */
 
 const LON_SEGMENTS = 56
@@ -22,49 +24,44 @@ function peachDeform(nx: number, ny: number, nz: number, radius: number, phi: nu
 
   const h = ny // -1 bottom, +1 top
 
-  // --- Base ellipsoid: slightly oblate but not too flat — wiki peach is quite round ---
-  const scaleXZ = 1.03
-  const scaleY = 0.97
+  // --- Base ellipsoid: nearly spherical — wiki peach is quite round ---
+  const scaleXZ = 1.02
+  const scaleY = 0.98
 
-  // --- Equatorial bulge: subtle, peaches are nearly spherical ---
-  const bulge = 0.02 * Math.exp(-((h) * (h)) / (0.35 * 0.35))
+  // --- Subtle equatorial width ---
+  const bulge = 0.015 * Math.exp(-((h) * (h)) / (0.40 * 0.40))
   const totalXZ = scaleXZ + bulge
 
-  // --- Top cleft: the distinctive heart-shaped indent at the top of a peach ---
-  // This creates two subtle bumps on either side of the stem, with a dip between them
+  // --- Top cleft: the distinctive indent at the top of a peach ---
+  // The cleft is a shallow depression running along the suture line at the very top
   let cleftDY = 0
   let cleftDR = 1.0
-  if (h > 0.75) {
-    const t = (h - 0.75) / 0.25
-    // The cleft runs along the suture line (phi ≈ 0 or π)
-    // Push the center of the cleft down, leave the sides slightly raised
-    const cleftDepth = 0.12 * t * t * radius
-    // Create a subtle vertical groove: deeper at the very top, tapering down
-    cleftDY = -cleftDepth
-    // Narrow slightly at the very top
-    cleftDR = 1.0 - 0.10 * t * t
+  if (h > 0.82) {
+    const t = (h - 0.82) / 0.18
+    cleftDY = -0.10 * t * t * radius
+    cleftDR = 1.0 - 0.08 * t * t
   }
 
-  // --- Suture line: subtle groove running from top to bottom along one meridian ---
-  // The suture is a subtle indent running along the azimuth direction
-  // phi is the azimuth angle (0 to 2π). The suture runs along phi ≈ 0 (and wraps to π)
+  // --- Suture line: subtle groove running along phi = 0 (the UV seam) ---
+  // Using wrap-around distance so the groove is continuous across phi=0/2π
   let sutureDent = 0
   {
-    // Distance from suture line (at phi = 0, which is same as phi = 2π)
-    const sutureDist = Math.min(Math.abs(phi), Math.abs(phi - Math.PI * 2))
-    const sutureMask = Math.exp(-(sutureDist * sutureDist) / (0.15 * 0.15))
-    // Suture runs full height but is most visible in the middle
-    const sutureVertical = 1.0 - 0.5 * h * h // strongest at equator
-    sutureDent = -0.035 * radius * sutureMask * Math.max(0, sutureVertical)
+    // phi ranges 0..2π. Suture at phi=0 (same as phi=2π).
+    // Wrap-around distance:
+    const d = Math.min(phi, Math.PI * 2 - phi)
+    const sutureMask = Math.exp(-(d * d) / (0.12 * 0.12))
+    // Suture runs full height but is most visible in the equatorial region
+    const sutureVertical = 1.0 - 0.4 * h * h
+    sutureDent = -0.04 * radius * sutureMask * Math.max(0, sutureVertical)
   }
 
-  // --- Bottom: slight taper to a small point ---
+  // --- Bottom: very slight taper ---
   let bottomDY = 0
   let bottomDR = 1.0
-  if (h < -0.85) {
-    const t = (-0.85 - h) / 0.15
-    bottomDY = 0.03 * t * t * radius
-    bottomDR = 1.0 - 0.06 * t * t
+  if (h < -0.88) {
+    const t = (-0.88 - h) / 0.12
+    bottomDY = 0.02 * t * t * radius
+    bottomDR = 1.0 - 0.04 * t * t
   }
 
   const finalXZ = totalXZ * cleftDR * bottomDR
@@ -90,30 +87,25 @@ function peachDeform(nx: number, ny: number, nz: number, radius: number, phi: nu
 function buildThetaSteps(thetaStart: number, thetaLength: number): number[] {
   const thetaEnd = thetaStart + thetaLength
 
-  // Zone boundaries
-  const topZoneEnd = Math.acos(0.72)         // ~0.77 rad (cleft zone)
-  const bottomZoneStart = Math.acos(-0.82)   // ~2.53 rad
+  const topZoneEnd = Math.acos(0.78)         // ~0.68 rad
+  const bottomZoneStart = Math.acos(-0.85)   // ~2.54 rad
 
-  const topRings = 20
-  const midRings = 30
-  const bottomRings = 14
+  const topRings = 18
+  const midRings = 32
+  const bottomRings = 12
 
   const allThetas: number[] = []
 
-  // Top zone: 0 to topZoneEnd
   for (let i = 0; i <= topRings; i++) {
     allThetas.push((i / topRings) * topZoneEnd)
   }
-  // Middle zone: topZoneEnd to bottomZoneStart
   for (let i = 1; i <= midRings; i++) {
     allThetas.push(topZoneEnd + (i / midRings) * (bottomZoneStart - topZoneEnd))
   }
-  // Bottom zone: bottomZoneStart to PI
   for (let i = 1; i <= bottomRings; i++) {
     allThetas.push(bottomZoneStart + (i / bottomRings) * (Math.PI - bottomZoneStart))
   }
 
-  // Filter to requested range
   const steps: number[] = [thetaStart]
   for (const t of allThetas) {
     if (t > thetaStart + 1e-6 && t < thetaEnd - 1e-6) {
@@ -200,10 +192,10 @@ export function getPeachHalfPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 /** Approximate max XZ radius for half-mesh cap scaling. */
-export const PEACH_MAX_XZ = 1.05
+export const PEACH_MAX_XZ = 1.04
 
 /**
  * Y-coordinate of the top pole (cleft floor) after geometry re-centring.
  * Used by stem positioning code in `meshes.ts`.
  */
-export const PEACH_TOP_POLE_Y_RATIO = 0.88
+export const PEACH_TOP_POLE_Y_RATIO = 0.90
