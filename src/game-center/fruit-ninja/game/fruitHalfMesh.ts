@@ -5,6 +5,7 @@ import { getAppleBodyMaterial } from './appleSkin'
 import { getAppleHalfPolyGeometry, APPLE_MAX_XZ } from './applePolyGeometry'
 import { getKiwiHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
 import { getPlumHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
+import { getCherryHalfPolyGeometry, CHERRY_MAX_XZ } from './cherryPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import { getWatermelonBodyMaterial } from './watermelonSkin'
 import {
@@ -14,6 +15,7 @@ import {
 } from './watermelonPolyGeometry'
 import { getOrangeBodyMaterial } from './orangeSkin'
 import { getPeachBodyMaterial } from './peachSkin'
+import { getCherryBodyMaterial } from './cherrySkin'
 
 /** Lighter "pulp" tone from skin color (fallback when spawn did not set flesh). */
 export function fleshColorFromSkin(skin: THREE.Color): THREE.Color {
@@ -417,6 +419,9 @@ function getSkinMatForFruit(
   if (fruitType === 'peach') {
     return getPeachBodyMaterial()
   }
+  if (fruitType === 'cherry') {
+    return getCherryBodyMaterial()
+  }
   return getSkinMat(skin)
 }
 
@@ -511,6 +516,9 @@ export function createFruitHalfMesh(
   } else if (fruitType === 'plum') {
     curved = new THREE.Mesh(getPlumHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
     capScale = radius * PLUM_MAX_XZ * 1.01
+  } else if (fruitType === 'cherry') {
+    curved = new THREE.Mesh(getCherryHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    capScale = radius * CHERRY_MAX_XZ * 1.01
   } else {
     curved = new THREE.Mesh(sharedHemisphere, getSkinMatForFruit(fruitType, skinColor))
     curved.scale.setScalar(radius)

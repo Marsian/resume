@@ -34,6 +34,8 @@ import { getPeachBodyMaterial } from './peachSkin'
 import { getPeachBodyPolyGeometry, PEACH_TOP_POLE_Y_RATIO } from './peachPolyGeometry'
 import { getPearBodyMaterial } from './pearSkin'
 import { getPearBodyPolyGeometry, PEAR_TOP_POLE_Y_RATIO } from './pearPolyGeometry'
+import { getCherryBodyMaterial } from './cherrySkin'
+import { getCherryBodyPolyGeometry, CHERRY_TOP_POLE_Y_RATIO } from './cherryPolyGeometry'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -695,83 +697,65 @@ function createPassionfruitMesh(radius: number): THREE.Group {
   return g
 }
 
-function createCherryMesh(radius: number, skinHex: number): THREE.Group {
+function createCherryMesh(radius: number, _skinHex: number): THREE.Group {
   const g = new THREE.Group()
 
-  // Glossy cherry material
-  const cherryMat = new THREE.MeshStandardMaterial({
-    color: skinHex,
-    roughness: 0.08,
-    metalness: 0.05,
-    emissive: new THREE.Color(skinHex).multiplyScalar(0.05),
-    emissiveIntensity: 1,
-  })
+  const cherryRadius = radius * 0.50
+  const cherryMat = getCherryBodyMaterial()
 
-  // Helper: create a cherry sphere with a sharp dimple (indentation) at the top
-  function cherrySphere(r: number): THREE.BufferGeometry {
-    const geo = new THREE.SphereGeometry(r, 32, 24)
-    const pos = geo.attributes.position
-    for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i)
-      const x = pos.getX(i)
-      const z = pos.getZ(i)
-      // Top region: push vertices inward to create a sharp dimple
-      if (y > r * 0.65) {
-        const t = (y - r * 0.65) / (r * 0.35) // 0..1
-        // Use cubic for sharper transition near the pole
-        const indent = t * t * t * r * 0.55
-        // Push radially inward from the top pole
-        const dx = x * indent / r
-        const dz = z * indent / r
-        const dy = -indent * 0.6
-        pos.setXYZ(i, x - dx, y + dy, z - dz)
-      }
-    }
-    geo.computeVertexNormals()
-    return geo
-  }
+  // Left cherry body — custom poly geometry with top dimple
+  const leftBody = new THREE.Mesh(
+    getCherryBodyPolyGeometry(cherryRadius),
+    cherryMat,
+  )
+  leftBody.userData.sharedMaterial = true
+  leftBody.castShadow = true
+  leftBody.receiveShadow = true
+  leftBody.position.set(-radius * 0.60, -radius * 0.02, 0)
+  g.add(leftBody)
 
-  // Two equal cherry spheres with top dimple — well separated, no overlap
-  const r1 = radius * 0.50
-  const leftGeo = cherrySphere(r1)
-  const left = new THREE.Mesh(leftGeo, cherryMat)
-  left.position.set(-radius * 0.60, -radius * 0.02, 0)
-  left.scale.set(1.10, 0.96, 1.10) // wider than tall
-  left.castShadow = true
-  g.add(left)
-
-  const rightGeo = cherrySphere(r1)
-  const right = new THREE.Mesh(rightGeo, cherryMat)
-  right.position.set(radius * 0.60, -radius * 0.02, radius * 0.02)
-  right.scale.set(1.10, 0.96, 1.10)
-  right.castShadow = true
-  g.add(right)
+  // Right cherry body — custom poly geometry with top dimple
+  const rightBody = new THREE.Mesh(
+    getCherryBodyPolyGeometry(cherryRadius),
+    cherryMat,
+  )
+  rightBody.userData.sharedMaterial = true
+  rightBody.castShadow = true
+  rightBody.receiveShadow = true
+  rightBody.position.set(radius * 0.60, -radius * 0.02, radius * 0.02)
+  g.add(rightBody)
 
   // Y-shaped stem — two stems from each cherry joining, then a short vertical top stem
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x3a5818, roughness: 0.7, metalness: 0 })
+  const stemMat = new THREE.MeshBasicMaterial({ color: 0x3a5818, toneMapped: false })
   const stemRadius = radius * 0.024
 
-  // Junction point where the two stems meet
-  const junctionY = radius * 1.15
+  // Top of cherry bodies in world Y
+  const leftTopY = -radius * 0.02 + cherryRadius * CHERRY_TOP_POLE_Y_RATIO
+  const rightTopY = -radius * 0.02 + cherryRadius * CHERRY_TOP_POLE_Y_RATIO
 
-  // Left stem: from top of left cherry curving up to junction
+  // Junction point where the two stems meet
+  const junctionY = leftTopY + radius * 0.40
+
+  // Left stem: starts INSIDE the left cherry body, emerges through the dimple, curves to junction
   const leftStemCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-radius * 0.55, radius * 0.25, 0),
-    new THREE.Vector3(-radius * 0.40, radius * 0.55, radius * 0.02),
-    new THREE.Vector3(-radius * 0.20, radius * 0.88, -radius * 0.01),
+    new THREE.Vector3(-radius * 0.60, leftTopY - cherryRadius * 0.35, 0), // deep inside cherry
+    new THREE.Vector3(-radius * 0.58, leftTopY - cherryRadius * 0.05, 0), // just below surface
+    new THREE.Vector3(-radius * 0.50, leftTopY + radius * 0.08, radius * 0.02), // emerged above dimple
+    new THREE.Vector3(-radius * 0.30, junctionY * 0.65, radius * 0.01),
     new THREE.Vector3(0, junctionY, 0),
   ])
   const leftStem = new THREE.Mesh(
-    new THREE.TubeGeometry(leftStemCurve, 14, stemRadius, 6, false),
+    new THREE.TubeGeometry(leftStemCurve, 16, stemRadius, 6, false),
     stemMat,
   )
   g.add(leftStem)
 
-  // Right stem: from top of right cherry curving up to junction
+  // Right stem: starts INSIDE the right cherry body, emerges through the dimple, curves to junction
   const rightStemCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(radius * 0.58, radius * 0.25, radius * 0.02),
-    new THREE.Vector3(radius * 0.42, radius * 0.55, radius * 0.01),
-    new THREE.Vector3(radius * 0.20, radius * 0.88, -radius * 0.01),
+    new THREE.Vector3(radius * 0.60, rightTopY - cherryRadius * 0.35, radius * 0.02), // deep inside cherry
+    new THREE.Vector3(radius * 0.58, rightTopY - cherryRadius * 0.05, radius * 0.02), // just below surface
+    new THREE.Vector3(radius * 0.52, rightTopY + radius * 0.08, radius * 0.01), // emerged above dimple
+    new THREE.Vector3(radius * 0.30, junctionY * 0.65, radius * 0.01),
     new THREE.Vector3(0, junctionY, 0),
   ])
   const rightStem = new THREE.Mesh(
@@ -791,36 +775,6 @@ function createCherryMesh(radius: number, skinHex: number): THREE.Group {
     stemMat,
   )
   g.add(topStem)
-
-  // Highlight spheres for glossy look — prominent specular highlights
-  const hlMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.05,
-    transparent: true,
-    opacity: 0.35,
-    depthWrite: false,
-  })
-  const hl1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.12, 10, 8), hlMat)
-  hl1.position.set(-radius * 0.70, radius * 0.08, radius * 0.38)
-  g.add(hl1)
-  const hl2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 10, 8), hlMat)
-  hl2.position.set(radius * 0.50, radius * 0.12, radius * 0.40)
-  g.add(hl2)
-
-  // Secondary smaller highlight for extra wet-look
-  const hl2Mat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.05,
-    transparent: true,
-    opacity: 0.18,
-    depthWrite: false,
-  })
-  const hl3 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.05, 8, 6), hl2Mat)
-  hl3.position.set(-radius * 0.45, radius * 0.22, radius * 0.35)
-  g.add(hl3)
-  const hl4 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.04, 8, 6), hl2Mat)
-  hl4.position.set(radius * 0.70, radius * 0.20, radius * 0.32)
-  g.add(hl4)
 
   return g
 }
@@ -863,7 +817,7 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
     case 'passionfruit':
       return createPassionfruitMesh(radius)
     case 'cherry':
-      return createCherryMesh(radius, skinHex)
+      return createCherryMesh(radius, skinHex) // skinHex unused, texture is procedural
     default:
       return createAppleMesh(radius, skinHex)
   }

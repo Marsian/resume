@@ -2679,3 +2679,130 @@ export function pearSkinTexture(): THREE.CanvasTexture {
   pearSkinTex = tex
   return tex
 }
+
+let cherrySkinTex: THREE.CanvasTexture | null = null
+export function cherrySkinTexture(): THREE.CanvasTexture {
+  if (cherrySkinTex) return cherrySkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki cherry reference:
+  // Wiki cherry is deep glossy red — very smooth, wet-looking, no bloom or dust.
+  // - cherry body:          #C01020 (deep saturated red — dominant)
+  // - deep shadow:          #7A0810 (very dark wine red)
+  // - bright highlight:     #E83038 (vivid red highlight)
+  // - top stem area:        #8A0C14 (darker near stem cavity)
+  // - bottom:               #8A0E16 (slightly darker)
+  const bodyR = 0xC0, bodyG = 0x10, bodyB = 0x20
+  const deepR = 0x7A, deepG = 0x08, deepB = 0x10
+  const lightR = 0xE8, lightG = 0x30, lightB = 0x38
+  const topR = 0x8A, topG = 0x0C, topB = 0x14
+  const bottomR = 0x8A, bottomG = 0x0E, bottomB = 0x16
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (stem), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for subtle organic color variation ---
+      const n1 = fbm(tu * 7 + 1.2, tv * 9 + 2.1)
+      const n2 = fbm(tu * 14 + 4.5, tv * 16 + 6.3)
+
+      // --- Base color with noise variation ---
+      let r = bodyR + (lightR - bodyR) * n1 * 0.25 + (deepR - bodyR) * (1 - n1) * 0.12
+      let gg = bodyG + (lightG - bodyG) * n1 * 0.25 + (deepG - bodyG) * (1 - n1) * 0.12
+      let b = bodyB + (lightB - bodyB) * n1 * 0.25 + (deepB - bodyB) * (1 - n1) * 0.12
+
+      // --- Subtle latitude gradient: slightly lighter in the middle band ---
+      const midBoost = Math.sin(tv * Math.PI) * 0.05
+      r += (lightR - bodyR) * midBoost
+      gg += (lightG - bodyG) * midBoost
+      b += (lightB - bodyB) * midBoost
+
+      // --- Fine grain noise (cherry skin is very smooth, minimal) ---
+      const grainNoise = fbm(tu * 30 + 10.2, tv * 35 + 13.7)
+      r += (grainNoise - 0.5) * 6
+      gg += (grainNoise - 0.5) * 3
+      b += (grainNoise - 0.5) * 5
+
+      // --- Top area blending (darker near stem cavity) ---
+      const topMix = smoothstep(0.12, 0.0, tv)
+      const topEdgeNoise = fbm(tu * 5 + 1.8, tv * 7 + 2.9) * 0.03
+      const topBlend = Math.min(1, Math.max(0, topMix + topEdgeNoise))
+
+      r = r * (1 - topBlend) + topR * topBlend
+      gg = gg * (1 - topBlend) + topG * topBlend
+      b = b * (1 - topBlend) + topB * topBlend
+
+      // --- Bottom area blending (slightly darker) ---
+      const bottomMix = smoothstep(0.90, 1.0, tv)
+      const bottomEdgeNoise = fbm(tu * 4 + 2.5, tv * 6 + 3.1) * 0.04
+      const bottomBlend = Math.min(1, Math.max(0, bottomMix + bottomEdgeNoise))
+
+      r = r * (1 - bottomBlend) + bottomR * bottomBlend
+      gg = gg * (1 - bottomBlend) + bottomG * bottomBlend
+      b = b * (1 - bottomBlend) + bottomB * bottomBlend
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const theta = tu * Math.PI * 2
+      const nlx = Math.sin(phi) * Math.cos(theta)
+      const nly = Math.cos(phi)
+      const nlz = Math.sin(phi) * Math.sin(theta)
+      let ndotl = nlx * Lx + nly * Ly + nlz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Diffuse — cherry is very glossy so diffuse is moderate
+      const diffBoost = Math.pow(ndotl, 0.8) * 0.30
+      // Specular — tight, bright highlight (cherry is very glossy/wet)
+      const specRaw = Math.pow(ndotl, 4) * 0.15 + Math.pow(ndotl, 16) * 0.35
+
+      const lighting = 1.0 + diffBoost
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: bright white-ish highlight for wet gloss
+      r += 255 * specRaw * 0.50
+      gg += 255 * specRaw * 0.38
+      b += 255 * specRaw * 0.40
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.990 + 0.010 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  cherrySkinTex = tex
+  return tex
+}
