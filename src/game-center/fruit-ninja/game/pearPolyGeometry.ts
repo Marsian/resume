@@ -192,18 +192,22 @@ function buildPearCustomGeometry(
   geo.setIndex(indices)
   geo.computeVertexNormals()
 
-  // Centre the geometry on its bounding-box midpoint
+  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
+  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
+  // keep the equator at y=0 so the flesh cap aligns correctly.
   geo.computeBoundingBox()
-  const centre = new THREE.Vector3()
-  geo.boundingBox!.getCenter(centre)
-  if (Math.abs(centre.y) > 1e-5) {
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute
-    for (let i = 0; i < pos.count; i++) {
-      pos.setY(i, pos.getY(i) - centre.y)
+  if (thetaLength >= Math.PI) {
+    const centre = new THREE.Vector3()
+    geo.boundingBox!.getCenter(centre)
+    if (Math.abs(centre.y) > 1e-5) {
+      const pos = geo.getAttribute('position') as THREE.BufferAttribute
+      for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, pos.getY(i) - centre.y)
+      }
+      pos.needsUpdate = true
+      geo.computeBoundingBox()
+      geo.computeVertexNormals()
     }
-    pos.needsUpdate = true
-    geo.computeBoundingBox()
-    geo.computeVertexNormals()
   }
 
   // Compute the actual top Y after centering, store for stem positioning

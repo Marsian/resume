@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 import type { FruitArchetype } from './spawn'
 import { getAppleBodyMaterial } from './appleSkin'
-import { getAppleHalfPolyGeometry, APPLE_MAX_XZ } from './applePolyGeometry'
+import { getAppleHalfPolyGeometry, APPLE_MAX_XZ, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
 import { getKiwiHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
 import { getPlumHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
 import { getCherryHalfPolyGeometry, CHERRY_MAX_XZ } from './cherryPolyGeometry'
@@ -604,14 +604,36 @@ export function createFruitHalfMesh(
   curved.userData.sharedPool = true
   g.add(curved)
 
+  // The cap (flesh disc) sits at the equator cut.  It must face *inward* toward the
+  // curved half-shell so the flesh texture is visible from outside the other half.
+  //
+  // Before the group quaternion is applied the half-shell spans y ∈ [0, +r] (upper
+  // hemisphere).  The cap should face -Y (into the half-shell interior) so it is
+  // visible from below, which is the side a viewer sees.
+  //
+  // For the bottom half the group is rotated 180°, which flips both the shell and
+  // the cap — the cap then faces +Y, visible from above.  Correct in both cases.
   const cap = new THREE.Mesh(sharedCap, getFleshMatForFruit(fruitType, fleshColor))
   cap.scale.setScalar(capScale)
-  cap.rotation.x = -Math.PI / 2
-  cap.position.y = -0.0015
+  cap.rotation.x = Math.PI / 2
+  cap.position.y = 0.0015
   cap.castShadow = false
   cap.receiveShadow = false
   cap.userData.sharedPool = true
   g.add(cap)
+
+  // Apple stem on the top half
+  if (fruitType === 'apple' && n.y > 0.5) {
+    const stemH = radius * 0.24
+    const stemCenterY = radius * APPLE_TOP_POLE_Y_RATIO + stemH * 0.40
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.05, radius * 0.09, stemH, 8),
+      new THREE.MeshBasicMaterial({ color: 0x5a3a1e, toneMapped: false }),
+    )
+    stem.position.y = stemCenterY
+    stem.userData.sharedPool = true
+    g.add(stem)
+  }
 
   g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
   return g

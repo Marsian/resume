@@ -176,17 +176,21 @@ function buildAppleCustomGeometry(
   // Centre the geometry on its bounding-box midpoint so rotation looks natural.
   // The cavity dents pull the top down asymmetrically, shifting the visual centre
   // away from the origin; re-centring eliminates the "stem lags the body" effect.
-  geo.computeBoundingBox()
-  const centre = new THREE.Vector3()
-  geo.boundingBox!.getCenter(centre)
-  if (Math.abs(centre.y) > 1e-5) {
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute
-    for (let i = 0; i < pos.count; i++) {
-      pos.setY(i, pos.getY(i) - centre.y)
-    }
-    pos.needsUpdate = true
+  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
+  // keep the equator at y=0 so the flesh cap aligns correctly.
+  if (thetaLength >= Math.PI) {
     geo.computeBoundingBox()
-    geo.computeVertexNormals()
+    const centre = new THREE.Vector3()
+    geo.boundingBox!.getCenter(centre)
+    if (Math.abs(centre.y) > 1e-5) {
+      const pos = geo.getAttribute('position') as THREE.BufferAttribute
+      for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, pos.getY(i) - centre.y)
+      }
+      pos.needsUpdate = true
+      geo.computeBoundingBox()
+      geo.computeVertexNormals()
+    }
   }
 
   return geo
@@ -211,7 +215,7 @@ export function getAppleHalfPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 /** Approximate max XZ radius for half-mesh cap scaling. */
-export const APPLE_MAX_XZ = 1.12
+export const APPLE_MAX_XZ = 1.02
 
 /**
  * Y-coordinate of the top pole (cavity floor) after geometry re-centring.

@@ -185,18 +185,22 @@ function buildPineappleCustomGeometry(
   geo.setIndex(indices)
   geo.computeVertexNormals()
 
-  // Re-centre geometry
-  geo.computeBoundingBox()
-  const centre = new THREE.Vector3()
-  geo.boundingBox!.getCenter(centre)
-  if (Math.abs(centre.y) > 1e-5) {
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute
-    for (let i = 0; i < pos.count; i++) {
-      pos.setY(i, pos.getY(i) - centre.y)
-    }
-    pos.needsUpdate = true
+  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
+  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
+  // keep the equator at y=0 so the flesh cap aligns correctly.
+  if (thetaLength >= Math.PI) {
     geo.computeBoundingBox()
-    geo.computeVertexNormals()
+    const centre = new THREE.Vector3()
+    geo.boundingBox!.getCenter(centre)
+    if (Math.abs(centre.y) > 1e-5) {
+      const pos = geo.getAttribute('position') as THREE.BufferAttribute
+      for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, pos.getY(i) - centre.y)
+      }
+      pos.needsUpdate = true
+      geo.computeBoundingBox()
+      geo.computeVertexNormals()
+    }
   }
 
   return geo
