@@ -32,6 +32,8 @@ import { getPlumBodyMaterial } from './plumSkin'
 import { getPlumBodyPolyGeometry, PLUM_TOP_POLE_Y_RATIO } from './plumPolyGeometry'
 import { getPeachBodyMaterial } from './peachSkin'
 import { getPeachBodyPolyGeometry, PEACH_TOP_POLE_Y_RATIO } from './peachPolyGeometry'
+import { getPearBodyMaterial } from './pearSkin'
+import { getPearBodyPolyGeometry, PEAR_TOP_POLE_Y_RATIO } from './pearPolyGeometry'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -96,37 +98,6 @@ function pineappleSkinTexture(): THREE.CanvasTexture {
   return tex
 }
 
-
-
-let pearTex: THREE.CanvasTexture | null = null
-function pearTexture(): THREE.CanvasTexture {
-  if (pearTex) return pearTex
-  const s = 128
-  const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Yellow-green base
-  g.fillStyle = '#b0c040'
-  g.fillRect(0, 0, s, s)
-  // Subtle speckle / lenticels
-  for (let i = 0; i < 200; i++) {
-    g.fillStyle = `rgba(160,140,50,${0.06 + Math.random() * 0.08})`
-    g.beginPath()
-    g.ellipse(Math.random() * s, Math.random() * s, 0.8 + Math.random() * 1.5, 0.5 + Math.random(), 0, 0, Math.PI * 2)
-    g.fill()
-  }
-  // Slight blush
-  const grad = g.createRadialGradient(s * 0.6, s * 0.3, 0, s * 0.6, s * 0.3, s * 0.4)
-  grad.addColorStop(0, 'rgba(220,180,80,0.15)')
-  grad.addColorStop(1, 'rgba(220,180,80,0)')
-  g.fillStyle = grad
-  g.fillRect(0, 0, s, s)
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  pearTex = tex
-  return tex
-}
-
 // ---------------------------------------------------------------------------
 // Cached body materials
 // ---------------------------------------------------------------------------
@@ -148,21 +119,6 @@ function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
 
 
 
-
-let pearBodyMat: THREE.MeshStandardMaterial | null = null
-function pearBodyMaterial(): THREE.MeshStandardMaterial {
-  if (!pearBodyMat) {
-    pearBodyMat = new THREE.MeshStandardMaterial({
-      map: pearTexture(),
-      color: 0xb8c840,
-      roughness: 0.32,
-      metalness: 0,
-      emissive: new THREE.Color(0x404010),
-      emissiveIntensity: 0.08,
-    })
-  }
-  return pearBodyMat
-}
 
 function fruitBodyMaterial(hex: number) {
   const c = new THREE.Color(hex)
@@ -533,47 +489,29 @@ function createPlumMesh(radius: number): THREE.Group {
 
 function createPearMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  // Smoother pear shape — bottom sphere larger, top sphere smaller, with overlap
-  const bottom = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.90, 22, 16),
-    pearBodyMaterial(),
+  const bodyGeo = getPearBodyPolyGeometry(radius)
+  const body = new THREE.Mesh(
+    bodyGeo,
+    getPearBodyMaterial(),
   )
-  bottom.scale.set(1.08, 0.90, 1.08)
-  bottom.position.y = -radius * 0.20
-  bottom.userData.sharedMaterial = true
-  bottom.castShadow = true
-  bottom.receiveShadow = true
-  g.add(bottom)
+  body.castShadow = true
+  body.receiveShadow = true
+  body.userData.sharedMaterial = true
+  g.add(body)
 
-  const top = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.50, 18, 12),
-    pearBodyMaterial(),
-  )
-  top.position.y = radius * 0.45
-  top.scale.set(0.90, 1.12, 0.90)
-  top.userData.sharedMaterial = true
-  top.castShadow = true
-  top.receiveShadow = true
-  g.add(top)
+  // Get the actual top Y from the geometry for accurate stem placement
+  const topY = (bodyGeo as any)._topY ?? (radius * PEAR_TOP_POLE_Y_RATIO)
 
-  // Stem
+  // Stem — woody brown, clearly visible and prominent, slightly tilted
+  const stemH = radius * 0.50
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.035, radius * 0.06, radius * 0.30, 6),
-    new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 0.9 }),
+    new THREE.CylinderGeometry(radius * 0.035, radius * 0.07, stemH, 6),
+    new THREE.MeshBasicMaterial({ color: 0x3d2914, toneMapped: false }),
   )
-  stem.position.y = radius * 0.88
-  stem.rotation.z = 0.08
+  stem.position.y = topY + stemH * 0.50
+  stem.rotation.z = 0.12
   g.add(stem)
 
-  // Small leaf near stem
-  const leaf = new THREE.Mesh(
-    new THREE.CircleGeometry(radius * 0.18, 8),
-    new THREE.MeshStandardMaterial({ color: 0x3a8a3a, roughness: 0.65, side: THREE.DoubleSide }),
-  )
-  leaf.position.set(radius * 0.15, radius * 0.78, 0)
-  leaf.rotation.set(0.5, 0.3, 0.4)
-  leaf.scale.set(1, 0.5, 1)
-  g.add(leaf)
   return g
 }
 
