@@ -2806,3 +2806,144 @@ export function cherrySkinTexture(): THREE.CanvasTexture {
   cherrySkinTex = tex
   return tex
 }
+
+let bombSkinTex: THREE.CanvasTexture | null = null
+export function bombSkinTexture(): THREE.CanvasTexture {
+  if (bombSkinTex) return bombSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki bomb reference:
+  // Wiki bomb is a very dark, near-black metallic sphere.
+  // - body base:        #18181E (very dark grey-black)
+  // - deep shadow:      #0A0A0E (near black)
+  // - highlight:        #2E2E38 (dark grey highlight from metallic sheen)
+  // - band area:        #22222A (slightly lighter band)
+  // - X mark:           #E02020 (bright red cross on front face)
+  const bodyR = 0x18, bodyG = 0x18, bodyB = 0x1E
+  const deepR = 0x0A, deepG = 0x0A, deepB = 0x0E
+  const lightR = 0x2E, lightG = 0x2E, lightB = 0x38
+  const bandR = 0x22, bandG = 0x22, bandB = 0x2A
+  const xR = 0xE0, xG = 0x20, xB = 0x20
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (fuse), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- FBM noise for subtle surface variation ---
+      const n1 = fbm(tu * 10 + 3.1, tv * 12 + 4.5)
+      const n2 = fbm(tu * 20 + 7.2, tv * 22 + 9.8)
+
+      // --- Base color with noise variation ---
+      let r = bodyR + (lightR - bodyR) * n1 * 0.20 + (deepR - bodyR) * (1 - n1) * 0.10
+      let gg = bodyG + (lightG - bodyG) * n1 * 0.20 + (deepG - bodyG) * (1 - n1) * 0.10
+      let b = bodyB + (lightB - bodyB) * n1 * 0.20 + (deepB - bodyB) * (1 - n1) * 0.10
+
+      // --- Fine grain noise (metallic surface micro-texture) ---
+      const grainNoise = fbm(tu * 50 + 15.3, tv * 55 + 20.1)
+      r += (grainNoise - 0.5) * 4
+      gg += (grainNoise - 0.5) * 4
+      b += (grainNoise - 0.5) * 5
+
+      // --- Horizontal band around equator — two thin stripes ---
+      const bandCenter = 0.52
+      // Stripe 1
+      const bandDist1 = Math.abs(tv - (bandCenter - 0.015))
+      const bandMix1 = smoothstep(0.008, 0.0, bandDist1)
+      // Stripe 2
+      const bandDist2 = Math.abs(tv - (bandCenter + 0.015))
+      const bandMix2 = smoothstep(0.008, 0.0, bandDist2)
+      const bandMix = Math.max(bandMix1, bandMix2)
+      r = r * (1 - bandMix * 0.5) + bandR * bandMix * 0.5
+      gg = gg * (1 - bandMix * 0.5) + bandG * bandMix * 0.5
+      b = b * (1 - bandMix * 0.5) + bandB * bandMix * 0.5
+
+      // --- X mark on front face — large, prominent ---
+      const xCenterU = 0.5
+      const xCenterV = 0.52
+
+      const du = tu - xCenterU
+      const dv = tv - xCenterV
+      // Line 1: du - dv = 0  (top-left to bottom-right)
+      const dist1 = Math.abs(du - dv) / Math.SQRT2
+      // Line 2: du + dv = 0  (top-right to bottom-left)
+      const dist2 = Math.abs(du + dv) / Math.SQRT2
+
+      const lineWidth = 0.032
+      const xAlpha1 = smoothstep(lineWidth, lineWidth * 0.1, dist1)
+      const xAlpha2 = smoothstep(lineWidth, lineWidth * 0.1, dist2)
+
+      // Only show X on front face (not wrapping around)
+      const frontFace = smoothstep(0.30, 0.42, tu) * smoothstep(0.70, 0.58, tu)
+      const vertRange = smoothstep(0.36, 0.44, tv) * smoothstep(0.68, 0.60, tv)
+
+      const xAlpha = Math.max(xAlpha1, xAlpha2) * frontFace * vertRange
+
+      r = r * (1 - xAlpha) + xR * xAlpha
+      gg = gg * (1 - xAlpha) + xG * xAlpha
+      b = b * (1 - xAlpha) + xB * xAlpha
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const theta = tu * Math.PI * 2
+      const nlx = Math.sin(phi) * Math.cos(theta)
+      const nly = Math.cos(phi)
+      const nlz = Math.sin(phi) * Math.sin(theta)
+      let ndotl = nlx * Lx + nly * Ly + nlz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Diffuse — dark metallic, moderate diffuse
+      const diffBoost = Math.pow(ndotl, 0.6) * 0.25
+      // Specular — broad metallic sheen + tight highlight
+      const specRaw = Math.pow(ndotl, 3) * 0.12 + Math.pow(ndotl, 12) * 0.25
+
+      const lighting = 1.0 + diffBoost
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: cool metallic highlight
+      r += 200 * specRaw * 0.35
+      gg += 200 * specRaw * 0.35
+      b += 200 * specRaw * 0.45
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.992 + 0.008 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  bombSkinTex = tex
+  return tex
+}

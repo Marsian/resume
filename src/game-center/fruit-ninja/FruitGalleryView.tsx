@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import * as THREE from 'three'
 import { createBombMesh, createFruitMesh } from './game/meshes'
-import { FRUIT_RADIUS } from './game/entityParams'
+import { FRUIT_RADIUS, BOMB_RADIUS } from './game/entityParams'
 import type { FruitArchetype } from './game/spawn'
 import { addDefaultLights, createCamera, createRenderer, createScene, fitRendererToContainer } from './three/engine'
 
@@ -83,10 +83,12 @@ export default function FruitGalleryView() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [searchParams] = useSearchParams()
 
-  const soloKind = useMemo((): FruitArchetype | null => {
+  const soloKind = useMemo((): FruitArchetype | 'bomb' | null => {
     const raw = searchParams.get('fruit')?.trim().toLowerCase()
-    if (!raw || !VALID_FRUIT.has(raw as FruitArchetype)) return null
-    return raw as FruitArchetype
+    if (!raw) return null
+    if (raw === 'bomb') return 'bomb'
+    if (VALID_FRUIT.has(raw as FruitArchetype)) return raw as FruitArchetype
+    return null
   }, [searchParams])
 
   const staticMode = searchParams.get('static') === '1'
@@ -127,12 +129,20 @@ export default function FruitGalleryView() {
     const centerY = 0.55
 
     if (soloKind) {
-      const radius = FRUIT_RADIUS[soloKind]
-      const mesh = createFruitMesh(radius, soloKind, SKIN_BY_KIND[soloKind])
-      mesh.position.set(0, centerY, 0)
-      gridRoot.add(mesh)
-      groups.push(mesh)
-      allNames.push(soloKind)
+      if (soloKind === 'bomb') {
+        const mesh = createBombMesh(BOMB_RADIUS)
+        mesh.position.set(0, centerY, 0)
+        gridRoot.add(mesh)
+        groups.push(mesh)
+        allNames.push('bomb')
+      } else {
+        const radius = FRUIT_RADIUS[soloKind]
+        const mesh = createFruitMesh(radius, soloKind, SKIN_BY_KIND[soloKind])
+        mesh.position.set(0, centerY, 0)
+        gridRoot.add(mesh)
+        groups.push(mesh)
+        allNames.push(soloKind)
+      }
     } else {
       const rows = Math.ceil((FRUIT_KINDS.length + 1) / COLS) // +1 for bomb
       const cellW = 3.2

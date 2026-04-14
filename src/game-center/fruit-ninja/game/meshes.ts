@@ -36,6 +36,8 @@ import { getPearBodyMaterial } from './pearSkin'
 import { getPearBodyPolyGeometry, PEAR_TOP_POLE_Y_RATIO } from './pearPolyGeometry'
 import { getCherryBodyMaterial } from './cherrySkin'
 import { getCherryBodyPolyGeometry, CHERRY_TOP_POLE_Y_RATIO } from './cherryPolyGeometry'
+import { getBombBodyMaterial } from './bombSkin'
+import { getBombBodyPolyGeometry } from './bombPolyGeometry'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -826,47 +828,81 @@ export function createFruitMesh(radius: number, archetype: FruitArchetype, skinH
 /** Classic "bomb": dark shell + fuse + ember */
 export function createBombMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 22, 16),
-    new THREE.MeshStandardMaterial({
-      color: 0x1a1a1f,
-      roughness: 0.35,
-      metalness: 0.65,
-      emissive: new THREE.Color(0x220011),
-      emissiveIntensity: 0.25,
-    }),
-  )
-  shell.castShadow = true
-  shell.receiveShadow = true
-  g.add(shell)
 
-  const band = new THREE.Mesh(
-    new THREE.TorusGeometry(radius * 0.88, radius * 0.06, 8, 28),
-    new THREE.MeshStandardMaterial({ color: 0x2a2a32, metalness: 0.8, roughness: 0.4 }),
-  )
-  band.rotation.x = Math.PI / 2
-  band.castShadow = true
-  g.add(band)
+  // Outline: slightly larger solid-color meshes rendered BEHIND the real meshes.
+  // Depth test hides the front face of the outline — only the rim peeks out as a silhouette.
+  const outlineGap = radius * 0.05          // gap between body and outline
+  const outlineThickness = radius * 0.04    // outline line thickness
+  const outlineRadius = radius + outlineGap + outlineThickness
 
+  // Bomb body — custom poly geometry with procedural texture
+  const body = new THREE.Mesh(
+    getBombBodyPolyGeometry(radius),
+    getBombBodyMaterial(),
+  )
+  body.userData.sharedMaterial = true
+  body.castShadow = true
+  body.receiveShadow = true
+  body.renderOrder = 1
+  g.add(body)
+
+  // Body outline — slightly larger sphere rendered behind, depth test hides front face
+  const bodyOutline = new THREE.Mesh(
+    getBombBodyPolyGeometry(outlineRadius),
+    new THREE.MeshBasicMaterial({ color: 0xdd2020, toneMapped: false }),
+  )
+  bodyOutline.renderOrder = 0
+  g.add(bodyOutline)
+
+  // Fuse — starts INSIDE the bomb body, emerges from top, slightly curved
+  const fuseMat = new THREE.MeshBasicMaterial({ color: 0x5a4530, toneMapped: false })
+  const fuseCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, radius * 0.6, 0), // deep inside bomb body
+    new THREE.Vector3(0, radius * 0.90, 0), // near top surface
+    new THREE.Vector3(radius * 0.03, radius + radius * 0.15, 0), // emerged
+    new THREE.Vector3(-radius * 0.02, radius + radius * 0.30, radius * 0.01),
+    new THREE.Vector3(radius * 0.01, radius + radius * 0.42, 0),
+  ])
+  const fuseTubeRadius = radius * 0.06
   const fuse = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.06, radius * 0.08, radius * 0.55, 8),
-    new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.95 }),
+    new THREE.TubeGeometry(fuseCurve, 10, fuseTubeRadius, 6, false),
+    fuseMat,
   )
-  fuse.position.y = radius * 1.05
-  fuse.castShadow = true
   g.add(fuse)
 
+  // Fuse outline — BackSide inverted hull works for thin tubes:
+  // the front face is the normal fuse, BackSide shell only peeks out at silhouette edges
+  const fuseOutline = new THREE.Mesh(
+    new THREE.TubeGeometry(fuseCurve, 10, fuseTubeRadius + outlineGap + outlineThickness, 6, false),
+    new THREE.MeshBasicMaterial({ color: 0xdd2020, toneMapped: false, side: THREE.BackSide }),
+  )
+  g.add(fuseOutline)
+
+  // Ember / spark at fuse tip — glowing orange-yellow
+  const emberTip = fuseCurve.getPoint(1.0)
   const ember = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.14, 10, 8),
-    new THREE.MeshStandardMaterial({
-      color: 0xffaa33,
-      emissive: new THREE.Color(0xff6600),
-      emissiveIntensity: 1.8,
+    new THREE.SphereGeometry(radius * 0.09, 10, 8),
+    new THREE.MeshBasicMaterial({
+      color: 0xffcc44,
       toneMapped: false,
     }),
   )
-  ember.position.y = radius * 1.35
+  ember.position.copy(emberTip)
   g.add(ember)
+
+  // Inner glow around ember (additive-looking via bright transparent)
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.16, 10, 8),
+    new THREE.MeshBasicMaterial({
+      color: 0xff8800,
+      transparent: true,
+      opacity: 0.40,
+      toneMapped: false,
+      depthWrite: false,
+    }),
+  )
+  glow.position.copy(emberTip)
+  g.add(glow)
 
   return g
 }
