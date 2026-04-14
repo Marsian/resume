@@ -4,7 +4,7 @@ import type { FruitArchetype } from './spawn'
 export const FRUIT_RADIUS: Record<FruitArchetype, number> = {
   // Globally larger fruits; watermelon gets an extra bump.
   watermelon: 1.02,
-  pineapple: 0.63,
+  pineapple: 0.94,
   coconut: 0.6,
   mango: 0.58,
   pear: 0.57,

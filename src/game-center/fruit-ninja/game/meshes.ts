@@ -56,42 +56,76 @@ export function disposeObject3D(root: THREE.Object3D) {
 let pineappleSkinTex: THREE.CanvasTexture | null = null
 function pineappleSkinTexture(): THREE.CanvasTexture {
   if (pineappleSkinTex) return pineappleSkinTex
-  const s = 128
+  const sW = 512, sH = 512
   const c = document.createElement('canvas')
-  c.width = s; c.height = s
-  const g = c.getContext('2d')!
-  // Golden-brown base
-  g.fillStyle = '#c49420'
-  g.fillRect(0, 0, s, s)
-  // Hexagonal / diamond scale pattern
-  const cellW = 14, cellH = 12
-  for (let row = -1; row < s / cellH + 1; row++) {
-    const offsetX = (row % 2) * (cellW / 2)
-    for (let col = -1; col < s / cellW + 1; col++) {
+  c.width = sW; c.height = sH
+  const ctx = c.getContext('2d')!
+
+  // Dark brown border color — gaps between diamonds form scale grooves (wiki: dark brown ~#1F1508)
+  ctx.fillStyle = '#1F1508'
+  ctx.fillRect(0, 0, sW, sH)
+
+  // Diamond scale pattern — wiki: clearly visible large diamond scales with dark grooves
+  // Per-row coloring calibrated to wiki: uniform warm orange-gold throughout
+  // Canvas y=0 → cylinder top (near leaves), y=sH → cylinder base
+  const cellW = 32, cellH = 42
+  const gap = 4
+  for (let row = -1; row < sH / cellH + 2; row++) {
+    const offsetX = (row % 2) * (cellW * 0.5)
+    for (let col = -1; col < sW / cellW + 2; col++) {
       const cx = col * cellW + offsetX
       const cy = row * cellH
-      // Dark outline
-      g.strokeStyle = '#6a4a12'
-      g.lineWidth = 1.5
-      g.beginPath()
-      g.moveTo(cx, cy + cellH * 0.5)
-      g.lineTo(cx + cellW * 0.5, cy)
-      g.lineTo(cx + cellW, cy + cellH * 0.5)
-      g.lineTo(cx + cellW * 0.5, cy + cellH)
-      g.closePath()
-      g.stroke()
-      // Highlight dot at center
-      g.fillStyle = 'rgba(255,220,120,0.25)'
-      g.beginPath()
-      g.arc(cx + cellW * 0.5, cy + cellH * 0.5, 2, 0, Math.PI * 2)
-      g.fill()
+      // Vertical position ratio (0=top, 1=bottom)
+      const t = Math.min(1, Math.max(0, cy / sH))
+      // Wiki-calibrated: uniform warm orange-gold; very subtle top-to-bottom shift
+      const r = Math.round(235 + 10 * t)
+      const gr = Math.round(135 - 10 * t)
+      const b = Math.round(15 + 5 * t)
+      const grd = ctx.createRadialGradient(
+        cx + cellW * 0.5, cy + cellH * 0.5, 0,
+        cx + cellW * 0.5, cy + cellH * 0.5, cellW * 0.50,
+      )
+      grd.addColorStop(0, `rgb(${r},${gr},${b})`)
+      grd.addColorStop(0.55, `rgb(${Math.round(r * 0.90)},${Math.round(gr * 0.87)},${Math.round(b * 0.72)})`)
+      grd.addColorStop(1, `rgb(${Math.round(r * 0.58)},${Math.round(gr * 0.52)},${Math.round(b * 0.32)})`)
+      ctx.fillStyle = grd
+      ctx.beginPath()
+      ctx.moveTo(cx + gap, cy + cellH * 0.5)
+      ctx.lineTo(cx + cellW * 0.5, cy + gap)
+      ctx.lineTo(cx + cellW - gap, cy + cellH * 0.5)
+      ctx.lineTo(cx + cellW * 0.5, cy + cellH - gap)
+      ctx.closePath()
+      ctx.fill()
+
+      // Central spine/barb on each scale — wiki: pointed dark bump at center of each diamond
+      const centerX = cx + cellW * 0.5
+      const centerY = cy + cellH * 0.5
+      ctx.fillStyle = `rgb(${Math.round(r * 0.35)},${Math.round(gr * 0.30)},${Math.round(b * 0.20)})`
+      ctx.beginPath()
+      ctx.moveTo(centerX - 3, centerY + 2.5)
+      ctx.lineTo(centerX, centerY - 5)
+      ctx.lineTo(centerX + 3, centerY + 2.5)
+      ctx.closePath()
+      ctx.fill()
     }
   }
+
+  // Green gradient overlay at both ends — wiki: top near crown and bottom tip show green tint
+  // Top green fade (canvas y=0 is cylinder top near leaves)
+  const topGrad = ctx.createLinearGradient(0, 0, 0, sH * 0.18)
+  topGrad.addColorStop(0, 'rgba(50,100,20,0.45)')
+  topGrad.addColorStop(1, 'rgba(50,100,20,0)')
+  ctx.fillStyle = topGrad
+  ctx.fillRect(0, 0, sW, sH * 0.18)
+  // Bottom green fade
+  const botGrad = ctx.createLinearGradient(0, sH * 0.82, 0, sH)
+  botGrad.addColorStop(0, 'rgba(50,100,20,0)')
+  botGrad.addColorStop(1, 'rgba(50,100,20,0.35)')
+  ctx.fillStyle = botGrad
+  ctx.fillRect(0, sH * 0.82, sW, sH * 0.18)
+
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.wrapS = THREE.RepeatWrapping
-  tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(3, 4)
   pineappleSkinTex = tex
   return tex
 }
@@ -131,16 +165,12 @@ function pearTexture(): THREE.CanvasTexture {
 // Cached body materials
 // ---------------------------------------------------------------------------
 
-let pineappleBodyMat: THREE.MeshStandardMaterial | null = null
-function pineappleBodyMaterial(): THREE.MeshStandardMaterial {
+let pineappleBodyMat: THREE.MeshBasicMaterial | null = null
+function pineappleBodyMaterial(): THREE.MeshBasicMaterial {
   if (!pineappleBodyMat) {
-    pineappleBodyMat = new THREE.MeshStandardMaterial({
+    pineappleBodyMat = new THREE.MeshBasicMaterial({
       map: pineappleSkinTexture(),
-      color: 0xd4a840,
-      roughness: 0.50,
-      metalness: 0,
-      emissive: new THREE.Color(0x4a3a10),
-      emissiveIntensity: 0.15,
+      color: 0xffffff,
     })
   }
   return pineappleBodyMat
@@ -324,51 +354,132 @@ function createMangoMesh(radius: number, _skinHex: number): THREE.Group {
 
 function createPineappleMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
-  // Rounder body shape — egg/ovoid instead of pure cylinder
+
+  // Wiki: near-cylinder with rounded ends, minimal mid-body bulge
+  const bodyRadius = radius * 0.55
+  const bodyHeight = bodyRadius * 1.98
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.85, 22, 18),
+    new THREE.CylinderGeometry(bodyRadius * 0.81, bodyRadius * 0.83, bodyHeight, 28, 12, false),
     pineappleBodyMaterial(),
   )
-  // Squash into barrel shape
-  body.scale.set(0.82, 1.0, 0.82)
-  body.position.y = -radius * 0.08
+  // Minimal bulge + rounded ends: wiki shows near-cylinder with just a hint of roundness at ends
+  const pos = body.geometry.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i)
+    const nY = (y + bodyHeight * 0.5) / bodyHeight // 0=bottom, 1=top
+    // Very subtle bulge: wiki pineapple is nearly cylindrical
+    const bulge = 1.0 + 0.08 * Math.sin(nY * Math.PI)
+    // Slight top taper
+    const topTaper = 1.0 - 0.05 * nY * nY
+    // Ends: pinch inward at both caps
+    const distFromCenter = Math.sqrt(x * x + z * z)
+    const edgeFactor = bodyRadius > 0 ? distFromCenter / bodyRadius : 0
+    let radScale = bulge * topTaper
+    const capZone = 0.07
+    if (nY < capZone || nY > 1.0 - capZone) {
+      const poleN = nY < 0.5 ? nY / capZone : (1.0 - nY) / capZone
+      radScale *= 1.0 - (1.0 - poleN) * edgeFactor * 0.17
+    }
+    pos.setX(i, x * radScale)
+    pos.setY(i, y)
+    pos.setZ(i, z * radScale)
+  }
+  pos.needsUpdate = true
+  body.geometry.computeVertexNormals()
   body.userData.sharedMaterial = true
-  body.castShadow = true
-  body.receiveShadow = true
   g.add(body)
 
-  // Elaborate leaf crown — multiple tiers of longer, thinner leaves
-  const leafMat = new THREE.MeshStandardMaterial({
-    color: 0x2a8a2a,
-    roughness: 0.60,
+  // Leaf crown — wiki: dense cluster of narrow dark green blades, relatively upright, narrow top
+  const leafMat = new THREE.MeshBasicMaterial({
+    color: 0x145a14,
     side: THREE.DoubleSide,
-    emissive: new THREE.Color(0x0a2a0a),
-    emissiveIntensity: 0.15,
   })
-  // Inner crown — tall narrow leaves
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + 0.3
-    const leaf = new THREE.Mesh(
-      new THREE.ConeGeometry(radius * 0.12, radius * 0.75, 5),
-      leafMat,
-    )
-    leaf.position.set(Math.cos(a) * radius * 0.08, radius * 0.65, Math.sin(a) * radius * 0.08)
-    leaf.rotation.set(0.15, a, 0.08)
-    leaf.castShadow = true
-    g.add(leaf)
+  // Slightly lighter yellow-green for inner/base leaves that show through
+  const leafMatLight = new THREE.MeshBasicMaterial({
+    color: 0x2a8a20,
+    side: THREE.DoubleSide,
+  })
+
+  // Two leaf sizes: taller inner leaves, shorter outer leaves
+  // Wiki: leaves are narrow sword-like blades, forming a compact cluster
+  const leafLenInner = bodyHeight * 0.78
+  const leafLenOuter = bodyHeight * 0.62
+  const leafW = radius * 0.30
+
+  function makeLeafShape(len: number): THREE.Shape {
+    const shape = new THREE.Shape()
+    shape.moveTo(0, 0)
+    // Broader at base, quickly tapering to narrow sword tip
+    shape.bezierCurveTo(leafW * 0.9, len * 0.01, leafW * 0.30, len * 0.12, leafW * 0.02, len * 0.90)
+    shape.lineTo(0, len)
+    shape.lineTo(-leafW * 0.02, len * 0.90)
+    shape.bezierCurveTo(-leafW * 0.30, len * 0.12, -leafW * 0.9, len * 0.01, 0, 0)
+    return shape
   }
-  // Outer crown — wider shorter leaves spreading outward
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2
-    const leaf = new THREE.Mesh(
-      new THREE.ConeGeometry(radius * 0.18, radius * 0.50, 5),
-      leafMat,
-    )
-    leaf.position.set(Math.cos(a) * radius * 0.18, radius * 0.48, Math.sin(a) * radius * 0.18)
-    leaf.rotation.set(0.55 + Math.random() * 0.15, a, 0.15)
-    leaf.castShadow = true
-    g.add(leaf)
+  const leafGeoInner = new THREE.ShapeGeometry(makeLeafShape(leafLenInner))
+  const leafGeoOuter = new THREE.ShapeGeometry(makeLeafShape(leafLenOuter))
+
+  const crownY = bodyHeight * 0.5
+
+  // Dense, upright crown — wider leaf spacing to cover more of the top
+  const leafConfigs = [
+    // Center upright: 4 inner tall leaves (dense core)
+    { angle: 0.0, tilt: 0.03, scale: 1.0, inner: true, light: true },
+    { angle: 0.35, tilt: 0.05, scale: 0.97, inner: true, light: false },
+    { angle: -0.30, tilt: 0.04, scale: 0.98, inner: true, light: true },
+    { angle: 0.15, tilt: 0.02, scale: 0.96, inner: true, light: false },
+    // Inner ring: 5 leaves slight tilt
+    { angle: 0.80, tilt: 0.12, scale: 0.94, inner: true, light: true },
+    { angle: -0.75, tilt: 0.10, scale: 0.95, inner: true, light: false },
+    { angle: 1.50, tilt: 0.18, scale: 0.90, inner: true, light: true },
+    { angle: -1.45, tilt: 0.16, scale: 0.91, inner: true, light: false },
+    { angle: 1.15, tilt: 0.14, scale: 0.92, inner: true, light: true },
+    // Mid ring: 5 shorter leaves with moderate tilt
+    { angle: 1.05, tilt: 0.28, scale: 0.88, inner: false, light: false },
+    { angle: -1.00, tilt: 0.25, scale: 0.89, inner: false, light: true },
+    { angle: 2.00, tilt: 0.38, scale: 0.82, inner: false, light: false },
+    { angle: -1.95, tilt: 0.35, scale: 0.83, inner: false, light: true },
+    { angle: 1.55, tilt: 0.32, scale: 0.85, inner: false, light: false },
+    // Outer ring: 3 shorter leaves with more outward flare
+    { angle: 2.50, tilt: 0.60, scale: 0.78, inner: false, light: false },
+    { angle: -2.45, tilt: 0.58, scale: 0.79, inner: false, light: false },
+    { angle: 2.90, tilt: 0.72, scale: 0.76, inner: false, light: false },
+    // Back center: 4 inner tall leaves (dense core)
+    { angle: Math.PI, tilt: 0.03, scale: 1.0, inner: true, light: true },
+    { angle: Math.PI + 0.35, tilt: 0.05, scale: 0.97, inner: true, light: false },
+    { angle: Math.PI - 0.30, tilt: 0.04, scale: 0.98, inner: true, light: true },
+    { angle: Math.PI + 0.15, tilt: 0.02, scale: 0.96, inner: true, light: false },
+    // Back inner ring: 5 leaves
+    { angle: Math.PI + 0.80, tilt: 0.14, scale: 0.93, inner: true, light: true },
+    { angle: Math.PI - 0.75, tilt: 0.12, scale: 0.94, inner: true, light: false },
+    { angle: Math.PI + 1.50, tilt: 0.20, scale: 0.89, inner: true, light: true },
+    { angle: Math.PI - 1.45, tilt: 0.18, scale: 0.90, inner: true, light: false },
+    { angle: Math.PI + 1.15, tilt: 0.16, scale: 0.91, inner: true, light: true },
+    // Back mid: 5 shorter leaves
+    { angle: Math.PI + 1.05, tilt: 0.30, scale: 0.87, inner: false, light: false },
+    { angle: Math.PI - 1.00, tilt: 0.28, scale: 0.88, inner: false, light: true },
+    { angle: Math.PI + 2.00, tilt: 0.40, scale: 0.81, inner: false, light: false },
+    { angle: Math.PI - 1.95, tilt: 0.38, scale: 0.82, inner: false, light: true },
+    { angle: Math.PI + 1.55, tilt: 0.35, scale: 0.84, inner: false, light: false },
+    // Back outer: 3 leaves with more outward flare
+    { angle: Math.PI + 2.50, tilt: 0.62, scale: 0.77, inner: false, light: false },
+    { angle: Math.PI - 2.45, tilt: 0.60, scale: 0.78, inner: false, light: false },
+    { angle: Math.PI + 2.90, tilt: 0.74, scale: 0.75, inner: false, light: false },
+  ]
+  for (const cfg of leafConfigs) {
+    const wrapper = new THREE.Group()
+    wrapper.position.y = crownY
+    wrapper.rotation.y = cfg.angle
+    const pivot = new THREE.Group()
+    pivot.rotation.z = cfg.tilt
+    const mat = cfg.light ? leafMatLight : leafMat
+    const leaf = new THREE.Mesh(cfg.inner ? leafGeoInner : leafGeoOuter, mat)
+    leaf.scale.setScalar(cfg.scale)
+    pivot.add(leaf)
+    wrapper.add(pivot)
+    g.add(wrapper)
   }
+
   return g
 }
 
