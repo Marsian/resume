@@ -7,6 +7,7 @@ import { getKiwiHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
 import { getPlumHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
 import { getCherryHalfPolyGeometry, CHERRY_MAX_XZ } from './cherryPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
+import { createBananaSpineCurve, bananaGirthScale, applyTubeRadiusProfile } from './bananaGeometry'
 import { getWatermelonBodyMaterial } from './watermelonSkin'
 import {
   getWatermelonHalfPolyGeometry,
@@ -527,29 +528,38 @@ export function createFruitHalfMesh(
   let curved: THREE.Mesh
   let capScale = radius
   if (fruitType === 'banana') {
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, -radius * 0.95, 0),
-      new THREE.Vector3(radius * 0.25, -radius * 0.45, radius * 0.12),
-      new THREE.Vector3(radius * 0.7, radius * 0.15, radius * 0.06),
-      new THREE.Vector3(radius * 1.0, radius * 0.65, -radius * 0.08),
-      new THREE.Vector3(radius * 0.85, radius * 0.95, -radius * 0.18),
-    ])
-    const t0 = sideSign < 0 ? 0.0 : 0.52
-    const t1 = sideSign < 0 ? 0.52 : 1.0
-    const pts: THREE.Vector3[] = []
-    const steps = 10
-    for (let i = 0; i <= steps; i++) {
-      const t = t0 + ((t1 - t0) * i) / steps
-      pts.push(curve.getPoint(t))
+    const curve = createBananaSpineCurve(radius)
+    const baseR = radius * 0.36
+    const tubularSegments = 56
+    const radialSegments = 10
+    const geo = new THREE.TubeGeometry(curve, tubularSegments, baseR, radialSegments, false)
+    applyTubeRadiusProfile(geo, curve, baseR, bananaGirthScale)
+
+    // Find the spine point closest to y=0 — that is the cross-section centre
+    let cutT = 0.5
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100
+      if (curve.getPointAt(t).y >= 0) { cutT = t; break }
     }
-    const sub = new THREE.CatmullRomCurve3(pts)
-    const tubeR = radius * 0.38
-    const geo = new THREE.TubeGeometry(sub, 14, tubeR, 10, false)
-    const cutT = 0.52
-    const cutP = curve.getPoint(cutT)
-    geo.translate(-cutP.x, -cutP.y, -cutP.z)
+    const cutPoint = curve.getPointAt(cutT)
+
+    // Slice the tube horizontally: keep only the top half (y >= 0) or bottom half
+    // (y <= 0) by clamping vertex Y to the equator plane.
+    const pos = geo.attributes.position as THREE.BufferAttribute
+    const isTop = sideSign < 0 // sideSign < 0 → top half
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i)
+      if (isTop && y < 0) pos.setY(i, 0)
+      else if (!isTop && y > 0) pos.setY(i, 0)
+    }
+    pos.needsUpdate = true
+    geo.computeVertexNormals()
+
     curved = new THREE.Mesh(geo, getSkinMatForFruit('banana', skinColor))
-    capScale = tubeR * 1.01
+    // Cap scale: slightly smaller than cross-section to stay inside the peel
+    capScale = baseR * bananaGirthScale(0.5) * 0.75
+    // Store cutPoint for disc positioning later (after cap creation)
+    ;(g as any).__bananaCutPoint = cutPoint
   } else if (fruitType === 'watermelon') {
     curved = new THREE.Mesh(getWatermelonHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
     capScale = radius * Math.max(WATERMELON_AX, WATERMELON_AZ) * 1.01
@@ -607,20 +617,97 @@ export function createFruitHalfMesh(
   // The cap (flesh disc) sits at the equator cut.  It must face *inward* toward the
   // curved half-shell so the flesh texture is visible from outside the other half.
   //
-  // Before the group quaternion is applied the half-shell spans y ∈ [0, +r] (upper
-  // hemisphere).  The cap should face -Y (into the half-shell interior) so it is
-  // visible from below, which is the side a viewer sees.
+  // For spherical fruits: before the group quaternion is applied the half-shell spans
+  // y ∈ [0, +r] (upper hemisphere).  The cap faces -Y (visible from below).  The
+  // bottom-half group is rotated 180° which flips both shell and cap, so the cap then
+  // faces +Y (visible from above).
   //
-  // For the bottom half the group is rotated 180°, which flips both the shell and
-  // the cap — the cap then faces +Y, visible from above.  Correct in both cases.
-  const cap = new THREE.Mesh(sharedCap, getFleshMatForFruit(fruitType, fleshColor))
-  cap.scale.setScalar(capScale)
-  cap.rotation.x = Math.PI / 2
-  cap.position.y = 0.0015
-  cap.castShadow = false
-  cap.receiveShadow = false
-  cap.userData.sharedPool = true
-  g.add(cap)
+  // For banana: no group rotation, so the top-half cap must face -Y (visible from
+  // below) and the bottom-half cap must face +Y (visible from above).
+  const isTopHalf = sideSign < 0
+  if (fruitType === 'banana') {
+    // Banana gets a dedicated flesh disc with its own texture — yellow skin ring,
+    // white cream interior, fiber lines, and tiny seed spots.
+    const discR = capScale * 1.10 // 10% larger
+    const discGeo = new THREE.CircleGeometry(discR, 20)
+    const texSize = 128
+    const texC = document.createElement('canvas')
+    texC.width = texSize; texC.height = texSize
+    const tc = texC.getContext('2d')!
+    const cx = texSize / 2, cy = texSize / 2, outerR = texSize / 2 - 2
+
+    // Yellow skin ring (peel)
+    const skinGrad = tc.createRadialGradient(cx, cy, outerR * 0.62, cx, cy, outerR)
+    skinGrad.addColorStop(0, '#f0c830')
+    skinGrad.addColorStop(0.4, '#dab028')
+    skinGrad.addColorStop(1, '#b89018')
+    tc.fillStyle = skinGrad
+    tc.beginPath()
+    tc.arc(cx, cy, outerR, 0, Math.PI * 2)
+    tc.fill()
+
+    // White/cream flesh interior
+    const fleshR = outerR * 0.62
+    const fleshGrad = tc.createRadialGradient(cx, cy, 3, cx, cy, fleshR)
+    fleshGrad.addColorStop(0, '#fffff8')
+    fleshGrad.addColorStop(1, '#fff5e0')
+    tc.fillStyle = fleshGrad
+    tc.beginPath()
+    tc.arc(cx, cy, fleshR, 0, Math.PI * 2)
+    tc.fill()
+
+    // Fiber lines
+    tc.strokeStyle = 'rgba(255,255,240,0.22)'
+    tc.lineWidth = 0.8
+    for (let i = 0; i < 50; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r0 = 3 + Math.random() * 6
+      const r1 = fleshR * (0.7 + Math.random() * 0.25)
+      tc.beginPath()
+      tc.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0)
+      tc.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1)
+      tc.stroke()
+    }
+
+    // Tiny seed dots
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2
+      const r = 2 + Math.random() * 8
+      tc.fillStyle = 'rgba(80,60,30,0.18)'
+      tc.beginPath()
+      tc.ellipse(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 1.2, 2, a, 0, Math.PI * 2)
+      tc.fill()
+    }
+
+    const discTex = new THREE.CanvasTexture(texC)
+    discTex.colorSpace = THREE.SRGBColorSpace
+    const discMat = new THREE.MeshStandardMaterial({
+      map: discTex,
+      roughness: 0.58,
+      metalness: 0,
+      side: THREE.DoubleSide,
+    })
+    const disc = new THREE.Mesh(discGeo, discMat)
+    disc.rotation.x = isTopHalf ? Math.PI / 2 : -Math.PI / 2
+    // Position disc at the spine's cross-section centre, shifted 10% toward it
+    const cutPt = (g as any).__bananaCutPoint as THREE.Vector3
+    const shiftX = cutPt.x
+    const shiftZ = cutPt.z
+    disc.position.set(shiftX, isTopHalf ? -0.005 : 0.005, shiftZ)
+    disc.castShadow = false
+    disc.receiveShadow = false
+    g.add(disc)
+    delete (g as any).__bananaCutPoint
+  } else {
+    const cap = new THREE.Mesh(sharedCap, getFleshMatForFruit(fruitType, fleshColor))
+    cap.scale.setScalar(capScale)
+    cap.rotation.x = Math.PI / 2
+    cap.position.y = 0.0015
+    cap.castShadow = false
+    cap.receiveShadow = false
+    cap.userData.sharedPool = true
+    g.add(cap)
+  }
 
   // Apple stem on the top half
   if (fruitType === 'apple' && n.y > 0.5) {
@@ -635,7 +722,12 @@ export function createFruitHalfMesh(
     g.add(stem)
   }
 
-  g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
+  // For spherical fruits, rotating the group so local +Y aligns with the outward
+  // normal correctly flips the bottom half.  For banana the tube is asymmetric —
+  // rotating 180° would swap head/tail, so skip the group rotation entirely.
+  if (fruitType !== 'banana') {
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
+  }
   return g
 }
 
