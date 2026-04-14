@@ -41,7 +41,7 @@ const SKIN_BY_KIND: Record<FruitArchetype, number> = {
   pear: 0xb8c840,
   peach: 0xff9a6a,
   passionfruit: 0x6b3828,
-  cherry: 0xa81028,
+  cherry: 0xb81028,
 }
 
 const COLS = 4

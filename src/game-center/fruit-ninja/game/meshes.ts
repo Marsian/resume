@@ -760,57 +760,129 @@ function createPassionfruitMesh(radius: number): THREE.Group {
 function createCherryMesh(radius: number, skinHex: number): THREE.Group {
   const g = new THREE.Group()
 
-  // Glossy cherry material with high specular
+  // Glossy cherry material
   const cherryMat = new THREE.MeshStandardMaterial({
     color: skinHex,
-    roughness: 0.15,
-    metalness: 0.08,
-    emissive: new THREE.Color(skinHex).multiplyScalar(0.08),
+    roughness: 0.08,
+    metalness: 0.05,
+    emissive: new THREE.Color(skinHex).multiplyScalar(0.05),
     emissiveIntensity: 1,
   })
 
-  // Two cherry spheres — slightly heart-shaped (vertically stretched)
-  const r1 = radius * 0.58
-  const left = new THREE.Mesh(new THREE.SphereGeometry(r1, 18, 14), cherryMat)
-  left.position.set(-radius * 0.35, -radius * 0.10, 0)
-  left.scale.set(0.95, 1.08, 0.95) // slightly taller = heart-like
+  // Helper: create a cherry sphere with a sharp dimple (indentation) at the top
+  function cherrySphere(r: number): THREE.BufferGeometry {
+    const geo = new THREE.SphereGeometry(r, 32, 24)
+    const pos = geo.attributes.position
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i)
+      const x = pos.getX(i)
+      const z = pos.getZ(i)
+      // Top region: push vertices inward to create a sharp dimple
+      if (y > r * 0.65) {
+        const t = (y - r * 0.65) / (r * 0.35) // 0..1
+        // Use cubic for sharper transition near the pole
+        const indent = t * t * t * r * 0.55
+        // Push radially inward from the top pole
+        const dx = x * indent / r
+        const dz = z * indent / r
+        const dy = -indent * 0.6
+        pos.setXYZ(i, x - dx, y + dy, z - dz)
+      }
+    }
+    geo.computeVertexNormals()
+    return geo
+  }
+
+  // Two equal cherry spheres with top dimple — well separated, no overlap
+  const r1 = radius * 0.50
+  const leftGeo = cherrySphere(r1)
+  const left = new THREE.Mesh(leftGeo, cherryMat)
+  left.position.set(-radius * 0.60, -radius * 0.02, 0)
+  left.scale.set(1.10, 0.96, 1.10) // wider than tall
   left.castShadow = true
   g.add(left)
 
-  const right = new THREE.Mesh(new THREE.SphereGeometry(r1 * 0.95, 18, 14), cherryMat)
-  right.position.set(radius * 0.35, -radius * 0.06, radius * 0.05)
-  right.scale.set(0.95, 1.08, 0.95)
+  const rightGeo = cherrySphere(r1)
+  const right = new THREE.Mesh(rightGeo, cherryMat)
+  right.position.set(radius * 0.60, -radius * 0.02, radius * 0.02)
+  right.scale.set(1.10, 0.96, 1.10)
   right.castShadow = true
   g.add(right)
 
-  // Longer, more elegant curved stem
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x3a5818, roughness: 0.75, metalness: 0 })
-  const stemCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-radius * 0.20, radius * 0.15, 0),
-    new THREE.Vector3(-radius * 0.05, radius * 0.55, radius * 0.04),
-    new THREE.Vector3(radius * 0.08, radius * 0.90, -radius * 0.02),
-    new THREE.Vector3(radius * 0.05, radius * 1.15, 0),
+  // Y-shaped stem — two stems from each cherry joining, then a short vertical top stem
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x3a5818, roughness: 0.7, metalness: 0 })
+  const stemRadius = radius * 0.024
+
+  // Junction point where the two stems meet
+  const junctionY = radius * 1.15
+
+  // Left stem: from top of left cherry curving up to junction
+  const leftStemCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-radius * 0.55, radius * 0.25, 0),
+    new THREE.Vector3(-radius * 0.40, radius * 0.55, radius * 0.02),
+    new THREE.Vector3(-radius * 0.20, radius * 0.88, -radius * 0.01),
+    new THREE.Vector3(0, junctionY, 0),
   ])
-  const stem = new THREE.Mesh(
-    new THREE.TubeGeometry(stemCurve, 12, radius * 0.025, 6, false),
+  const leftStem = new THREE.Mesh(
+    new THREE.TubeGeometry(leftStemCurve, 14, stemRadius, 6, false),
     stemMat,
   )
-  g.add(stem)
+  g.add(leftStem)
 
-  // Small highlight spheres for glossy look
+  // Right stem: from top of right cherry curving up to junction
+  const rightStemCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(radius * 0.58, radius * 0.25, radius * 0.02),
+    new THREE.Vector3(radius * 0.42, radius * 0.55, radius * 0.01),
+    new THREE.Vector3(radius * 0.20, radius * 0.88, -radius * 0.01),
+    new THREE.Vector3(0, junctionY, 0),
+  ])
+  const rightStem = new THREE.Mesh(
+    new THREE.TubeGeometry(rightStemCurve, 14, stemRadius, 6, false),
+    stemMat,
+  )
+  g.add(rightStem)
+
+  // Short vertical top stem continuing upward from junction
+  const topStemCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, junctionY, 0),
+    new THREE.Vector3(radius * 0.01, junctionY + radius * 0.18, 0),
+    new THREE.Vector3(-radius * 0.01, junctionY + radius * 0.35, 0),
+  ])
+  const topStem = new THREE.Mesh(
+    new THREE.TubeGeometry(topStemCurve, 8, stemRadius * 0.85, 6, false),
+    stemMat,
+  )
+  g.add(topStem)
+
+  // Highlight spheres for glossy look — prominent specular highlights
   const hlMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 0.1,
+    roughness: 0.05,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.35,
     depthWrite: false,
   })
-  const hl1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 8, 6), hlMat)
-  hl1.position.set(-radius * 0.50, radius * 0.08, radius * 0.42)
+  const hl1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.12, 10, 8), hlMat)
+  hl1.position.set(-radius * 0.70, radius * 0.08, radius * 0.38)
   g.add(hl1)
-  const hl2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.08, 8, 6), hlMat)
-  hl2.position.set(radius * 0.22, radius * 0.12, radius * 0.46)
+  const hl2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.10, 10, 8), hlMat)
+  hl2.position.set(radius * 0.50, radius * 0.12, radius * 0.40)
   g.add(hl2)
+
+  // Secondary smaller highlight for extra wet-look
+  const hl2Mat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.05,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  })
+  const hl3 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.05, 8, 6), hl2Mat)
+  hl3.position.set(-radius * 0.45, radius * 0.22, radius * 0.35)
+  g.add(hl3)
+  const hl4 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.04, 8, 6), hl2Mat)
+  hl4.position.set(radius * 0.70, radius * 0.20, radius * 0.32)
+  g.add(hl4)
 
   return g
 }
