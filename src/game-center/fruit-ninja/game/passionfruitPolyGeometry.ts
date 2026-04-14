@@ -16,6 +16,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 40
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<number, THREE.BufferGeometry>()
 
 /**
  * Passionfruit profile deformation for a unit-sphere vertex.
@@ -167,3 +168,15 @@ export function getPassionfruitBodyPolyGeometry(radius: number): THREE.BufferGeo
   }
   return g
 }
+
+export function getPassionfruitHalfPolyGeometry(radius: number): THREE.BufferGeometry {
+  let g = halfCache.get(radius)
+  if (!g) {
+    g = buildPassionfruitCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    halfCache.set(radius, g)
+  }
+  return g
+}
+
+/** Approximate max XZ radius for half-mesh cap scaling. */
+export const PASSIONFRUIT_MAX_XZ = 1.02

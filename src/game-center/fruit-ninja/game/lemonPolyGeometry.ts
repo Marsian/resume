@@ -11,6 +11,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 48
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<number, THREE.BufferGeometry>()
 
 /** Lemon profile deformation for a unit-sphere vertex at normalised height h in [-1, +1]. */
 function lemonDeform(nx: number, ny: number, nz: number, radius: number): [number, number, number] {
@@ -163,3 +164,15 @@ export function getLemonBodyPolyGeometry(radius: number): THREE.BufferGeometry {
   }
   return g
 }
+
+export function getLemonHalfPolyGeometry(radius: number): THREE.BufferGeometry {
+  let g = halfCache.get(radius)
+  if (!g) {
+    g = buildLemonCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    halfCache.set(radius, g)
+  }
+  return g
+}
+
+/** Approximate max XZ radius for half-mesh cap scaling. */
+export const LEMON_MAX_XZ = 0.97

@@ -18,6 +18,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 const LON_SEGMENTS = 48
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<number, THREE.BufferGeometry>()
 
 /**
  * Lime deformation: barrel/drum shape.
@@ -204,3 +205,15 @@ export function getLimeBodyPolyGeometry(radius: number): THREE.BufferGeometry {
   }
   return g
 }
+
+export function getLimeHalfPolyGeometry(radius: number): THREE.BufferGeometry {
+  let g = halfCache.get(radius)
+  if (!g) {
+    g = buildLimeCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    halfCache.set(radius, g)
+  }
+  return g
+}
+
+/** Approximate max XZ radius for half-mesh cap scaling. */
+export const LIME_MAX_XZ = 0.79

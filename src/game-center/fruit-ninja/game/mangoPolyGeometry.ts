@@ -16,6 +16,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 48
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<number, THREE.BufferGeometry>()
 
 /**
  * Mango profile deformation for a unit-sphere vertex at normalised height h in [-1, +1].
@@ -190,3 +191,15 @@ export function getMangoBodyPolyGeometry(radius: number): THREE.BufferGeometry {
   }
   return g
 }
+
+export function getMangoHalfPolyGeometry(radius: number): THREE.BufferGeometry {
+  let g = halfCache.get(radius)
+  if (!g) {
+    g = buildMangoCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    halfCache.set(radius, g)
+  }
+  return g
+}
+
+/** Approximate max XZ radius for half-mesh cap scaling. */
+export const MANGO_MAX_XZ = 0.93

@@ -141,7 +141,7 @@ function pineappleSkinTexture(): THREE.CanvasTexture {
 // ---------------------------------------------------------------------------
 
 let pineappleBodyMat: THREE.MeshBasicMaterial | null = null
-function pineappleBodyMaterial(): THREE.MeshBasicMaterial {
+export function pineappleBodyMaterial(): THREE.MeshBasicMaterial {
   if (!pineappleBodyMat) {
     pineappleBodyMat = new THREE.MeshBasicMaterial({
       map: pineappleSkinTexture(),
