@@ -2492,3 +2492,190 @@ export function plumSkinTexture(): THREE.CanvasTexture {
   plumSkinTex = tex
   return tex
 }
+
+let pearSkinTex: THREE.CanvasTexture | null = null
+
+/** Call after editing pear skin generation so the next `pearSkinTexture()` rebuilds the canvas. */
+export function resetPearSkinTextureCache(): void {
+  pearSkinTex = null
+}
+
+/**
+ * Pear skin texture: warm golden-yellow-green with subtle lenticels
+ * and a russet/amber blush on one side.
+ *
+ * Wiki pear reference palette:
+ * - Body: warm golden yellow-green #C4B44C
+ * - Blush: warm amber/russet #CC8830
+ * - Neck/shoulder: slightly greener #9AA030
+ * - Stem area: brownish #8A7A30
+ * - Lenticels: pale yellowish #D8CC70
+ */
+export function pearSkinTexture(): THREE.CanvasTexture {
+  if (pearSkinTex) return pearSkinTex
+  const s = 512
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  const img = g.createImageData(s, s)
+  const data = img.data
+
+  // Palette sampled from wiki pear reference:
+  const bodyR = 0xd8, bodyG = 0xc4, bodyB = 0x4c   // warm golden yellow (brighter)
+  const greenR = 0xb4, greenG = 0xac, greenB = 0x3c // greener near neck/shoulder
+  const blushR = 0xd0, blushG = 0x80, blushB = 0x28 // warm amber/russet blush (stronger)
+  const stemR = 0x8a, stemG = 0x7a, stemB = 0x30    // brownish stem area
+  const deepR = 0xbc, deepG = 0xa8, deepB = 0x44    // deeper/shadow body
+
+  // Wiki-style lighting: top-front light source
+  const lx = 0.15, ly = 0.85, lz = 0.50
+  const llen = Math.hypot(lx, ly, lz)
+  const Lx = lx / llen, Ly = ly / llen, Lz = lz / llen
+
+  // Blush center in azimuth (0–1)
+  const blushCenter = 0.40
+
+  for (let py = 0; py < s; py++) {
+    const tv = py / (s - 1) // 0 = top (stem), 1 = bottom
+    for (let px = 0; px < s; px++) {
+      const tu = px / (s - 1) // 0–1 around azimuth
+
+      // --- Seamless FBM noise ---
+      const n1 = fbm(tu * 8 + 2.1, tv * 10 + 3.4)
+      const n2 = fbm(tu * 16 + 7.3, tv * 18 + 5.8)
+
+      // --- Lenticel texture (subtle pale dots) ---
+      // Lenticels are more visible on the bottom half of the pear
+      const lenticelDensity = smoothstep(0.25, 0.55, tv) // denser on bottom
+      const lenticelNoise = hash21(px + 37, py + 71)
+      const isLenticel = lenticelNoise < 0.035 * lenticelDensity
+
+      // --- Russet/amber blush: wrap-around for seamless seam ---
+      let blushDist = Math.abs(tu - blushCenter)
+      blushDist = Math.min(blushDist, 1 - blushDist)
+      const blushNoise = fbm(tu * 5 + 1.2, tv * 7 + 2.5) * 0.10
+      const blushMask = smoothstep(0.40 + blushNoise, 0.06 + blushNoise, blushDist)
+      // Blush covers the bottom/mid body, not the neck
+      const blushVertical = smoothstep(0.12, 0.25, tv) * smoothstep(0.95, 0.65, tv)
+      const blushAmount = blushMask * blushVertical * (0.8 + 0.2 * n1)
+
+      // --- Latitude color gradient ---
+      // Top (stem area): browner/drier
+      // Neck/shoulder: greener
+      // Mid body: warm golden
+      // Bottom: slightly deeper
+
+      const neckGreen = smoothstep(0.20, 0.08, tv) * smoothstep(0.40, 0.25, tv)
+      const latBody = smoothstep(0.90, 0.30, tv)
+
+      // Start with base body color
+      let r = deepR + (bodyR - deepR) * latBody
+      let gg = deepG + (bodyG - deepG) * latBody
+      let b = deepB + (bodyB - deepB) * latBody
+
+      // Apply green tint in neck/shoulder area
+      r = r * (1 - neckGreen) + greenR * neckGreen
+      gg = gg * (1 - neckGreen) + greenG * neckGreen
+      b = b * (1 - neckGreen) + greenB * neckGreen
+
+      // FBM noise variation
+      r += 8 * (n1 - 0.5)
+      gg += 6 * (n1 - 0.5)
+      b += 4 * (n1 - 0.5)
+
+      r += 4 * (n2 - 0.5)
+      gg += 3 * (n2 - 0.5)
+
+      // --- Apply russet blush ---
+      r = r * (1 - blushAmount) + blushR * blushAmount
+      gg = gg * (1 - blushAmount) + blushG * blushAmount
+      b = b * (1 - blushAmount) + blushB * blushAmount
+
+      // --- Lenticels: pale elongated dots (more visible) ---
+      if (isLenticel) {
+        r = r * 0.88 + 220 * 0.12  // lighter
+        gg = gg * 0.88 + 210 * 0.12
+        b = b * 0.88 + 130 * 0.12
+      }
+
+      // --- Top stem area blending ---
+      const topMid = smoothstep(0.12, 0.06, tv)
+      const topCore = smoothstep(0.06, 0.02, tv)
+      const midR = stemR + 12 * (n1 - 0.5)
+      const midG = stemG + 10 * (n1 - 0.5)
+      const midB = stemB + 8 * (n1 - 0.5)
+      r = r * (1 - topMid) + midR * topMid
+      gg = gg * (1 - topMid) + midG * topMid
+      b = b * (1 - topMid) + midB * topMid
+      r = r * (1 - topCore) + stemR * topCore
+      gg = gg * (1 - topCore) + stemG * topCore
+      b = b * (1 - topCore) + stemB * topCore
+
+      // --- Bottom blend ---
+      const botMid = smoothstep(0.86, 0.93, tv)
+      const botCore = smoothstep(0.93, 0.98, tv)
+      r = r * (1 - botMid) + midR * botMid
+      gg = gg * (1 - botMid) + midG * botMid
+      b = b * (1 - botMid) + midB * botMid
+      r = r * (1 - botCore) + (stemR + 5) * botCore
+      gg = gg * (1 - botCore) + (stemG + 5) * botCore
+      b = b * (1 - botCore) + (stemB + 5) * botCore
+
+      // --- Baked lighting (wiki-style: top-front light) ---
+      const phi = tv * Math.PI
+      const th = tu * Math.PI * 2
+      const nx = Math.sin(phi) * Math.cos(th)
+      const ny = Math.cos(phi)
+      const nz = Math.sin(phi) * Math.sin(th)
+      let ndotl = nx * Lx + ny * Ly + nz * Lz
+      ndotl = Math.max(0, ndotl)
+
+      // Broad diffuse fill
+      const diffBoost = Math.pow(ndotl, 0.8) * 0.42
+      // Ambient fill — warm shadows
+      const ambientFill = 0.15
+      // Soft specular — pear has a subtle waxy sheen
+      const specRaw = Math.pow(ndotl, 2.5) * 0.25 + Math.pow(ndotl, 8) * 0.18
+      const specFalloff = smoothstep(0.35, 0.10, tv)
+      const specBoost = specRaw * specFalloff
+
+      const lighting = 1.0 + diffBoost + ambientFill
+      r *= lighting
+      gg *= lighting
+      b *= lighting
+
+      // Specular: warm soft highlight
+      r += 255 * specBoost * 0.55
+      gg += 255 * specBoost * 0.48
+      b += 255 * specBoost * 0.25
+
+      // Pole smoothing
+      const sinV = Math.sin(tv * Math.PI)
+      const poleFactor = 0.988 + 0.012 * sinV
+      r *= poleFactor
+      gg *= poleFactor
+      b *= poleFactor
+
+      const idx = (py * s + px) * 4
+      data[idx] = Math.round(Math.max(0, Math.min(255, r)))
+      data[idx + 1] = Math.round(Math.max(0, Math.min(255, gg)))
+      data[idx + 2] = Math.round(Math.max(0, Math.min(255, b)))
+      data[idx + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.flipY = false
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 2
+  tex.needsUpdate = true
+  pearSkinTex = tex
+  return tex
+}
