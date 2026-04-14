@@ -9,6 +9,7 @@ import AppLayout from './AppLayout'
 const TankBattle90View = lazy(() => import('../game-center/tank90/TankBattle90View'))
 const FruitNinjaView = lazy(() => import('../game-center/fruit-ninja/FruitNinjaView'))
 const FruitGalleryView = lazy(() => import('../game-center/fruit-ninja/FruitGalleryView'))
+const FruitGallerySlicedView = lazy(() => import('../game-center/fruit-ninja/FruitGallerySlicedView'))
 
 function RouteFallback() {
   return (
@@ -23,6 +24,7 @@ export default function AppRouter() {
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/games/fruit-ninja/gallery" element={<FruitGalleryView />} />
+        <Route path="/games/fruit-ninja/gallery-sliced" element={<FruitGallerySlicedView />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomeView />} />
           <Route path="/resume" element={<ResumeView />} />
