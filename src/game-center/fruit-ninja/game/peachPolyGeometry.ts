@@ -14,7 +14,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 56
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /** Peach profile deformation for a unit-sphere vertex at normalised height h in [-1, +1]. */
 function peachDeform(nx: number, ny: number, nz: number, radius: number, phi: number): [number, number, number] {
@@ -157,7 +157,15 @@ function buildPeachCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
+  return buildPeachGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
+}
+
+function buildPeachGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
   const latCount = thetaSteps.length
   const phiSteps = buildPhiSteps(lonSegments)
   const phiCount = phiSteps.length
@@ -182,7 +190,7 @@ function buildPeachCustomGeometry(
 
       const [dx, dy, dz] = peachDeform(nx, ny, nz, radius, phi)
 
-      vertices.push(dx, dy, dz)
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
       uvs.push(u, v)
     }
   }
@@ -219,10 +227,20 @@ export function getPeachBodyPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 export function getPeachHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getPeachSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getPeachSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildPeachCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildPeachCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildPeachGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }

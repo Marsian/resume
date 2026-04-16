@@ -8,6 +8,7 @@ import { getLimeBodyMaterial } from './limeSkin'
 import { getLimeBodyPolyGeometry } from './limePolyGeometry'
 import { getMangoBodyMaterial } from './mangoSkin'
 import { getMangoBodyPolyGeometry } from './mangoPolyGeometry'
+import { createPineappleBodyGeometry } from './pineapplePolyGeometry'
 import { getCoconutBodyMaterial } from './coconutSkin'
 import { getCoconutBodyPolyGeometry } from './coconutPolyGeometry'
 import { getStrawberryBodyMaterial } from './strawberrySkin'
@@ -317,36 +318,11 @@ function createPineappleMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
 
   // Wiki: near-cylinder with rounded ends, minimal mid-body bulge
-  const bodyRadius = radius * 0.55
-  const bodyHeight = bodyRadius * 1.98
+  const bodyHeight = radius * 0.55 * 1.98
   const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(bodyRadius * 0.81, bodyRadius * 0.83, bodyHeight, 28, 12, false),
+    createPineappleBodyGeometry(radius),
     pineappleBodyMaterial(),
   )
-  // Minimal bulge + rounded ends: wiki shows near-cylinder with just a hint of roundness at ends
-  const pos = body.geometry.attributes.position
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i)
-    const nY = (y + bodyHeight * 0.5) / bodyHeight // 0=bottom, 1=top
-    // Very subtle bulge: wiki pineapple is nearly cylindrical
-    const bulge = 1.0 + 0.08 * Math.sin(nY * Math.PI)
-    // Slight top taper
-    const topTaper = 1.0 - 0.05 * nY * nY
-    // Ends: pinch inward at both caps
-    const distFromCenter = Math.sqrt(x * x + z * z)
-    const edgeFactor = bodyRadius > 0 ? distFromCenter / bodyRadius : 0
-    let radScale = bulge * topTaper
-    const capZone = 0.07
-    if (nY < capZone || nY > 1.0 - capZone) {
-      const poleN = nY < 0.5 ? nY / capZone : (1.0 - nY) / capZone
-      radScale *= 1.0 - (1.0 - poleN) * edgeFactor * 0.17
-    }
-    pos.setX(i, x * radScale)
-    pos.setY(i, y)
-    pos.setZ(i, z * radScale)
-  }
-  pos.needsUpdate = true
-  body.geometry.computeVertexNormals()
   body.userData.sharedMaterial = true
   g.add(body)
 

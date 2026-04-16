@@ -16,7 +16,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 48
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /**
  * Mango profile deformation for a unit-sphere vertex at normalised height h in [-1, +1].
@@ -133,7 +133,15 @@ function buildMangoCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
+  return buildMangoGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
+}
+
+function buildMangoGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
   const latCount = thetaSteps.length
 
   const vertices: number[] = []
@@ -156,7 +164,7 @@ function buildMangoCustomGeometry(
 
       const [dx, dy, dz] = mangoDeform(nx, ny, nz, radius)
 
-      vertices.push(dx, dy, dz)
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
       uvs.push(u, v)
     }
   }
@@ -193,10 +201,20 @@ export function getMangoBodyPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 export function getMangoHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getMangoSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getMangoSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildMangoCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildMangoCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildMangoGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }

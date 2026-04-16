@@ -11,7 +11,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 48
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /** Lemon profile deformation for a unit-sphere vertex at normalised height h in [-1, +1]. */
 function lemonDeform(nx: number, ny: number, nz: number, radius: number): [number, number, number] {
@@ -106,7 +106,15 @@ function buildLemonCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
+  return buildLemonGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
+}
+
+function buildLemonGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
   const latCount = thetaSteps.length
 
   const vertices: number[] = []
@@ -129,7 +137,7 @@ function buildLemonCustomGeometry(
 
       const [dx, dy, dz] = lemonDeform(nx, ny, nz, radius)
 
-      vertices.push(dx, dy, dz)
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
       uvs.push(u, v)
     }
   }
@@ -166,10 +174,20 @@ export function getLemonBodyPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 export function getLemonHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getLemonSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getLemonSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildLemonCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildLemonCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildLemonGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }

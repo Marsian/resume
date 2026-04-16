@@ -12,7 +12,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 56
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /** Orange profile deformation for a unit-sphere vertex at normalised height h in [-1, +1]. */
 function orangeDeform(nx: number, ny: number, nz: number, radius: number): [number, number, number] {
@@ -105,7 +105,15 @@ function buildOrangeCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
+  return buildOrangeGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
+}
+
+function buildOrangeGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
   const latCount = thetaSteps.length
 
   const vertices: number[] = []
@@ -128,7 +136,7 @@ function buildOrangeCustomGeometry(
 
       const [dx, dy, dz] = orangeDeform(nx, ny, nz, radius)
 
-      vertices.push(dx, dy, dz)
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
       uvs.push(u, v)
     }
   }
@@ -165,10 +173,20 @@ export function getOrangeBodyPolyGeometry(radius: number): THREE.BufferGeometry 
 }
 
 export function getOrangeHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getOrangeSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getOrangeSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildOrangeCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildOrangeCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildOrangeGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }

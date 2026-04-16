@@ -12,7 +12,7 @@ export const WATERMELON_AZ = 0.94
 const NLON = 22
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /** Colatitude φ ∈ (0, π): 0 = north pole, π/2 = equator, π = south. Tight steps at ends, wide at waist. */
 function colatitudesFullSphere(): number[] {
@@ -38,9 +38,18 @@ function colatitudesUpperHalf(): number[] {
   return [...new Set(merged.map((x) => Math.round(x * 1e5) / 1e5))].sort((a, b) => a - b)
 }
 
+function colatitudesSlicedHalf(half: 'top' | 'bottom'): number[] {
+  const full = colatitudesFullSphere()
+  if (half === 'top') {
+    return full.filter((phi) => phi <= Math.PI / 2 + 1e-6)
+  }
+  return full.filter((phi) => phi >= Math.PI / 2 - 1e-6).reverse()
+}
+
 function buildLatLong(
   radius: number,
   phis: number[],
+  mirrorY = false,
 ): THREE.BufferGeometry {
   const nRings = phis.length
   const vertsPerRing = NLON + 1
@@ -62,7 +71,7 @@ function buildLatLong(
       const nx = sinP * cosT
       const ny = cosP
       const nz = sinP * sinT
-      positions.push(nx * ax, ny * ay, nz * az)
+      positions.push(nx * ax, (mirrorY ? -ny : ny) * ay, nz * az)
       const u = j / NLON
       const v = phi / Math.PI
       uvs.push(u, v)
@@ -101,10 +110,15 @@ export function getWatermelonBodyPolyGeometry(radius: number): THREE.BufferGeome
 }
 
 export function getWatermelonHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getWatermelonSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getWatermelonSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildLatLong(radius, colatitudesUpperHalf())
-    halfCache.set(radius, g)
+    g = buildLatLong(radius, colatitudesSlicedHalf(half), half === 'bottom')
+    halfCache.set(key, g)
   }
   return g
 }

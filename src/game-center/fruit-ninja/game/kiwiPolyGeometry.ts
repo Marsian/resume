@@ -15,7 +15,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 48
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /**
  * Kiwi profile deformation for a unit-sphere vertex at normalised height h in [-1, +1].
@@ -113,7 +113,35 @@ function buildKiwiCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
+  const geo = buildKiwiGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
+
+  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
+  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
+  // keep the equator at y=0 so the flesh cap aligns correctly.
+  if (thetaLength >= Math.PI) {
+    geo.computeBoundingBox()
+    const centre = new THREE.Vector3()
+    geo.boundingBox!.getCenter(centre)
+    if (Math.abs(centre.y) > 1e-5) {
+      const pos = geo.getAttribute('position') as THREE.BufferAttribute
+      for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, pos.getY(i) - centre.y)
+      }
+      pos.needsUpdate = true
+      geo.computeBoundingBox()
+      geo.computeVertexNormals()
+    }
+  }
+
+  return geo
+}
+
+function buildKiwiGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
   const latCount = thetaSteps.length
 
   const vertices: number[] = []
@@ -136,7 +164,7 @@ function buildKiwiCustomGeometry(
 
       const [dx, dy, dz] = kiwiDeform(nx, ny, nz, radius)
 
-      vertices.push(dx, dy, dz)
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
       uvs.push(u, v)
     }
   }
@@ -160,24 +188,6 @@ function buildKiwiCustomGeometry(
   geo.setIndex(indices)
   geo.computeVertexNormals()
 
-  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
-  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
-  // keep the equator at y=0 so the flesh cap aligns correctly.
-  if (thetaLength >= Math.PI) {
-    geo.computeBoundingBox()
-    const centre = new THREE.Vector3()
-    geo.boundingBox!.getCenter(centre)
-    if (Math.abs(centre.y) > 1e-5) {
-      const pos = geo.getAttribute('position') as THREE.BufferAttribute
-      for (let i = 0; i < pos.count; i++) {
-        pos.setY(i, pos.getY(i) - centre.y)
-      }
-      pos.needsUpdate = true
-      geo.computeBoundingBox()
-      geo.computeVertexNormals()
-    }
-  }
-
   return geo
 }
 
@@ -191,10 +201,20 @@ export function getKiwiBodyPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 export function getKiwiHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getKiwiSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getKiwiSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildKiwiCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildKiwiCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildKiwiGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }

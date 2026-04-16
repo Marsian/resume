@@ -2,31 +2,39 @@ import * as THREE from 'three'
 
 import type { FruitArchetype } from './spawn'
 import { getAppleBodyMaterial } from './appleSkin'
-import { getAppleHalfPolyGeometry, APPLE_MAX_XZ, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
-import { getKiwiHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
-import { getPlumHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
-import { getCherryHalfPolyGeometry, CHERRY_MAX_XZ } from './cherryPolyGeometry'
+import { getAppleSlicedHalfPolyGeometry, APPLE_MAX_XZ, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
+import { getKiwiSlicedHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
+import { getKiwiBodyMaterial } from './kiwiSkin'
+import { getPlumSlicedHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
+import { getPlumBodyMaterial } from './plumSkin'
+import { getCherryBodyPolyGeometry, CHERRY_TOP_POLE_Y_RATIO } from './cherryPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
 import { createBananaSpineCurve, bananaGirthScale, applyTubeRadiusProfile } from './bananaGeometry'
 import { getWatermelonBodyMaterial } from './watermelonSkin'
 import {
-  getWatermelonHalfPolyGeometry,
+  getWatermelonSlicedHalfPolyGeometry,
   WATERMELON_AX,
   WATERMELON_AZ,
 } from './watermelonPolyGeometry'
 import { getOrangeBodyMaterial } from './orangeSkin'
-import { getOrangeHalfPolyGeometry, ORANGE_MAX_XZ } from './orangePolyGeometry'
+import { getOrangeSlicedHalfPolyGeometry, ORANGE_MAX_XZ } from './orangePolyGeometry'
 import { getPeachBodyMaterial } from './peachSkin'
-import { getPeachHalfPolyGeometry, PEACH_MAX_XZ } from './peachPolyGeometry'
+import { getPeachSlicedHalfPolyGeometry, PEACH_MAX_XZ } from './peachPolyGeometry'
 import { getCherryBodyMaterial } from './cherrySkin'
-import { getPearHalfPolyGeometry, PEAR_MAX_XZ } from './pearPolyGeometry'
-import { getLemonHalfPolyGeometry, LEMON_MAX_XZ } from './lemonPolyGeometry'
-import { getLimeHalfPolyGeometry, LIME_MAX_XZ } from './limePolyGeometry'
-import { getMangoHalfPolyGeometry, MANGO_MAX_XZ } from './mangoPolyGeometry'
-import { getPineappleHalfPolyGeometry, PINEAPPLE_MAX_XZ } from './pineapplePolyGeometry'
-import { getCoconutHalfPolyGeometry, COCONUT_MAX_XZ } from './coconutPolyGeometry'
-import { getStrawberryHalfPolyGeometry, STRAWBERRY_MAX_XZ } from './strawberryPolyGeometry'
-import { getPassionfruitHalfPolyGeometry, PASSIONFRUIT_MAX_XZ } from './passionfruitPolyGeometry'
+import { getPearSlicedHalfPolyGeometry, PEAR_MAX_XZ } from './pearPolyGeometry'
+import { getPearBodyMaterial } from './pearSkin'
+import { getLemonSlicedHalfPolyGeometry, LEMON_MAX_XZ } from './lemonPolyGeometry'
+import { getLemonBodyMaterial } from './lemonSkin'
+import { getLimeSlicedHalfPolyGeometry, LIME_MAX_XZ } from './limePolyGeometry'
+import { getLimeBodyMaterial } from './limeSkin'
+import { getMangoSlicedHalfPolyGeometry, MANGO_MAX_XZ } from './mangoPolyGeometry'
+import { getMangoBodyMaterial } from './mangoSkin'
+import { getPineappleSlicedHalfPolyGeometry, PINEAPPLE_MAX_XZ } from './pineapplePolyGeometry'
+import { getCoconutSlicedHalfPolyGeometry, COCONUT_MAX_XZ } from './coconutPolyGeometry'
+import { getCoconutBodyMaterial } from './coconutSkin'
+import { getStrawberrySlicedHalfPolyGeometry, STRAWBERRY_MAX_XZ } from './strawberryPolyGeometry'
+import { getStrawberryBodyMaterial } from './strawberrySkin'
+import { getPassionfruitSlicedHalfPolyGeometry, PASSIONFRUIT_MAX_XZ } from './passionfruitPolyGeometry'
 import { getPassionfruitBodyMaterial } from './passionfruitSkin'
 import { pineappleBodyMaterial } from './meshes'
 
@@ -461,6 +469,27 @@ function getSkinMatForFruit(
   if (fruitType === 'watermelon') {
     return getWatermelonBodyMaterial()
   }
+  if (fruitType === 'lemon') {
+    return getLemonBodyMaterial()
+  }
+  if (fruitType === 'lime') {
+    return getLimeBodyMaterial()
+  }
+  if (fruitType === 'mango') {
+    return getMangoBodyMaterial()
+  }
+  if (fruitType === 'coconut') {
+    return getCoconutBodyMaterial()
+  }
+  if (fruitType === 'strawberry') {
+    return getStrawberryBodyMaterial()
+  }
+  if (fruitType === 'kiwi') {
+    return getKiwiBodyMaterial()
+  }
+  if (fruitType === 'plum') {
+    return getPlumBodyMaterial()
+  }
   if (fruitType === 'banana') {
     return getBananaBodyMaterial(skin.getHex())
   }
@@ -472,6 +501,9 @@ function getSkinMatForFruit(
   }
   if (fruitType === 'peach') {
     return getPeachBodyMaterial()
+  }
+  if (fruitType === 'pear') {
+    return getPearBodyMaterial()
   }
   if (fruitType === 'cherry') {
     return getCherryBodyMaterial()
@@ -528,6 +560,58 @@ function getFleshMatForFruit(fruitType: FruitArchetype, flesh: THREE.Color): THR
   return m
 }
 
+function createSplitCherryFruitMesh(
+  radius: number,
+  outwardNormal: THREE.Vector3,
+  sideSign: -1 | 1,
+): THREE.Group {
+  const g = new THREE.Group()
+  const n = outwardNormal.clone().normalize()
+  const cherryRadius = radius * 0.50
+  const fruitSide = sideSign < 0 ? -1 : 1
+  const inward = -fruitSide
+
+  const body = new THREE.Mesh(
+    getCherryBodyPolyGeometry(cherryRadius),
+    getCherryBodyMaterial(),
+  )
+  body.position.y = -radius * 0.02
+  body.userData.sharedMaterial = true
+  body.userData.sharedPool = true
+  body.renderOrder = 2
+  g.add(body)
+
+  const stemMat = new THREE.MeshBasicMaterial({ color: 0x3a5818, toneMapped: false })
+  const stemRadius = radius * 0.024
+  const topY = body.position.y + cherryRadius * CHERRY_TOP_POLE_Y_RATIO
+  const cutY = topY + radius * 0.40
+
+  const stemCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, topY - cherryRadius * 0.35, fruitSide > 0 ? radius * 0.02 : 0),
+    new THREE.Vector3(inward * radius * 0.02, topY - cherryRadius * 0.05, fruitSide > 0 ? radius * 0.02 : 0),
+    new THREE.Vector3(inward * radius * 0.10, topY + radius * 0.08, fruitSide > 0 ? radius * 0.01 : radius * 0.02),
+    new THREE.Vector3(inward * radius * 0.30, cutY * 0.65, radius * 0.01),
+    new THREE.Vector3(inward * radius * 0.52, cutY, 0),
+  ])
+  const stem = new THREE.Mesh(
+    new THREE.TubeGeometry(stemCurve, 16, stemRadius, 6, false),
+    stemMat,
+  )
+  stem.userData.sharedPool = true
+  g.add(stem)
+
+  const cutEnd = new THREE.Mesh(
+    new THREE.SphereGeometry(stemRadius * 1.35, 6, 4),
+    new THREE.MeshBasicMaterial({ color: 0x7a5a28, toneMapped: false }),
+  )
+  cutEnd.position.copy(stemCurve.getPoint(1))
+  cutEnd.userData.sharedPool = true
+  g.add(cutEnd)
+
+  g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
+  return g
+}
+
 /**
  * One hemisphere of a sliced fruit: curved skin + flat circular cut face (flesh).
  * Local +Y is the outward normal of the cut (into this half's interior / visible pulp).
@@ -543,6 +627,10 @@ export function createFruitHalfMesh(
 ): THREE.Group {
   const g = new THREE.Group()
   const n = outwardNormal.clone().normalize()
+
+  if (fruitType === 'cherry') {
+    return createSplitCherryFruitMesh(radius, outwardNormal, sideSign)
+  }
 
   let curved: THREE.Mesh
   let capScale = radius
@@ -580,49 +668,88 @@ export function createFruitHalfMesh(
     // Store cutPoint for disc positioning later (after cap creation)
     ;(g as any).__bananaCutPoint = cutPoint
   } else if (fruitType === 'watermelon') {
-    curved = new THREE.Mesh(getWatermelonHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getWatermelonSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * Math.max(WATERMELON_AX, WATERMELON_AZ) * 1.01
   } else if (fruitType === 'apple') {
-    curved = new THREE.Mesh(getAppleHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getAppleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * APPLE_MAX_XZ * 1.01
   } else if (fruitType === 'kiwi') {
-    curved = new THREE.Mesh(getKiwiHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getKiwiSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * KIWI_MAX_XZ * 1.01
   } else if (fruitType === 'plum') {
-    curved = new THREE.Mesh(getPlumHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getPlumSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * PLUM_MAX_XZ * 1.01
-  } else if (fruitType === 'cherry') {
-    curved = new THREE.Mesh(getCherryHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
-    capScale = radius * CHERRY_MAX_XZ * 1.01
   } else if (fruitType === 'orange') {
-    curved = new THREE.Mesh(getOrangeHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getOrangeSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * ORANGE_MAX_XZ * 1.01
   } else if (fruitType === 'peach') {
-    curved = new THREE.Mesh(getPeachHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getPeachSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * PEACH_MAX_XZ * 1.01
   } else if (fruitType === 'pear') {
-    curved = new THREE.Mesh(getPearHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getPearSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * PEAR_MAX_XZ * 1.01
   } else if (fruitType === 'lemon') {
-    curved = new THREE.Mesh(getLemonHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getLemonSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * LEMON_MAX_XZ * 1.01
   } else if (fruitType === 'lime') {
-    curved = new THREE.Mesh(getLimeHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getLimeSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * LIME_MAX_XZ * 1.01
   } else if (fruitType === 'mango') {
-    curved = new THREE.Mesh(getMangoHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getMangoSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * MANGO_MAX_XZ * 1.01
   } else if (fruitType === 'pineapple') {
-    curved = new THREE.Mesh(getPineappleHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getPineappleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * PINEAPPLE_MAX_XZ * 1.01
   } else if (fruitType === 'coconut') {
-    curved = new THREE.Mesh(getCoconutHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getCoconutSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * COCONUT_MAX_XZ * 1.01
   } else if (fruitType === 'strawberry') {
-    curved = new THREE.Mesh(getStrawberryHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getStrawberrySlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * STRAWBERRY_MAX_XZ * 1.01
   } else if (fruitType === 'passionfruit') {
-    curved = new THREE.Mesh(getPassionfruitHalfPolyGeometry(radius), getSkinMatForFruit(fruitType, skinColor))
+    curved = new THREE.Mesh(
+      getPassionfruitSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+      getSkinMatForFruit(fruitType, skinColor),
+    )
     capScale = radius * PASSIONFRUIT_MAX_XZ * 1.01
   } else {
     curved = new THREE.Mesh(sharedHemisphere, getSkinMatForFruit(fruitType, skinColor))

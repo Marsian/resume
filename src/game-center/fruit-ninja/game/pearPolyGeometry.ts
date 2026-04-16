@@ -15,7 +15,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 56
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /**
  * Pear profile deformation for a unit-sphere vertex at normalised height h in [-1, +1].
@@ -141,56 +141,7 @@ function buildPearCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
-  const latCount = thetaSteps.length
-
-  const vertices: number[] = []
-  const uvs: number[] = []
-  const indices: number[] = []
-
-  // Generate vertices ring by ring
-  for (let lat = 0; lat < latCount; lat++) {
-    const theta = thetaSteps[lat]!
-    const sinTheta = Math.sin(theta)
-    const cosTheta = Math.cos(theta)
-    const v = theta / Math.PI
-
-    for (let lon = 0; lon <= lonSegments; lon++) {
-      const phi = (lon / lonSegments) * Math.PI * 2
-      const u = lon / lonSegments
-
-      // Unit sphere position
-      const nx = sinTheta * Math.cos(phi)
-      const ny = cosTheta
-      const nz = sinTheta * Math.sin(phi)
-
-      // Apply pear deformation
-      const [dx, dy, dz] = pearDeform(nx, ny, nz, radius)
-
-      vertices.push(dx, dy, dz)
-      uvs.push(u, v)
-    }
-  }
-
-  // Generate triangle indices
-  const stride = lonSegments + 1
-  for (let lat = 0; lat < latCount - 1; lat++) {
-    for (let lon = 0; lon < lonSegments; lon++) {
-      const a = lat * stride + lon
-      const b = a + stride
-      const c = a + 1
-      const d = b + 1
-
-      indices.push(a, b, c)
-      indices.push(b, d, c)
-    }
-  }
-
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
-  geo.setIndex(indices)
-  geo.computeVertexNormals()
+  const geo = buildPearGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
 
   // Centre the geometry on its bounding-box midpoint so rotation looks natural.
   // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
@@ -217,6 +168,65 @@ function buildPearCustomGeometry(
   return geo
 }
 
+function buildPearGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
+  const latCount = thetaSteps.length
+
+  const vertices: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+
+  // Generate vertices ring by ring
+  for (let lat = 0; lat < latCount; lat++) {
+    const theta = thetaSteps[lat]!
+    const sinTheta = Math.sin(theta)
+    const cosTheta = Math.cos(theta)
+    const v = theta / Math.PI
+
+    for (let lon = 0; lon <= lonSegments; lon++) {
+      const phi = (lon / lonSegments) * Math.PI * 2
+      const u = lon / lonSegments
+
+      // Unit sphere position
+      const nx = sinTheta * Math.cos(phi)
+      const ny = cosTheta
+      const nz = sinTheta * Math.sin(phi)
+
+      // Apply pear deformation
+      const [dx, dy, dz] = pearDeform(nx, ny, nz, radius)
+
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
+      uvs.push(u, v)
+    }
+  }
+
+  // Generate triangle indices
+  const stride = lonSegments + 1
+  for (let lat = 0; lat < latCount - 1; lat++) {
+    for (let lon = 0; lon < lonSegments; lon++) {
+      const a = lat * stride + lon
+      const b = a + stride
+      const c = a + 1
+      const d = b + 1
+
+      indices.push(a, b, c)
+      indices.push(b, d, c)
+    }
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geo.setIndex(indices)
+  geo.computeVertexNormals()
+
+  return geo
+}
+
 export function getPearBodyPolyGeometry(radius: number): THREE.BufferGeometry {
   let g = bodyCache.get(radius)
   if (!g) {
@@ -227,10 +237,20 @@ export function getPearBodyPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 export function getPearHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getPearSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getPearSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildPearCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildPearCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildPearGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }

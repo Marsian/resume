@@ -14,7 +14,7 @@ import * as THREE from 'three'
 const LON_SEGMENTS = 56
 
 const bodyCache = new Map<number, THREE.BufferGeometry>()
-const halfCache = new Map<number, THREE.BufferGeometry>()
+const halfCache = new Map<string, THREE.BufferGeometry>()
 
 /** Apple profile deformation for a unit-sphere vertex at normalised height h in [-1, +1]. */
 function appleDeform(nx: number, ny: number, nz: number, radius: number): [number, number, number] {
@@ -120,7 +120,37 @@ function buildAppleCustomGeometry(
   thetaStart: number,
   thetaLength: number,
 ): THREE.BufferGeometry {
-  const thetaSteps = buildThetaSteps(thetaStart, thetaLength)
+  const geo = buildAppleGeometryFromThetaSteps(radius, lonSegments, buildThetaSteps(thetaStart, thetaLength))
+
+  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
+  // The cavity dents pull the top down asymmetrically, shifting the visual centre
+  // away from the origin; re-centring eliminates the "stem lags the body" effect.
+  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
+  // keep the equator at y=0 so the flesh cap aligns correctly.
+  if (thetaLength >= Math.PI) {
+    geo.computeBoundingBox()
+    const centre = new THREE.Vector3()
+    geo.boundingBox!.getCenter(centre)
+    if (Math.abs(centre.y) > 1e-5) {
+      const pos = geo.getAttribute('position') as THREE.BufferAttribute
+      for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, pos.getY(i) - centre.y)
+      }
+      pos.needsUpdate = true
+      geo.computeBoundingBox()
+      geo.computeVertexNormals()
+    }
+  }
+
+  return geo
+}
+
+function buildAppleGeometryFromThetaSteps(
+  radius: number,
+  lonSegments: number,
+  thetaSteps: number[],
+  mirrorY = false,
+): THREE.BufferGeometry {
   const latCount = thetaSteps.length // number of latitude rings
 
   const vertices: number[] = []
@@ -146,7 +176,7 @@ function buildAppleCustomGeometry(
       // Apply apple deformation
       const [dx, dy, dz] = appleDeform(nx, ny, nz, radius)
 
-      vertices.push(dx, dy, dz)
+      vertices.push(dx, mirrorY ? -dy : dy, dz)
       uvs.push(u, v)
     }
   }
@@ -173,26 +203,6 @@ function buildAppleCustomGeometry(
   geo.setIndex(indices)
   geo.computeVertexNormals()
 
-  // Centre the geometry on its bounding-box midpoint so rotation looks natural.
-  // The cavity dents pull the top down asymmetrically, shifting the visual centre
-  // away from the origin; re-centring eliminates the "stem lags the body" effect.
-  // Only re-centre for the whole fruit (thetaLength >= PI); half geometries must
-  // keep the equator at y=0 so the flesh cap aligns correctly.
-  if (thetaLength >= Math.PI) {
-    geo.computeBoundingBox()
-    const centre = new THREE.Vector3()
-    geo.boundingBox!.getCenter(centre)
-    if (Math.abs(centre.y) > 1e-5) {
-      const pos = geo.getAttribute('position') as THREE.BufferAttribute
-      for (let i = 0; i < pos.count; i++) {
-        pos.setY(i, pos.getY(i) - centre.y)
-      }
-      pos.needsUpdate = true
-      geo.computeBoundingBox()
-      geo.computeVertexNormals()
-    }
-  }
-
   return geo
 }
 
@@ -206,10 +216,20 @@ export function getAppleBodyPolyGeometry(radius: number): THREE.BufferGeometry {
 }
 
 export function getAppleHalfPolyGeometry(radius: number): THREE.BufferGeometry {
-  let g = halfCache.get(radius)
+  return getAppleSlicedHalfPolyGeometry(radius, 'top')
+}
+
+export function getAppleSlicedHalfPolyGeometry(radius: number, half: 'top' | 'bottom'): THREE.BufferGeometry {
+  const key = `${radius}:${half}`
+  let g = halfCache.get(key)
   if (!g) {
-    g = buildAppleCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
-    halfCache.set(radius, g)
+    if (half === 'top') {
+      g = buildAppleCustomGeometry(radius, LON_SEGMENTS, 0, Math.PI / 2)
+    } else {
+      const bottomThetaSteps = buildThetaSteps(Math.PI / 2, Math.PI / 2).reverse()
+      g = buildAppleGeometryFromThetaSteps(radius, LON_SEGMENTS, bottomThetaSteps, true)
+    }
+    halfCache.set(key, g)
   }
   return g
 }
