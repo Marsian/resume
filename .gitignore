@@ -12,9 +12,9 @@ yarn-error.log*
 .env.local
 .env.*.local
 test-results/
+output/
 
 # Local gallery vs wiki captures (regenerate: node scripts/capture-banana-gallery-verify.mjs)
 src/game-center/fruit-ninja/assets/verify/
 
 .npm-cache/
-

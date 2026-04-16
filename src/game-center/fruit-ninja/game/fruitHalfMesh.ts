@@ -42,7 +42,7 @@ const HEM_RINGS = 12
 const sharedHemisphere = new THREE.SphereGeometry(1, HEM_SEGMENTS, HEM_RINGS, 0, Math.PI * 2, 0, Math.PI / 2)
 const sharedCap = new THREE.CircleGeometry(0.997, 20)
 
-const skinMatCache = new Map<number, THREE.MeshStandardMaterial>()
+const skinMatCache = new Map<string, THREE.MeshStandardMaterial>()
 const fleshMatCache = new Map<number, THREE.MeshStandardMaterial>()
 
 const fleshTexCache = new Map<string, THREE.CanvasTexture>()
@@ -426,19 +426,32 @@ function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): TH
   return tex
 }
 
-function getSkinMat(skin: THREE.Color): THREE.MeshStandardMaterial {
-  const h = skin.getHex()
-  let m = skinMatCache.get(h)
+function getSkinMat(skin: THREE.Color, doubleSided = false): THREE.MeshStandardMaterial {
+  const key = `${skin.getHexString()}:${doubleSided ? 'double' : 'front'}`
+  let m = skinMatCache.get(key)
   if (!m) {
     m = new THREE.MeshStandardMaterial({
       color: skin.clone(),
       roughness: 0.38,
       metalness: 0.04,
       emissive: skin.clone().multiplyScalar(0.04),
+      side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     })
-    skinMatCache.set(h, m)
+    skinMatCache.set(key, m)
   }
   return m
+}
+
+function needsDoubleSidedGenericSkin(fruitType: FruitArchetype): boolean {
+  return (
+    fruitType === 'lemon' ||
+    fruitType === 'lime' ||
+    fruitType === 'mango' ||
+    fruitType === 'coconut' ||
+    fruitType === 'strawberry' ||
+    fruitType === 'kiwi' ||
+    fruitType === 'plum'
+  )
 }
 
 function getSkinMatForFruit(
@@ -469,7 +482,7 @@ function getSkinMatForFruit(
   if (fruitType === 'passionfruit') {
     return getPassionfruitBodyMaterial()
   }
-  return getSkinMat(skin)
+  return getSkinMat(skin, needsDoubleSidedGenericSkin(fruitType))
 }
 
 function getFleshMat(flesh: THREE.Color): THREE.MeshStandardMaterial {
@@ -482,7 +495,10 @@ function getFleshMat(flesh: THREE.Color): THREE.MeshStandardMaterial {
       roughness: 0.52,
       metalness: 0,
       emissive: flesh.clone().multiplyScalar(0.05),
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
     })
     fleshMatCache.set(h, m)
   }
@@ -501,7 +517,10 @@ function getFleshMatForFruit(fruitType: FruitArchetype, flesh: THREE.Color): THR
       metalness: 0,
       emissive: flesh.clone().multiplyScalar(0.05),
       emissiveIntensity: 1,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
     })
     ;(m as any).__fleshKey = key
     fleshMatCache.set(h, m)
@@ -612,6 +631,7 @@ export function createFruitHalfMesh(
   curved.castShadow = false
   curved.receiveShadow = false
   curved.userData.sharedPool = true
+  curved.renderOrder = 2
   g.add(curved)
 
   // The cap (flesh disc) sits at the equator cut.  It must face *inward* toward the
@@ -685,7 +705,7 @@ export function createFruitHalfMesh(
       map: discTex,
       roughness: 0.58,
       metalness: 0,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
     })
     const disc = new THREE.Mesh(discGeo, discMat)
     disc.rotation.x = isTopHalf ? Math.PI / 2 : -Math.PI / 2
@@ -700,12 +720,14 @@ export function createFruitHalfMesh(
     delete (g as any).__bananaCutPoint
   } else {
     const cap = new THREE.Mesh(sharedCap, getFleshMatForFruit(fruitType, fleshColor))
+    const capInset = Math.max(0.0025, radius * 0.02)
     cap.scale.setScalar(capScale)
     cap.rotation.x = Math.PI / 2
-    cap.position.y = 0.0015
+    cap.position.y = capInset
     cap.castShadow = false
     cap.receiveShadow = false
     cap.userData.sharedPool = true
+    cap.renderOrder = 1
     g.add(cap)
   }
 

@@ -146,6 +146,7 @@ export function pineappleBodyMaterial(): THREE.MeshBasicMaterial {
     pineappleBodyMat = new THREE.MeshBasicMaterial({
       map: pineappleSkinTexture(),
       color: 0xffffff,
+      side: THREE.DoubleSide,
     })
   }
   return pineappleBodyMat
