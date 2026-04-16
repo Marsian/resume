@@ -39,11 +39,8 @@ function colatitudesUpperHalf(): number[] {
 }
 
 function colatitudesSlicedHalf(half: 'top' | 'bottom'): number[] {
-  const full = colatitudesFullSphere()
-  if (half === 'top') {
-    return full.filter((phi) => phi <= Math.PI / 2 + 1e-6)
-  }
-  return full.filter((phi) => phi >= Math.PI / 2 - 1e-6).reverse()
+  const upperHalf = colatitudesUpperHalf()
+  return half === 'top' ? upperHalf : upperHalf.map((phi) => Math.PI - phi)
 }
 
 function buildLatLong(

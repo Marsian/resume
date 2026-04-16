@@ -3,9 +3,9 @@ import * as THREE from 'three'
 import type { FruitArchetype } from './spawn'
 import { getAppleBodyMaterial } from './appleSkin'
 import { getAppleSlicedHalfPolyGeometry, APPLE_MAX_XZ, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
-import { getKiwiSlicedHalfPolyGeometry, KIWI_MAX_XZ } from './kiwiPolyGeometry'
+import { getKiwiSlicedHalfPolyGeometry, KIWI_MAX_XZ, KIWI_TOP_POLE_Y_RATIO } from './kiwiPolyGeometry'
 import { getKiwiBodyMaterial } from './kiwiSkin'
-import { getPlumSlicedHalfPolyGeometry, PLUM_MAX_XZ } from './plumPolyGeometry'
+import { getPlumSlicedHalfPolyGeometry, PLUM_MAX_XZ, PLUM_TOP_POLE_Y_RATIO } from './plumPolyGeometry'
 import { getPlumBodyMaterial } from './plumSkin'
 import { getCherryBodyPolyGeometry, CHERRY_TOP_POLE_Y_RATIO } from './cherryPolyGeometry'
 import { getBananaBodyMaterial } from './bananaSkin'
@@ -14,14 +14,20 @@ import { getWatermelonBodyMaterial } from './watermelonSkin'
 import {
   getWatermelonSlicedHalfPolyGeometry,
   WATERMELON_AX,
+  WATERMELON_AY,
   WATERMELON_AZ,
 } from './watermelonPolyGeometry'
 import { getOrangeBodyMaterial } from './orangeSkin'
 import { getOrangeSlicedHalfPolyGeometry, ORANGE_MAX_XZ } from './orangePolyGeometry'
 import { getPeachBodyMaterial } from './peachSkin'
-import { getPeachSlicedHalfPolyGeometry, PEACH_MAX_XZ } from './peachPolyGeometry'
+import { getPeachSlicedHalfPolyGeometry, PEACH_MAX_XZ, PEACH_TOP_POLE_Y_RATIO } from './peachPolyGeometry'
 import { getCherryBodyMaterial } from './cherrySkin'
-import { getPearSlicedHalfPolyGeometry, PEAR_MAX_XZ } from './pearPolyGeometry'
+import {
+  getPearBodyPolyGeometry,
+  getPearSlicedHalfPolyGeometry,
+  PEAR_MAX_XZ,
+  PEAR_TOP_POLE_Y_RATIO,
+} from './pearPolyGeometry'
 import { getPearBodyMaterial } from './pearSkin'
 import { getLemonSlicedHalfPolyGeometry, LEMON_MAX_XZ } from './lemonPolyGeometry'
 import { getLemonBodyMaterial } from './lemonSkin'
@@ -612,6 +618,268 @@ function createSplitCherryFruitMesh(
   return g
 }
 
+function markHalfAccessory(root: THREE.Object3D) {
+  root.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.userData.sharedPool = true
+    }
+  })
+}
+
+function addWatermelonTopStem(g: THREE.Group, radius: number) {
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.065, radius * 0.095, radius * 0.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x1a5a22, roughness: 0.82, metalness: 0 }),
+  )
+  stem.position.y = radius * WATERMELON_AY * 0.9
+  stem.rotation.z = 0.06
+  markHalfAccessory(stem)
+  g.add(stem)
+}
+
+function addPineappleTopCrown(g: THREE.Group, radius: number) {
+  const bodyHeight = radius * 0.55 * 1.98
+  const leafMat = new THREE.MeshBasicMaterial({ color: 0x145a14, side: THREE.DoubleSide })
+  const leafMatLight = new THREE.MeshBasicMaterial({ color: 0x2a8a20, side: THREE.DoubleSide })
+  const leafLenInner = bodyHeight * 0.78
+  const leafLenOuter = bodyHeight * 0.62
+  const leafW = radius * 0.30
+
+  function makeLeafShape(len: number): THREE.Shape {
+    const shape = new THREE.Shape()
+    shape.moveTo(0, 0)
+    shape.bezierCurveTo(leafW * 0.9, len * 0.01, leafW * 0.30, len * 0.12, leafW * 0.02, len * 0.90)
+    shape.lineTo(0, len)
+    shape.lineTo(-leafW * 0.02, len * 0.90)
+    shape.bezierCurveTo(-leafW * 0.30, len * 0.12, -leafW * 0.9, len * 0.01, 0, 0)
+    return shape
+  }
+
+  const leafGeoInner = new THREE.ShapeGeometry(makeLeafShape(leafLenInner))
+  const leafGeoOuter = new THREE.ShapeGeometry(makeLeafShape(leafLenOuter))
+  const crownY = bodyHeight * 0.5
+  const leafConfigs = [
+    { angle: 0.0, tilt: 0.03, scale: 1.0, inner: true, light: true },
+    { angle: 0.35, tilt: 0.05, scale: 0.97, inner: true, light: false },
+    { angle: -0.30, tilt: 0.04, scale: 0.98, inner: true, light: true },
+    { angle: 0.15, tilt: 0.02, scale: 0.96, inner: true, light: false },
+    { angle: 0.80, tilt: 0.12, scale: 0.94, inner: true, light: true },
+    { angle: -0.75, tilt: 0.10, scale: 0.95, inner: true, light: false },
+    { angle: 1.50, tilt: 0.18, scale: 0.90, inner: true, light: true },
+    { angle: -1.45, tilt: 0.16, scale: 0.91, inner: true, light: false },
+    { angle: 1.15, tilt: 0.14, scale: 0.92, inner: true, light: true },
+    { angle: 1.05, tilt: 0.28, scale: 0.88, inner: false, light: false },
+    { angle: -1.00, tilt: 0.25, scale: 0.89, inner: false, light: true },
+    { angle: 2.00, tilt: 0.38, scale: 0.82, inner: false, light: false },
+    { angle: -1.95, tilt: 0.35, scale: 0.83, inner: false, light: true },
+    { angle: 1.55, tilt: 0.32, scale: 0.85, inner: false, light: false },
+    { angle: 2.50, tilt: 0.60, scale: 0.78, inner: false, light: false },
+    { angle: -2.45, tilt: 0.58, scale: 0.79, inner: false, light: false },
+    { angle: 2.90, tilt: 0.72, scale: 0.76, inner: false, light: false },
+    { angle: Math.PI, tilt: 0.03, scale: 1.0, inner: true, light: true },
+    { angle: Math.PI + 0.35, tilt: 0.05, scale: 0.97, inner: true, light: false },
+    { angle: Math.PI - 0.30, tilt: 0.04, scale: 0.98, inner: true, light: true },
+    { angle: Math.PI + 0.15, tilt: 0.02, scale: 0.96, inner: true, light: false },
+    { angle: Math.PI + 0.80, tilt: 0.14, scale: 0.93, inner: true, light: true },
+    { angle: Math.PI - 0.75, tilt: 0.12, scale: 0.94, inner: true, light: false },
+    { angle: Math.PI + 1.50, tilt: 0.20, scale: 0.89, inner: true, light: true },
+    { angle: Math.PI - 1.45, tilt: 0.18, scale: 0.90, inner: true, light: false },
+    { angle: Math.PI + 1.15, tilt: 0.16, scale: 0.91, inner: true, light: true },
+    { angle: Math.PI + 1.05, tilt: 0.30, scale: 0.87, inner: false, light: false },
+    { angle: Math.PI - 1.00, tilt: 0.28, scale: 0.88, inner: false, light: true },
+    { angle: Math.PI + 2.00, tilt: 0.40, scale: 0.81, inner: false, light: false },
+    { angle: Math.PI - 1.95, tilt: 0.38, scale: 0.82, inner: false, light: true },
+    { angle: Math.PI + 1.55, tilt: 0.35, scale: 0.84, inner: false, light: false },
+    { angle: Math.PI + 2.50, tilt: 0.62, scale: 0.77, inner: false, light: false },
+    { angle: Math.PI - 2.45, tilt: 0.60, scale: 0.78, inner: false, light: false },
+    { angle: Math.PI + 2.90, tilt: 0.74, scale: 0.75, inner: false, light: false },
+  ]
+
+  for (const cfg of leafConfigs) {
+    const wrapper = new THREE.Group()
+    wrapper.position.y = crownY
+    wrapper.rotation.y = cfg.angle
+    const pivot = new THREE.Group()
+    pivot.rotation.z = cfg.tilt
+    const leaf = new THREE.Mesh(cfg.inner ? leafGeoInner : leafGeoOuter, cfg.light ? leafMatLight : leafMat)
+    leaf.scale.setScalar(cfg.scale)
+    pivot.add(leaf)
+    wrapper.add(pivot)
+    markHalfAccessory(wrapper)
+    g.add(wrapper)
+  }
+}
+
+function addStrawberryTopCalyx(g: THREE.Group, radius: number) {
+  const calyxMat = new THREE.MeshStandardMaterial({
+    color: 0x1E7A2E,
+    roughness: 0.55,
+    side: THREE.DoubleSide,
+    emissive: new THREE.Color(0x0A2A0A),
+    emissiveIntensity: 0.12,
+  })
+  const leafShape = new THREE.Shape()
+  leafShape.moveTo(0, 0)
+  leafShape.quadraticCurveTo(0.16, 0.06, 0.09, 0.32)
+  leafShape.lineTo(0, 0.52)
+  leafShape.lineTo(-0.09, 0.32)
+  leafShape.quadraticCurveTo(-0.16, 0.06, 0, 0)
+  const leafGeo = new THREE.ShapeGeometry(leafShape)
+  const topY = radius * 0.92
+
+  for (let i = 0; i < 5; i++) {
+    const wrapper = new THREE.Group()
+    wrapper.position.set(0, topY, 0)
+    wrapper.rotation.y = (i / 5) * Math.PI * 2
+    const pivot = new THREE.Group()
+    pivot.rotation.z = 1.45
+    const sepal = new THREE.Mesh(leafGeo, calyxMat)
+    sepal.scale.set(radius * 1.2, radius * 1.2, radius * 1.2)
+    pivot.add(sepal)
+    wrapper.add(pivot)
+    markHalfAccessory(wrapper)
+    g.add(wrapper)
+  }
+
+  const stemNub = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.05, radius * 0.08, radius * 0.12, 6),
+    new THREE.MeshStandardMaterial({ color: 0x1A5A22, roughness: 0.8 }),
+  )
+  stemNub.position.y = topY + radius * 0.10
+  markHalfAccessory(stemNub)
+  g.add(stemNub)
+}
+
+function addKiwiTopStem(g: THREE.Group, radius: number) {
+  const topY = radius * KIWI_TOP_POLE_Y_RATIO
+  const nub = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.035, radius * 0.06, radius * 0.12, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: 0.9 }),
+  )
+  nub.position.set(0, topY + radius * 0.04, 0)
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.08, radius * 0.015, 6, 12),
+    new THREE.MeshStandardMaterial({ color: 0x5a4828, roughness: 0.95 }),
+  )
+  ring.rotation.x = Math.PI / 2
+  ring.position.set(0, topY + radius * 0.01, 0)
+  markHalfAccessory(nub)
+  markHalfAccessory(ring)
+  g.add(nub, ring)
+}
+
+function addOrangeTopNavel(g: THREE.Group, radius: number) {
+  const navel = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.06, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0x5a8828 }),
+  )
+  navel.position.y = radius * 0.90
+  navel.scale.set(1.2, 0.5, 1.2)
+  markHalfAccessory(navel)
+  g.add(navel)
+}
+
+function addPlumTopStem(g: THREE.Group, radius: number) {
+  const topY = radius * PLUM_TOP_POLE_Y_RATIO
+  const stemHeight = radius * 1.0
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.025, radius * 0.04, stemHeight, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.85 }),
+  )
+  stem.position.y = topY + stemHeight * 0.5
+  stem.rotation.z = 0.08
+  markHalfAccessory(stem)
+  g.add(stem)
+}
+
+function addPearTopStem(g: THREE.Group, radius: number) {
+  const bodyGeo = getPearBodyPolyGeometry(radius)
+  const topY = (bodyGeo as any)._topY ?? (radius * PEAR_TOP_POLE_Y_RATIO)
+  const stemH = radius * 0.50
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.035, radius * 0.07, stemH, 6),
+    new THREE.MeshBasicMaterial({ color: 0x3d2914, toneMapped: false }),
+  )
+  stem.position.y = topY + stemH * 0.50
+  stem.rotation.z = 0.12
+  markHalfAccessory(stem)
+  g.add(stem)
+}
+
+function addPeachTopStem(g: THREE.Group, radius: number) {
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.03, radius * 0.05, radius * 0.18, 6),
+    new THREE.MeshBasicMaterial({ color: 0x4a3520 }),
+  )
+  stem.position.y = radius * PEACH_TOP_POLE_Y_RATIO
+  stem.rotation.z = 0.08
+  markHalfAccessory(stem)
+  g.add(stem)
+}
+
+function addPassionfruitTopCalyx(g: THREE.Group, radius: number) {
+  const calyx = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.06, radius * 0.12, radius * 0.10, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a3822, roughness: 0.85 }),
+  )
+  calyx.position.y = radius * 0.96
+  markHalfAccessory(calyx)
+  g.add(calyx)
+
+  for (let i = 0; i < 3; i++) {
+    const sepal = new THREE.Mesh(
+      new THREE.BoxGeometry(radius * 0.035, radius * 0.25, radius * 0.10),
+      new THREE.MeshStandardMaterial({ color: 0x5a4a28, roughness: 0.9 }),
+    )
+    const angle = (i / 3) * Math.PI * 2
+    sepal.position.set(Math.cos(angle) * radius * 0.10, radius * 0.98, Math.sin(angle) * radius * 0.10)
+    sepal.rotation.y = -angle
+    sepal.rotation.x = -0.6
+    markHalfAccessory(sepal)
+    g.add(sepal)
+  }
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.02, radius * 0.04, radius * 0.15, 5),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a2a, roughness: 0.9 }),
+  )
+  stem.position.y = radius * 1.06
+  markHalfAccessory(stem)
+  g.add(stem)
+}
+
+function addSlicedTopAccessories(g: THREE.Group, fruitType: FruitArchetype, radius: number) {
+  switch (fruitType) {
+    case 'watermelon':
+      addWatermelonTopStem(g, radius)
+      break
+    case 'pineapple':
+      addPineappleTopCrown(g, radius)
+      break
+    case 'strawberry':
+      addStrawberryTopCalyx(g, radius)
+      break
+    case 'kiwi':
+      addKiwiTopStem(g, radius)
+      break
+    case 'orange':
+      addOrangeTopNavel(g, radius)
+      break
+    case 'plum':
+      addPlumTopStem(g, radius)
+      break
+    case 'pear':
+      addPearTopStem(g, radius)
+      break
+    case 'peach':
+      addPeachTopStem(g, radius)
+      break
+    case 'passionfruit':
+      addPassionfruitTopCalyx(g, radius)
+      break
+  }
+}
+
 /**
  * One hemisphere of a sliced fruit: curved skin + flat circular cut face (flesh).
  * Local +Y is the outward normal of the cut (into this half's interior / visible pulp).
@@ -869,6 +1137,9 @@ export function createFruitHalfMesh(
     stem.position.y = stemCenterY
     stem.userData.sharedPool = true
     g.add(stem)
+  }
+  if (fruitType !== 'apple' && n.y > 0.5) {
+    addSlicedTopAccessories(g, fruitType, radius)
   }
 
   // For spherical fruits, rotating the group so local +Y aligns with the outward
