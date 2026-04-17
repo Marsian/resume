@@ -35,6 +35,8 @@ import {
   spawnHomeDecor as spawnHomeDecorImpl,
 } from './game/decor'
 
+const SWIPE_COMBO_RESET_MS = 420
+
 export type GameUiState = {
   score: number
   paused: boolean
@@ -87,7 +89,7 @@ export class FruitNinjaGame {
 
   private score = 0
   private combo = 0
-  private lastSliceAt = 0
+  private comboLastFruitAt = 0
   private paused = false
   private misses = 0
   private gameOver = false
@@ -286,7 +288,6 @@ export class FruitNinjaGame {
     this.halves = []
     this.score = 0
     this.combo = 0
-    this.lastSliceAt = 0
     this.spawnAcc = 0
     this.misses = 0
     this.gameOver = false
@@ -314,7 +315,6 @@ export class FruitNinjaGame {
     this.halves = []
     this.score = 0
     this.combo = 0
-    this.lastSliceAt = 0
     this.spawnAcc = 0
     this.misses = 0
     this.gameOver = false
@@ -514,6 +514,8 @@ export class FruitNinjaGame {
     this.pointerDown = true
     this.menuSliceCandidate = null
     this.stroke.length = 0
+    this.combo = 0
+    this.comboLastFruitAt = 0
     this.syncCanvasLayout()
     this.canvas.setPointerCapture(e.pointerId)
     this.appendStroke(e.clientX, e.clientY)
@@ -535,6 +537,8 @@ export class FruitNinjaGame {
   private readonly onPointerUp = (e: PointerEvent) => {
     this.pointerDown = false
     this.stroke.length = 0
+    this.combo = 0
+    this.comboLastFruitAt = 0
     try {
       this.canvas?.releasePointerCapture(e.pointerId)
     } catch {
@@ -720,11 +724,15 @@ export class FruitNinjaGame {
       const wasStarter = f.isStarter === true
       if (wasStarter) {
         this.combo = 0
-        this.lastSliceAt = 0
+        this.comboLastFruitAt = 0
       } else {
-        if (now - this.lastSliceAt < GAME.comboWindowMs) this.combo = Math.min(GAME.comboCap, this.combo + 1)
-        else this.combo = 1
-        this.lastSliceAt = now
+        // Combo in original games is tied to a single swipe sequence.
+        if (this.comboLastFruitAt <= 0 || now - this.comboLastFruitAt > SWIPE_COMBO_RESET_MS) {
+          this.combo = 1
+        } else {
+          this.combo = Math.min(GAME.comboCap, this.combo + 1)
+        }
+        this.comboLastFruitAt = now
       }
       this.audio.playSlice()
 
@@ -776,7 +784,7 @@ export class FruitNinjaGame {
     this.audio.playBomb()
     if (this.mode === 'zen') return
     this.combo = 0
-    this.lastSliceAt = 0
+    this.comboLastFruitAt = 0
     this.score = Math.max(0, this.score - GAME.bombPenaltyScore)
     // Bomb counts as a single miss.
     this.misses = Math.min(GAME.missLimit, this.misses + 1)
@@ -937,6 +945,7 @@ export class FruitNinjaGame {
     this.audio.playMiss()
     this.misses = Math.min(GAME.missLimit, this.misses + 1)
     this.combo = 0
+    this.comboLastFruitAt = 0
     this.audio.playLifeLost()
     this.shakeUntil = performance.now() + 160
     if (this.misses >= GAME.missLimit) {
@@ -1036,6 +1045,10 @@ export class FruitNinjaGame {
     this.juice?.update(t)
 
     const now = performance.now()
+    if (this.pointerDown && this.combo > 0 && now - this.comboLastFruitAt > SWIPE_COMBO_RESET_MS) {
+      this.combo = 0
+      this.comboLastFruitAt = 0
+    }
 
     if (!this.gameOver && this.phase === 'playing' && this.mode === 'zen' && !this.paused) {
       if (now >= this.zenEndsAt) {
