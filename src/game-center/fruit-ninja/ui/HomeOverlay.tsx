@@ -39,7 +39,10 @@ export function HomeOverlay({ layout }: { layout: HomeRingLayout }) {
             height: layout.startRingPx,
           }}
         >
-          <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite]" />
+          <StartRing
+            className="absolute inset-0 animate-[spin_22s_linear_infinite]"
+            labelText="CLASSIC"
+          />
           <div className="absolute inset-0 rounded-full shadow-[0_30px_70px_rgba(0,0,0,0.55)]" />
         </div>
       </div>
@@ -60,10 +63,12 @@ export function HomeOverlay({ layout }: { layout: HomeRingLayout }) {
             height: layout.settingsRingPx,
           }}
         >
-          <SettingsRing className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]" />
+          <SettingsRing
+            className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse]"
+            labelText="ZEN"
+          />
         </div>
       </div>
     </div>
   )
 }
-

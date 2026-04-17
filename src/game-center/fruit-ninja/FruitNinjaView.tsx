@@ -19,6 +19,8 @@ const initialUi: GameUiState = {
   score: 0,
   paused: false,
   misses: 0,
+  mode: 'classic',
+  zenTimeLeftMs: 0,
   gameOver: false,
   phase: 'home',
 }
@@ -44,6 +46,13 @@ export default function FruitNinjaView() {
     setUi(s)
   }, [])
 
+  const formatZenTimer = (ms: number) => {
+    const total = Math.max(0, Math.ceil(ms / 1000))
+    const mm = String(Math.floor(total / 60)).padStart(2, '0')
+    const ss = String(total % 60).padStart(2, '0')
+    return `${mm}:${ss}`
+  }
+
   useLayoutEffect(() => {
     const shell = playfieldRef.current
     if (!shell) return
@@ -61,7 +70,19 @@ export default function FruitNinjaView() {
   useEffect(() => {
     const el = hostRef.current
     if (!el) return
-    const game = new FruitNinjaGame(el, { onUi, reducedMotion })
+    let debugZenDurationMs: number | undefined
+    try {
+      const qs = new URLSearchParams(window.location.search)
+      const raw = qs.get('debugZenDurationMs')
+      if (raw) {
+        const parsed = Number(raw)
+        if (Number.isFinite(parsed) && parsed > 0) debugZenDurationMs = parsed
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const game = new FruitNinjaGame(el, { onUi, reducedMotion, debugZenDurationMs })
     gameRef.current = game
     game.bootstrap()
     // Debug helper for responsive sweeps.
@@ -95,7 +116,7 @@ export default function FruitNinjaView() {
     return () => window.removeEventListener('keydown', onKey)
   }, [ui.paused, ui.gameOver, ui.phase])
 
-  const { score, paused, misses, gameOver, phase, error } = ui
+  const { score, paused, misses, mode, zenTimeLeftMs, gameOver, phase, error } = ui
   const showHud = phase === 'playing' && !gameOver
 
   return (
@@ -166,25 +187,37 @@ export default function FruitNinjaView() {
                   </div>
                 </div>
 
-                <div
-                  className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1.5 sm:right-3 sm:top-3"
-                  aria-label={`Misses: ${misses} of ${GAME.missLimit}`}
-                >
-                  {Array.from({ length: GAME.missLimit }).map((_, i) => (
-                    <span
-                      key={i}
-                      className={cn(
-                        'font-black leading-none text-2xl sm:text-3xl',
-                        i < misses
-                          ? 'text-red-500 drop-shadow-[0_0_4px_rgba(0,0,0,0.9)]'
-                          : 'text-white/20 drop-shadow-[0_0_3px_rgba(0,0,0,0.7)]',
-                      )}
-                      aria-hidden="true"
-                    >
-                      ✕
-                    </span>
-                  ))}
-                </div>
+                {mode === 'classic' ? (
+                  <div
+                    className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1.5 sm:right-3 sm:top-3"
+                    aria-label={`Misses: ${misses} of ${GAME.missLimit}`}
+                  >
+                    {Array.from({ length: GAME.missLimit }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={cn(
+                          'font-black leading-none text-2xl sm:text-3xl',
+                          i < misses
+                            ? 'text-red-500 drop-shadow-[0_0_4px_rgba(0,0,0,0.9)]'
+                            : 'text-white/20 drop-shadow-[0_0_3px_rgba(0,0,0,0.7)]',
+                        )}
+                        aria-hidden="true"
+                      >
+                        ✕
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className="pointer-events-none absolute right-2 top-2 z-10 rounded-md border border-amber-100/25 bg-black/35 px-2.5 py-1 shadow-[0_0_10px_rgba(0,0,0,0.45)] sm:right-3 sm:top-3 sm:px-3 sm:py-1.5"
+                    aria-label={`Zen timer: ${formatZenTimer(zenTimeLeftMs)}`}
+                    data-testid="fruit-ninja-zen-timer"
+                  >
+                    <div className="font-mono text-xl font-black tracking-[0.04em] tabular-nums text-[#fff3cc] drop-shadow-[0_0_5px_rgba(0,0,0,0.9)] sm:text-2xl">
+                      {formatZenTimer(zenTimeLeftMs)}
+                    </div>
+                  </div>
+                )}
               </>
             ) : null}
 

@@ -40,6 +40,9 @@ export type GameUiState = {
   paused: boolean
   /** Total misses so far (0..GAME.missLimit). */
   misses: number
+  mode: 'classic' | 'zen'
+  /** Remaining Zen time in milliseconds (0 when not in Zen gameplay). */
+  zenTimeLeftMs: number
   gameOver: boolean
   /** `home`: slice the starter watermelon to begin; `playing`: normal waves. */
   phase: 'home' | 'playing'
@@ -50,6 +53,8 @@ export type FruitNinjaGameOptions = {
   onUi: (s: GameUiState) => void
   /** Fewer particles / calmer trail opacity handled in juice + UI */
   reducedMotion?: boolean
+  /** Test/debug hook: override Zen countdown duration. */
+  debugZenDurationMs?: number
 }
 
 // (moved) WholeEntity/FruitHalf/ExplosionFx live in `game/types.ts`
@@ -93,6 +98,10 @@ export class FruitNinjaGame {
   private gameOverFxUntil = 0
   private shakeUntil = 0
   private phase: 'home' | 'playing' = 'home'
+  private mode: 'classic' | 'zen' = 'classic'
+  private zenEndsAt = 0
+  private readonly zenDurationMs: number
+  private zenUiShownSec = -1
 
   private pointerDown = false
   private stroke: Array<{ x: number; y: number }> = []
@@ -124,6 +133,7 @@ export class FruitNinjaGame {
     this.container = container
     this.opts = opts
     this.reducedMotion = opts.reducedMotion ?? false
+    this.zenDurationMs = Math.max(5_000, opts.debugZenDurationMs ?? 90_000)
   }
 
   private spawnExplosionAt(pos: THREE.Vector3, strength = 1) {
@@ -164,6 +174,8 @@ export class FruitNinjaGame {
         score: this.score,
         paused: this.paused,
         misses: this.misses,
+        mode: this.mode,
+        zenTimeLeftMs: this.getZenTimeLeftMs(),
         gameOver: this.gameOver,
         phase: this.phase,
       })
@@ -177,6 +189,11 @@ export class FruitNinjaGame {
       this.uiRaf = null
     }
     this.opts.onUi(payload)
+  }
+
+  private getZenTimeLeftMs(now = performance.now()) {
+    if (this.phase !== 'playing' || this.mode !== 'zen') return 0
+    return Math.max(0, this.zenEndsAt - now)
   }
 
   bootstrap(): void {
@@ -240,6 +257,8 @@ export class FruitNinjaGame {
         score: 0,
         paused: false,
         misses: 0,
+        mode: 'classic',
+        zenTimeLeftMs: 0,
         gameOver: false,
         phase: 'home',
         error: msg,
@@ -274,6 +293,8 @@ export class FruitNinjaGame {
     this.shakeUntil = 0
     this.paused = false
     this.phase = 'playing'
+    this.zenUiShownSec = -1
+    this.zenEndsAt = this.mode === 'zen' ? performance.now() + this.zenDurationMs : 0
     if (this.camera) this.camera.position.copy(this.cameraHome)
     this.scheduleNextSpawn()
     this.emitUi()
@@ -300,6 +321,9 @@ export class FruitNinjaGame {
     this.shakeUntil = 0
     this.paused = false
     this.phase = 'home'
+    this.mode = 'classic'
+    this.zenEndsAt = 0
+    this.zenUiShownSec = -1
     if (this.camera) this.camera.position.copy(this.cameraHome)
     this.spawnHomeDecor()
     this.emitUi()
@@ -434,11 +458,14 @@ export class FruitNinjaGame {
     }
   }
 
-  private beginGameplayFromHome() {
+  private beginGameplayFromHome(mode: 'classic' | 'zen') {
     if (this.phase !== 'home') return
     // clear the remaining home fruit immediately when we begin.
     this.clearHomeDecor()
+    this.mode = mode
     this.phase = 'playing'
+    this.zenUiShownSec = -1
+    this.zenEndsAt = mode === 'zen' ? performance.now() + this.zenDurationMs : 0
     this.spawnAcc = 0
     this.scheduleNextSpawn()
     this.emitUi()
@@ -717,7 +744,9 @@ export class FruitNinjaGame {
       if (homeSlice || wasStarter) {
         // Clear the other home fruit at the same time.
         this.clearHomeDecor()
-        this.beginGameplayFromHome()
+        const selectedMode: 'classic' | 'zen' =
+          homeSlice && f.fruitType === 'apple' ? 'zen' : 'classic'
+        this.beginGameplayFromHome(selectedMode)
       }
     }
 
@@ -745,6 +774,7 @@ export class FruitNinjaGame {
     this.juice.burstAt(origin, new THREE.Color(0xff4400), 72)
     this.removeWhole(ent)
     this.audio.playBomb()
+    if (this.mode === 'zen') return
     this.combo = 0
     this.lastSliceAt = 0
     this.score = Math.max(0, this.score - GAME.bombPenaltyScore)
@@ -903,6 +933,7 @@ export class FruitNinjaGame {
 
   private registerMiss() {
     if (this.gameOver) return
+    if (this.mode === 'zen') return
     this.audio.playMiss()
     this.misses = Math.min(GAME.missLimit, this.misses + 1)
     this.combo = 0
@@ -917,11 +948,21 @@ export class FruitNinjaGame {
     this.emitUi()
   }
 
+  private endZenByTimeout() {
+    if (this.mode !== 'zen' || this.phase !== 'playing' || this.gameOver) return
+    this.gameOver = true
+    this.paused = true
+    this.zenEndsAt = 0
+    this.audio.playGameOver()
+    this.clearGameplayAndSpawnGameOverDecor()
+    this.emitUi()
+  }
+
   private spawnEntity() {
     if (!this.world || !this.scene || !this.camera || this.gameOver || this.phase !== 'playing') return
     if (this.entities.length >= GAME.maxWholeEntities) return
 
-    const isBomb = Math.random() < GAME.bombSpawnChance
+    const isBomb = this.mode === 'classic' && Math.random() < GAME.bombSpawnChance
     const k = isBomb ? null : pickFruitKind()
     const radius = isBomb ? BOMB_RADIUS : FRUIT_RADIUS[k!.kind]
     const { position: p0, velocity: v0 } = sampleSpawnKinematics(
@@ -995,6 +1036,18 @@ export class FruitNinjaGame {
     this.juice?.update(t)
 
     const now = performance.now()
+
+    if (!this.gameOver && this.phase === 'playing' && this.mode === 'zen' && !this.paused) {
+      if (now >= this.zenEndsAt) {
+        this.endZenByTimeout()
+      } else {
+        const leftSec = Math.ceil((this.zenEndsAt - now) / 1000)
+        if (leftSec !== this.zenUiShownSec) {
+          this.zenUiShownSec = leftSec
+          this.emitUi()
+        }
+      }
+    }
 
     // Update transient explosion FX even while paused.
     updateExplosions(this.scene, this.explosions, now, this.reducedMotion)
@@ -1088,6 +1141,7 @@ export class FruitNinjaGame {
 
       if (
         ent.kind === 'fruit' &&
+        this.mode === 'classic' &&
         !ent.isStarter &&
         !ent.isHomeDecor &&
         !ent.isGameOverDecor &&

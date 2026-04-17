@@ -74,7 +74,7 @@ export function GameOverOverlay({
           height: layout.ringPx,
         }}
       >
-        <StartRing className="absolute inset-0 opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" />
+        <StartRing className="absolute inset-0 animate-[spin_22s_linear_infinite] opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" />
       </div>
 
       {/* quit button */}
@@ -101,7 +101,7 @@ export function GameOverOverlay({
           height: layout.ringPx,
         }}
       >
-        <svg viewBox="0 0 320 320" className="absolute inset-0 opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" aria-hidden="true">
+        <svg viewBox="0 0 320 320" className="absolute inset-0 animate-[spin_28s_linear_infinite_reverse] opacity-95 [filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.45))]" aria-hidden="true">
           <defs>
             <linearGradient id="fnQuitRing" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#ff2a2a" />
@@ -113,14 +113,19 @@ export function GameOverOverlay({
               <circle cx="160" cy="160" r="125" fill="white" />
               <circle cx="160" cy="160" r="92" fill="black" />
             </mask>
-            <path id="fnQuitPath" d="M 160, 160 m -108, 0 a 108,108 0 1,1 216,0 a 108,108 0 1,1 -216,0" />
+            <path id="fnQuitPath" d="M 160, 160 m -100, 0 a 100,100 0 1,1 200,0 a 100,100 0 1,1 -200,0" />
           </defs>
           <circle cx="160" cy="160" r="146" fill="rgba(0,0,0,0.18)" />
           <circle cx="160" cy="160" r="125" fill="url(#fnQuitRing)" stroke="rgba(255,255,255,0.18)" strokeWidth="10" mask="url(#fnQuitMask)" />
           <circle cx="160" cy="160" r="92" fill="transparent" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
-          <text fill="rgba(255,240,240,0.92)" fontSize="18" fontWeight="900" letterSpacing="2.4" style={{ textTransform: 'uppercase' }}>
-            <textPath href="#fnQuitPath" startOffset="10%">
-              QUIT • QUIT • QUIT • QUIT • QUIT •
+          <text fill="rgba(255,240,240,0.92)" fontSize="25" fontWeight="900" letterSpacing="1.2" textAnchor="middle" style={{ textTransform: 'uppercase' }}>
+            <textPath href="#fnQuitPath" startOffset="25%">
+              QUIT
+            </textPath>
+          </text>
+          <text fill="rgba(255,240,240,0.92)" fontSize="25" fontWeight="900" letterSpacing="1.2" textAnchor="middle" style={{ textTransform: 'uppercase' }}>
+            <textPath href="#fnQuitPath" startOffset="75%">
+              QUIT
             </textPath>
           </text>
         </svg>
@@ -128,4 +133,3 @@ export function GameOverOverlay({
     </div>
   )
 }
-

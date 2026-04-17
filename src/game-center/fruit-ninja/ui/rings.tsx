@@ -1,5 +1,44 @@
 import { cn } from '@/lib/utils'
 
+function RingTwinText({
+  pathId,
+  label,
+  color,
+}: {
+  pathId: string
+  label: string
+  color: string
+}) {
+  return (
+    <>
+      <text
+        fill={color}
+        fontSize="25"
+        fontWeight="900"
+        letterSpacing="1.2"
+        textAnchor="middle"
+        style={{ textTransform: 'uppercase' }}
+      >
+        <textPath href={`#${pathId}`} startOffset="25%">
+          {label}
+        </textPath>
+      </text>
+      <text
+        fill={color}
+        fontSize="25"
+        fontWeight="900"
+        letterSpacing="1.2"
+        textAnchor="middle"
+        style={{ textTransform: 'uppercase' }}
+      >
+        <textPath href={`#${pathId}`} startOffset="75%">
+          {label}
+        </textPath>
+      </text>
+    </>
+  )
+}
+
 function DonutRing({
   className,
   gradientId,
@@ -33,7 +72,7 @@ function DonutRing({
           <circle cx="160" cy="160" r="125" fill="white" />
           <circle cx="160" cy="160" r="92" fill="black" />
         </mask>
-        <path id={textPathId} d="M 160, 160 m -108, 0 a 108,108 0 1,1 216,0 a 108,108 0 1,1 -216,0" />
+        <path id={textPathId} d="M 160, 160 m -100, 0 a 100,100 0 1,1 200,0 a 100,100 0 1,1 -200,0" />
       </defs>
       <circle cx="160" cy="160" r="146" fill="rgba(0,0,0,0.16)" />
       <circle
@@ -47,16 +86,17 @@ function DonutRing({
       />
       <circle cx="160" cy="160" r="125" fill={`url(#${gradientId}-glow)`} mask={`url(#${maskId})`} />
       <circle cx="160" cy="160" r="92" fill="transparent" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
-      <text fill="rgba(245,245,255,0.88)" fontSize="18" fontWeight="900" letterSpacing="2.4" style={{ textTransform: 'uppercase' }}>
-        <textPath href={`#${textPathId}`} startOffset="8%">
-          {label}
-        </textPath>
-      </text>
+      <RingTwinText
+        pathId={textPathId}
+        label={label}
+        color="rgba(245,245,255,0.9)"
+      />
     </svg>
   )
 }
 
-export function StartRing({ className }: { className?: string }) {
+export function StartRing({ className, labelText }: { className?: string; labelText?: string }) {
+  const label = labelText ?? 'TAP HERE TO START'
   return (
     <svg viewBox="0 0 320 320" className={className} aria-hidden="true">
       <defs>
@@ -77,7 +117,7 @@ export function StartRing({ className }: { className?: string }) {
           {/* cut inner hole */}
           <circle cx="160" cy="160" r="92" fill="black" />
         </mask>
-        <path id="fnStartRingPath" d="M 160, 160 m -108, 0 a 108,108 0 1,1 216,0 a 108,108 0 1,1 -216,0" />
+        <path id="fnStartRingPath" d="M 160, 160 m -100, 0 a 100,100 0 1,1 200,0 a 100,100 0 1,1 -200,0" />
       </defs>
       <circle cx="160" cy="160" r="146" fill="rgba(0,0,0,0.18)" />
       <circle
@@ -92,23 +132,23 @@ export function StartRing({ className }: { className?: string }) {
       <circle cx="160" cy="160" r="125" fill="url(#fnStartRingGlow)" mask="url(#fnStartRingMask)" />
       {/* Inner rim */}
       <circle cx="160" cy="160" r="92" fill="transparent" stroke="rgba(255,255,255,0.10)" strokeWidth="6" />
-      <text fill="rgba(232,248,255,0.92)" fontSize="18" fontWeight="800" letterSpacing="2.4" style={{ textTransform: 'uppercase' }}>
-        <textPath href="#fnStartRingPath" startOffset="4%">
-          TAP HERE TO START • TAP HERE TO START • TAP HERE TO START •
-        </textPath>
-      </text>
+      <RingTwinText
+        pathId="fnStartRingPath"
+        label={label}
+        color="rgba(232,248,255,0.92)"
+      />
     </svg>
   )
 }
 
-export function SettingsRing({ className }: { className?: string }) {
+export function SettingsRing({ className, labelText }: { className?: string; labelText?: string }) {
   return (
     <DonutRing
       className={className}
       gradientId="fnSettingsRing"
       maskId="fnSettingsMask"
       textPathId="fnSettingsPath"
-      label="SETTINGS • SETTINGS • SETTINGS • SETTINGS • "
+      label={labelText ?? 'SETTINGS'}
       stops={[
         { o: 0, c: '#b051ff' },
         { o: 55, c: '#6b2cff' },
@@ -155,4 +195,3 @@ export function WoodSign({ className }: { className?: string }) {
     </div>
   )
 }
-
