@@ -902,6 +902,9 @@ export function createFruitHalfMesh(
 
   let curved: THREE.Mesh
   let capScale = radius
+  let mangoCapScaleX: number | null = null
+  let mangoCapScaleZ: number | null = null
+  let mangoCapOffsetZ = 0
   if (fruitType === 'banana') {
     const curve = createBananaSpineCurve(radius)
     const baseR = radius * 0.36
@@ -952,7 +955,8 @@ export function createFruitHalfMesh(
       getKiwiSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
       getSkinMatForFruit(fruitType, skinColor),
     )
-    capScale = radius * KIWI_MAX_XZ * 1.01
+    // Tune down cap scale to keep the cut face just inside the shell silhouette.
+    capScale = radius * KIWI_MAX_XZ * 0.97
   } else if (fruitType === 'plum') {
     curved = new THREE.Mesh(
       getPlumSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
@@ -964,19 +968,19 @@ export function createFruitHalfMesh(
       getOrangeSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
       getSkinMatForFruit(fruitType, skinColor),
     )
-    capScale = radius * ORANGE_MAX_XZ * 1.01
+    capScale = radius * ORANGE_MAX_XZ * 0.998
   } else if (fruitType === 'peach') {
     curved = new THREE.Mesh(
       getPeachSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
       getSkinMatForFruit(fruitType, skinColor),
     )
-    capScale = radius * PEACH_MAX_XZ * 1.01
+    capScale = radius * PEACH_MAX_XZ * 0.995
   } else if (fruitType === 'pear') {
     curved = new THREE.Mesh(
       getPearSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
       getSkinMatForFruit(fruitType, skinColor),
     )
-    capScale = radius * PEAR_MAX_XZ * 1.01
+    capScale = radius * PEAR_MAX_XZ * 0.885
   } else if (fruitType === 'lemon') {
     curved = new THREE.Mesh(
       getLemonSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
@@ -988,13 +992,18 @@ export function createFruitHalfMesh(
       getLimeSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
       getSkinMatForFruit(fruitType, skinColor),
     )
-    capScale = radius * LIME_MAX_XZ * 1.01
+    capScale = radius * LIME_MAX_XZ * 0.925
   } else if (fruitType === 'mango') {
     curved = new THREE.Mesh(
       getMangoSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
       getSkinMatForFruit(fruitType, skinColor),
     )
-    capScale = radius * MANGO_MAX_XZ * 1.01
+    // Mango equator is asymmetric and shifted forward, so a centered circle often
+    // protrudes. Use a slightly inset ellipse with forward offset to match silhouette.
+    capScale = radius * MANGO_MAX_XZ * 0.95
+    mangoCapScaleX = radius * 0.768
+    mangoCapScaleZ = radius * 0.835
+    mangoCapOffsetZ = radius * 0.075
   } else if (fruitType === 'pineapple') {
     curved = new THREE.Mesh(
       getPineappleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
@@ -1116,7 +1125,12 @@ export function createFruitHalfMesh(
   } else {
     const cap = new THREE.Mesh(sharedCap, getFleshMatForFruit(fruitType, fleshColor))
     const capInset = Math.max(0.0025, radius * 0.02)
-    cap.scale.setScalar(capScale)
+    if (fruitType === 'mango' && mangoCapScaleX !== null && mangoCapScaleZ !== null) {
+      cap.scale.set(mangoCapScaleX, mangoCapScaleZ, 1)
+      cap.position.z = mangoCapOffsetZ
+    } else {
+      cap.scale.setScalar(capScale)
+    }
     cap.rotation.x = Math.PI / 2
     cap.position.y = capInset
     cap.castShadow = false
