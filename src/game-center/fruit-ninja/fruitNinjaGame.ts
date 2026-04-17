@@ -5,6 +5,7 @@ import { GameAudio } from './audio/gameAudio'
 import { BOMB_RADIUS, FRUIT_RADIUS, fruitMassFromRadius } from './game/entityParams'
 import { GAME, SLICE } from './game/constants'
 import { createBombMesh, createFruitMesh, disposeObject3D } from './game/meshes'
+import { primePineappleReferenceModel } from './game/pineappleReferenceModel'
 import { pickFruitKind, randomAngularImpulse, sampleBurstSpawnCount, SPAWN, type FruitArchetype } from './game/spawn'
 import { fillPlayPlaneBasis, sampleSpawnKinematics } from './game/spawnPlane'
 import { createFruitHalfMesh, disposeFruitHalfRoot } from './game/fruitHalfMesh'
@@ -212,6 +213,7 @@ export class FruitNinjaGame {
 
       const scene = createScene()
       this.scene = scene
+      primePineappleReferenceModel()
       addDojoBackdrop(scene)
       addDefaultLights(scene)
 

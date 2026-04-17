@@ -43,6 +43,7 @@ import { getStrawberryBodyMaterial } from './strawberrySkin'
 import { getPassionfruitSlicedHalfPolyGeometry, PASSIONFRUIT_MAX_XZ } from './passionfruitPolyGeometry'
 import { getPassionfruitBodyMaterial } from './passionfruitSkin'
 import { pineappleBodyMaterial } from './meshes'
+import { createPineappleReferenceCapGeometry, createPineappleReferenceHalfMesh } from './pineappleReferenceModel'
 
 /** Lighter "pulp" tone from skin color (fallback when spawn did not set flesh). */
 export function fleshColorFromSkin(skin: THREE.Color): THREE.Color {
@@ -393,33 +394,72 @@ function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): TH
     g.stroke()
   } else if (fruitType === 'pineapple') {
     // Bright golden-yellow flesh with fibrous core and radiating fibers
-    g.fillStyle = '#f0d060'
+    const rindGrad = g.createRadialGradient(s / 2, s / 2, s * 0.30, s / 2, s / 2, s * 0.50)
+    rindGrad.addColorStop(0, 'rgba(0,0,0,0)')
+    rindGrad.addColorStop(0.82, 'rgba(120,160,40,0)')
+    rindGrad.addColorStop(0.92, 'rgba(120,160,40,0.35)')
+    rindGrad.addColorStop(1, 'rgba(90,120,28,0.72)')
+    g.fillStyle = rindGrad
     g.beginPath()
-    g.arc(s / 2, s / 2, s / 2 - 8, 0, Math.PI * 2)
+    g.arc(s / 2, s / 2, s / 2 - 4, 0, Math.PI * 2)
     g.fill()
-    // Dense core center
-    g.fillStyle = 'rgba(220,180,60,0.5)'
+
+    const fleshGrad = g.createRadialGradient(s / 2, s / 2, 8, s / 2, s / 2, s * 0.43)
+    fleshGrad.addColorStop(0, '#fff0a8')
+    fleshGrad.addColorStop(0.45, '#f3d46a')
+    fleshGrad.addColorStop(1, '#d5ad3d')
+    g.fillStyle = fleshGrad
     g.beginPath()
-    g.arc(s / 2, s / 2, 14, 0, Math.PI * 2)
+    g.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2)
     g.fill()
-    // Radiating fiber lines
-    g.strokeStyle = 'rgba(200,160,40,0.25)'
-    g.lineWidth = 0.8
-    for (let i = 0; i < 36; i++) {
-      const a = (i / 36) * Math.PI * 2
+
+    // Dense fibrous core
+    const coreGrad = g.createRadialGradient(s / 2, s / 2, 3, s / 2, s / 2, s * 0.14)
+    coreGrad.addColorStop(0, 'rgba(255,243,185,0.95)')
+    coreGrad.addColorStop(0.5, 'rgba(233,196,92,0.92)')
+    coreGrad.addColorStop(1, 'rgba(175,126,34,0.75)')
+    g.fillStyle = coreGrad
+    g.beginPath()
+    g.arc(s / 2, s / 2, s * 0.135, 0, Math.PI * 2)
+    g.fill()
+
+    // Radial flesh fibers
+    g.strokeStyle = 'rgba(255,242,170,0.28)'
+    g.lineWidth = 0.9
+    for (let i = 0; i < 44; i++) {
+      const a = (i / 44) * Math.PI * 2
+      const wiggle = (Math.sin(i * 17.31) * 0.5) * 0.07
+      const r0 = s * 0.12
+      const r1 = s * (0.32 + ((i * 37) % 11) * 0.01)
       g.beginPath()
-      g.moveTo(s / 2 + Math.cos(a) * 16, s / 2 + Math.sin(a) * 16)
-      g.lineTo(s / 2 + Math.cos(a) * 56, s / 2 + Math.sin(a) * 56)
+      g.moveTo(s / 2 + Math.cos(a + wiggle) * r0, s / 2 + Math.sin(a + wiggle) * r0)
+      g.lineTo(s / 2 + Math.cos(a - wiggle) * r1, s / 2 + Math.sin(a - wiggle) * r1)
       g.stroke()
     }
-    // Small dark "eye" dots around the edge
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * Math.PI * 2
-      g.fillStyle = 'rgba(160,120,30,0.3)'
+
+    // Subtle eye remnants near the rind
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2
+      g.fillStyle = 'rgba(110,84,20,0.24)'
       g.beginPath()
-      g.arc(s / 2 + Math.cos(a) * 44, s / 2 + Math.sin(a) * 44, 2, 0, Math.PI * 2)
+      g.ellipse(
+        s / 2 + Math.cos(a) * (s * 0.33),
+        s / 2 + Math.sin(a) * (s * 0.33),
+        2.8,
+        1.9,
+        a,
+        0,
+        Math.PI * 2,
+      )
       g.fill()
     }
+
+    // Soft rind ring to separate peel from flesh
+    g.strokeStyle = 'rgba(176,192,92,0.52)'
+    g.lineWidth = 3.2
+    g.beginPath()
+    g.arc(s / 2, s / 2, s * 0.43, 0, Math.PI * 2)
+    g.stroke()
   } else {
     g.strokeStyle = 'rgba(255,255,255,0.14)'
     for (let i = 0; i < 26; i++) {
@@ -905,6 +945,8 @@ export function createFruitHalfMesh(
   let mangoCapScaleX: number | null = null
   let mangoCapScaleZ: number | null = null
   let mangoCapOffsetZ = 0
+  let capInsetOverride: number | null = null
+  let capGeometryOverride: THREE.BufferGeometry | null = null
   if (fruitType === 'banana') {
     const curve = createBananaSpineCurve(radius)
     const baseR = radius * 0.36
@@ -1005,11 +1047,20 @@ export function createFruitHalfMesh(
     mangoCapScaleZ = radius * 0.835
     mangoCapOffsetZ = radius * 0.075
   } else if (fruitType === 'pineapple') {
-    curved = new THREE.Mesh(
-      getPineappleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
-      getSkinMatForFruit(fruitType, skinColor),
-    )
-    capScale = radius * PINEAPPLE_MAX_XZ * 1.01
+    const referenceHalf = createPineappleReferenceHalfMesh(radius, sideSign < 0 ? 'top' : 'bottom')
+    if (referenceHalf) {
+      curved = referenceHalf.mesh
+      capScale = referenceHalf.capRadius
+      capInsetOverride = Math.max(0.0025, Math.abs(referenceHalf.cutOffsetY) * 0.02)
+      capGeometryOverride = createPineappleReferenceCapGeometry(radius)
+      ;(g as any).__pineappleReferenceHalf = true
+    } else {
+      curved = new THREE.Mesh(
+        getPineappleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+        getSkinMatForFruit(fruitType, skinColor),
+      )
+      capScale = radius * PINEAPPLE_MAX_XZ * 1.01
+    }
   } else if (fruitType === 'coconut') {
     curved = new THREE.Mesh(
       getCoconutSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
@@ -1123,12 +1174,12 @@ export function createFruitHalfMesh(
     g.add(disc)
     delete (g as any).__bananaCutPoint
   } else {
-    const cap = new THREE.Mesh(sharedCap, getFleshMatForFruit(fruitType, fleshColor))
-    const capInset = Math.max(0.0025, radius * 0.02)
+    const cap = new THREE.Mesh(capGeometryOverride ?? sharedCap, getFleshMatForFruit(fruitType, fleshColor))
+    const capInset = capInsetOverride ?? Math.max(0.0025, radius * 0.02)
     if (fruitType === 'mango' && mangoCapScaleX !== null && mangoCapScaleZ !== null) {
       cap.scale.set(mangoCapScaleX, mangoCapScaleZ, 1)
       cap.position.z = mangoCapOffsetZ
-    } else {
+    } else if (!capGeometryOverride) {
       cap.scale.setScalar(capScale)
     }
     cap.rotation.x = Math.PI / 2
@@ -1152,7 +1203,7 @@ export function createFruitHalfMesh(
     stem.userData.sharedPool = true
     g.add(stem)
   }
-  if (fruitType !== 'apple' && n.y > 0.5) {
+  if (fruitType !== 'apple' && n.y > 0.5 && !(fruitType === 'pineapple' && (g as any).__pineappleReferenceHalf)) {
     addSlicedTopAccessories(g, fruitType, radius)
   }
 

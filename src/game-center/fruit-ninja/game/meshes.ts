@@ -39,6 +39,7 @@ import { getCherryBodyMaterial } from './cherrySkin'
 import { getCherryBodyPolyGeometry, CHERRY_TOP_POLE_Y_RATIO } from './cherryPolyGeometry'
 import { getBombBodyMaterial } from './bombSkin'
 import { getBombBodyPolyGeometry } from './bombPolyGeometry'
+import { createPineappleReferenceMesh } from './pineappleReferenceModel'
 
 export function disposeObject3D(root: THREE.Object3D) {
   root.traverse((child) => {
@@ -314,7 +315,7 @@ function createMangoMesh(radius: number, _skinHex: number): THREE.Group {
   return g
 }
 
-function createPineappleMesh(radius: number): THREE.Group {
+function createProceduralPineappleMesh(radius: number): THREE.Group {
   const g = new THREE.Group()
 
   // Wiki: near-cylinder with rounded ends, minimal mid-body bulge
@@ -418,6 +419,12 @@ function createPineappleMesh(radius: number): THREE.Group {
   }
 
   return g
+}
+
+function createPineappleMesh(radius: number): THREE.Group {
+  const imported = createPineappleReferenceMesh(radius)
+  if (imported) return imported
+  return createProceduralPineappleMesh(radius)
 }
 
 function createCoconutMesh(radius: number, _skinHex: number): THREE.Group {
