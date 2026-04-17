@@ -5,15 +5,14 @@ export function HomeOverlay({ layout }: { layout: HomeRingLayout }) {
   // Strictly independent UI layer (no HUD). All pointer events go to the canvas below.
   return (
     <div className="pointer-events-none absolute inset-0 z-[30]">
-      {/* Faux perspective planks overlay to match Classic menu mood (no bitmap). */}
+      {/* Keep the home vignette mood, but avoid overlaying faux plank stripes on top of 3D fruit. */}
       <div
         className="absolute inset-[-12%] opacity-55"
         style={{
           transform: 'skewX(-12deg) rotate(-6deg)',
           transformOrigin: '50% 50%',
           background:
-            'repeating-linear-gradient(90deg, rgba(0,0,0,0.0) 0px, rgba(0,0,0,0.0) 56px, rgba(30,18,10,0.22) 58px, rgba(0,0,0,0.0) 62px), radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.18) 62%, rgba(0,0,0,0.42) 100%)',
-          mixBlendMode: 'multiply',
+            'radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.18) 62%, rgba(0,0,0,0.42) 100%)',
         }}
       />
       {/* top logo */}

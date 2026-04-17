@@ -688,6 +688,7 @@ function createCherryMesh(radius: number, _skinHex: number): THREE.Group {
     cherryMat,
   )
   leftBody.userData.sharedMaterial = true
+  leftBody.userData.sharedPool = true
   leftBody.castShadow = true
   leftBody.receiveShadow = true
   leftBody.position.set(-radius * 0.60, -radius * 0.02, 0)
@@ -699,6 +700,7 @@ function createCherryMesh(radius: number, _skinHex: number): THREE.Group {
     cherryMat,
   )
   rightBody.userData.sharedMaterial = true
+  rightBody.userData.sharedPool = true
   rightBody.castShadow = true
   rightBody.receiveShadow = true
   rightBody.position.set(radius * 0.60, -radius * 0.02, radius * 0.02)
