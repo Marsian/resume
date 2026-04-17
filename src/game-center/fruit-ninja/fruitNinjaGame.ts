@@ -1121,6 +1121,7 @@ export class FruitNinjaGame {
     }
 
     this.renderer.render(this.scene, this.camera)
+    this.trail?.tick(now)
     this.comboOverlay?.tick(now)
   }
 }

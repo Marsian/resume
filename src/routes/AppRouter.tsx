@@ -8,6 +8,7 @@ import AppLayout from './AppLayout'
 
 const TankBattle90View = lazy(() => import('../game-center/tank90/TankBattle90View'))
 const FruitNinjaView = lazy(() => import('../game-center/fruit-ninja/FruitNinjaView'))
+const FruitNinjaBladeLabView = lazy(() => import('../game-center/fruit-ninja/FruitNinjaBladeLabView'))
 const FruitGalleryView = lazy(() => import('../game-center/fruit-ninja/FruitGalleryView'))
 const FruitGallerySlicedView = lazy(() => import('../game-center/fruit-ninja/FruitGallerySlicedView'))
 
@@ -25,6 +26,7 @@ export default function AppRouter() {
       <Routes>
         <Route path="/games/fruit-ninja/gallery" element={<FruitGalleryView />} />
         <Route path="/games/fruit-ninja/gallery-sliced" element={<FruitGallerySlicedView />} />
+        <Route path="/games/fruit-ninja/blade-lab" element={<FruitNinjaBladeLabView />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomeView />} />
           <Route path="/resume" element={<ResumeView />} />
@@ -39,4 +41,3 @@ export default function AppRouter() {
     </Suspense>
   )
 }
-
