@@ -1,14 +1,14 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
-import pineappleReferenceUrl from '../assets/glb/pineapple.glb?url'
+import appleReferenceUrl from '../assets/glb/apple.glb?url'
 
 const loader = new GLTFLoader()
 const scratchBounds = new THREE.Box3()
 const scratchCenter = new THREE.Vector3()
 const scratchSize = new THREE.Vector3()
 
-type PreparedPineappleReference = {
+type PreparedAppleReference = {
   geometry: THREE.BufferGeometry
   material: THREE.MeshBasicMaterial
   sourceHeight: number
@@ -33,7 +33,7 @@ type BuiltHalfGeometry = {
   equatorRadius: number
 }
 
-let preparedReference: PreparedPineappleReference | null = null
+let preparedReference: PreparedAppleReference | null = null
 let loadStarted = false
 
 function extractColorMap(material: THREE.Material | THREE.Material[]): THREE.Texture | null {
@@ -44,52 +44,6 @@ function extractColorMap(material: THREE.Material | THREE.Material[]): THREE.Tex
   if (candidate instanceof THREE.MeshLambertMaterial) return candidate.map ?? null
   if (candidate instanceof THREE.MeshPhongMaterial) return candidate.map ?? null
   return null
-}
-
-function prepareReferenceMesh(sourceMesh: THREE.Mesh): PreparedPineappleReference | null {
-  const geometry = sourceMesh.geometry?.clone()
-  if (!geometry) return null
-
-  geometry.computeBoundingBox()
-  if (!geometry.boundingBox) return null
-
-  scratchBounds.copy(geometry.boundingBox)
-  scratchBounds.getCenter(scratchCenter)
-  scratchBounds.getSize(scratchSize)
-  geometry.translate(-scratchCenter.x, -scratchCenter.y, -scratchCenter.z)
-  geometry.computeVertexNormals()
-
-  const sourceCutY = -scratchSize.y * 0.11
-  const topHalf = buildSlicedHalfGeometry(geometry, 'top', sourceCutY, scratchSize.y)
-  const bottomHalf = buildSlicedHalfGeometry(geometry, 'bottom', sourceCutY, scratchSize.y)
-
-  const sourceEquatorRadius = Math.max(topHalf.equatorRadius, bottomHalf.equatorRadius, 0.26)
-  const sourceCapProfile = mergeCutProfiles(topHalf.cutProfile, bottomHalf.cutProfile, sourceEquatorRadius)
-
-  const map = extractColorMap(sourceMesh.material)
-  const colorMap = map ? map.clone() : null
-  if (colorMap) {
-    colorMap.colorSpace = THREE.SRGBColorSpace
-    colorMap.anisotropy = 8
-    colorMap.needsUpdate = true
-  }
-
-  return {
-    geometry,
-    material: new THREE.MeshBasicMaterial({
-      map: colorMap ?? undefined,
-      color: 0xffffff,
-      side: THREE.DoubleSide,
-      transparent: true,
-      alphaTest: 0.08,
-    }),
-    sourceHeight: Math.max(1e-4, scratchSize.y),
-    sourceCutY,
-    sourceEquatorRadius,
-    sourceCapProfile,
-    topHalfGeometry: topHalf.geometry,
-    bottomHalfGeometry: bottomHalf.geometry,
-  }
 }
 
 function mergeCutProfiles(top: number[], bottom: number[], fallbackRadius: number): number[] {
@@ -144,7 +98,7 @@ function fillAndSmoothProfile(profile: number[], fallbackRadius: number): number
     return (prev + curr * 2 + next) / 4
   })
 
-  return smoothed.map((r) => Math.max(r, fallbackRadius * 0.78))
+  return smoothed.map((r) => Math.max(r, fallbackRadius * 0.82))
 }
 
 function readCutVertex(
@@ -255,48 +209,91 @@ function buildSlicedHalfGeometry(
   const equatorRadius = cutPoints.reduce((max, point) => Math.max(max, Math.hypot(point.x, point.z)), 0)
   return {
     geometry,
-    cutProfile: computeCutProfileFromPoints(cutPoints, equatorRadius || sourceHeight * 0.24),
+    cutProfile: computeCutProfileFromPoints(cutPoints, equatorRadius || sourceHeight * 0.28),
     equatorRadius,
   }
 }
 
-export function primePineappleReferenceModel() {
+function prepareReferenceMesh(sourceMesh: THREE.Mesh): PreparedAppleReference | null {
+  const geometry = sourceMesh.geometry?.clone()
+  if (!geometry) return null
+
+  geometry.computeBoundingBox()
+  if (!geometry.boundingBox) return null
+
+  scratchBounds.copy(geometry.boundingBox)
+  scratchBounds.getCenter(scratchCenter)
+  scratchBounds.getSize(scratchSize)
+  geometry.translate(-scratchCenter.x, -scratchCenter.y, -scratchCenter.z)
+  geometry.computeVertexNormals()
+
+  const sourceCutY = 0
+  const topHalf = buildSlicedHalfGeometry(geometry, 'top', sourceCutY, scratchSize.y)
+  const bottomHalf = buildSlicedHalfGeometry(geometry, 'bottom', sourceCutY, scratchSize.y)
+  const sourceEquatorRadius = Math.max(topHalf.equatorRadius, bottomHalf.equatorRadius, 0.28)
+  const sourceCapProfile = mergeCutProfiles(topHalf.cutProfile, bottomHalf.cutProfile, sourceEquatorRadius)
+
+  const map = extractColorMap(sourceMesh.material)
+  const colorMap = map ? map.clone() : null
+  if (colorMap) {
+    colorMap.colorSpace = THREE.SRGBColorSpace
+    colorMap.anisotropy = 8
+    colorMap.needsUpdate = true
+  }
+
+  return {
+    geometry,
+    material: new THREE.MeshBasicMaterial({
+      map: colorMap ?? undefined,
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.08,
+    }),
+    sourceHeight: Math.max(1e-4, scratchSize.y),
+    sourceCutY,
+    sourceEquatorRadius,
+    sourceCapProfile,
+    topHalfGeometry: topHalf.geometry,
+    bottomHalfGeometry: bottomHalf.geometry,
+  }
+}
+
+export function primeAppleReferenceModel() {
   if (preparedReference || loadStarted) return
   loadStarted = true
 
   loader.load(
-    pineappleReferenceUrl,
+    appleReferenceUrl,
     (gltf) => {
       let sourceMesh: THREE.Mesh | null = null
       gltf.scene.traverse((child) => {
-        if (!sourceMesh && child instanceof THREE.Mesh) {
-          sourceMesh = child
-        }
+        if (!sourceMesh && child instanceof THREE.Mesh) sourceMesh = child
       })
 
       if (!sourceMesh) {
-        console.warn('[fruit-ninja] pineapple reference GLB had no mesh')
+        console.warn('[fruit-ninja] apple reference GLB had no mesh')
         return
       }
 
       preparedReference = prepareReferenceMesh(sourceMesh)
       if (!preparedReference) {
-        console.warn('[fruit-ninja] failed to prepare pineapple reference mesh')
+        console.warn('[fruit-ninja] failed to prepare apple reference mesh')
       }
     },
     undefined,
     (error) => {
-      console.warn('[fruit-ninja] failed to load pineapple reference GLB', error)
+      console.warn('[fruit-ninja] failed to load apple reference GLB', error)
     },
   )
 }
 
-export function createPineappleReferenceMesh(radius: number): THREE.Group | null {
+export function createAppleReferenceMesh(radius: number): THREE.Group | null {
   if (!preparedReference) return null
 
   const root = new THREE.Group()
   const mesh = new THREE.Mesh(preparedReference.geometry, preparedReference.material)
-  const targetHeight = radius * 1.92
+  const targetHeight = radius * 2.08
   const scale = targetHeight / preparedReference.sourceHeight
 
   mesh.scale.setScalar(scale)
@@ -304,11 +301,10 @@ export function createPineappleReferenceMesh(radius: number): THREE.Group | null
   mesh.receiveShadow = true
   mesh.userData.sharedPool = true
   root.add(mesh)
-
   return root
 }
 
-export function createPineappleReferenceHalfMesh(
+export function createAppleReferenceHalfMesh(
   radius: number,
   half: 'top' | 'bottom',
 ): { mesh: THREE.Mesh; capRadius: number; cutOffsetY: number } | null {
@@ -316,7 +312,7 @@ export function createPineappleReferenceHalfMesh(
 
   const geometry = half === 'top' ? preparedReference.topHalfGeometry : preparedReference.bottomHalfGeometry
   const mesh = new THREE.Mesh(geometry, preparedReference.material)
-  const targetHeight = radius * 1.92
+  const targetHeight = radius * 2.08
   const scale = targetHeight / preparedReference.sourceHeight
 
   mesh.scale.setScalar(scale)
@@ -327,15 +323,15 @@ export function createPineappleReferenceHalfMesh(
 
   return {
     mesh,
-    capRadius: preparedReference.sourceEquatorRadius * scale * 0.97,
+    capRadius: preparedReference.sourceEquatorRadius * scale * 0.985,
     cutOffsetY: preparedReference.sourceCutY * scale,
   }
 }
 
-export function createPineappleReferenceCapGeometry(radius: number): THREE.ShapeGeometry | null {
+export function createAppleReferenceCapGeometry(radius: number): THREE.ShapeGeometry | null {
   if (!preparedReference) return null
 
-  const targetHeight = radius * 1.92
+  const targetHeight = radius * 2.08
   const scale = targetHeight / preparedReference.sourceHeight
   const profile = preparedReference.sourceCapProfile
   const shape = new THREE.Shape()
@@ -343,7 +339,7 @@ export function createPineappleReferenceCapGeometry(radius: number): THREE.Shape
 
   profile.forEach((baseRadius, index) => {
     const angle = (index / profile.length) * Math.PI * 2
-    const r = baseRadius * scale * 1.02
+    const r = baseRadius * scale * 1.01
     maxRadius = Math.max(maxRadius, r)
     const x = Math.cos(angle) * r
     const y = Math.sin(angle) * r
@@ -370,5 +366,5 @@ export function createPineappleReferenceCapGeometry(radius: number): THREE.Shape
 }
 
 if (typeof window !== 'undefined') {
-  primePineappleReferenceModel()
+  primeAppleReferenceModel()
 }

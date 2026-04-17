@@ -1,5 +1,13 @@
 import * as THREE from 'three'
 
+import {
+  createAppleReferenceCapGeometry,
+  createAppleReferenceHalfMesh,
+} from './appleReferenceModel'
+import {
+  createLemonReferenceCapGeometry,
+  createLemonReferenceHalfMesh,
+} from './lemonReferenceModel'
 import type { FruitArchetype } from './spawn'
 import { getAppleBodyMaterial } from './appleSkin'
 import { getAppleSlicedHalfPolyGeometry, APPLE_MAX_XZ, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
@@ -262,9 +270,93 @@ function fleshTextureForFruit(fruitType: FruitArchetype, flesh: THREE.Color): TH
       g.arc(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r, 2 + Math.random() * 2, 0, Math.PI * 2)
       g.fill()
     }
-  } else if (fruitType === 'lemon' || fruitType === 'lime') {
-    // Citrus segment pattern
-    g.strokeStyle = 'rgba(255,255,200,0.2)'
+  } else if (fruitType === 'lemon') {
+    const cx = s / 2
+    const cy = s / 2
+    const outerR = s * 0.48
+    const pithOuterR = s * 0.40
+    const fleshOuterR = s * 0.35
+    const coreR = s * 0.08
+    const segments = 10
+
+    // Yellow rind
+    g.fillStyle = '#f2d94a'
+    g.beginPath()
+    g.arc(cx, cy, outerR, 0, Math.PI * 2)
+    g.fill()
+
+    // Soft rind shading
+    const rindShade = g.createRadialGradient(cx, cy, pithOuterR, cx, cy, outerR)
+    rindShade.addColorStop(0, 'rgba(0,0,0,0)')
+    rindShade.addColorStop(1, 'rgba(170,140,18,0.28)')
+    g.fillStyle = rindShade
+    g.beginPath()
+    g.arc(cx, cy, outerR, 0, Math.PI * 2)
+    g.fill()
+
+    // White pith ring
+    g.fillStyle = '#fff8d8'
+    g.beginPath()
+    g.arc(cx, cy, pithOuterR, 0, Math.PI * 2)
+    g.fill()
+
+    // Pale lemon flesh
+    const fleshGrad = g.createRadialGradient(cx, cy, coreR * 0.7, cx, cy, fleshOuterR)
+    fleshGrad.addColorStop(0, '#fffbdc')
+    fleshGrad.addColorStop(0.45, '#fff4a6')
+    fleshGrad.addColorStop(1, '#f4dc63')
+    g.fillStyle = fleshGrad
+    g.beginPath()
+    g.arc(cx, cy, fleshOuterR, 0, Math.PI * 2)
+    g.fill()
+
+    // Segment membranes
+    g.strokeStyle = 'rgba(255,255,235,0.72)'
+    g.lineWidth = 2
+    for (let i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(cx + Math.cos(a) * coreR, cy + Math.sin(a) * coreR)
+      g.lineTo(cx + Math.cos(a) * fleshOuterR, cy + Math.sin(a) * fleshOuterR)
+      g.stroke()
+    }
+
+    // Central white column
+    g.fillStyle = 'rgba(255,252,232,0.95)'
+    g.beginPath()
+    g.arc(cx, cy, coreR, 0, Math.PI * 2)
+    g.fill()
+
+    // Tiny juice vesicles inside each segment
+    for (let seg = 0; seg < segments; seg++) {
+      const baseA = (seg / segments) * Math.PI * 2
+      for (let i = 0; i < 8; i++) {
+        const a = baseA + ((i + 1) / 9) * (Math.PI * 2 / segments)
+        const r = coreR + (i % 4) * (fleshOuterR - coreR) * 0.18 + 6 + ((seg * 13 + i * 7) % 5)
+        g.fillStyle = `rgba(255,245,170,${0.10 + ((seg + i) % 4) * 0.03})`
+        g.beginPath()
+        g.ellipse(
+          cx + Math.cos(a) * r,
+          cy + Math.sin(a) * r,
+          1.6,
+          3.1,
+          a,
+          0,
+          Math.PI * 2,
+        )
+        g.fill()
+      }
+    }
+
+    // Crisp pith boundary
+    g.strokeStyle = 'rgba(255,255,245,0.85)'
+    g.lineWidth = 2.2
+    g.beginPath()
+    g.arc(cx, cy, fleshOuterR, 0, Math.PI * 2)
+    g.stroke()
+  } else if (fruitType === 'lime') {
+    // Generic citrus segment pattern for lime
+    g.strokeStyle = 'rgba(240,255,210,0.22)'
     g.lineWidth = 1
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2
@@ -987,11 +1079,20 @@ export function createFruitHalfMesh(
     )
     capScale = radius * Math.max(WATERMELON_AX, WATERMELON_AZ) * 1.01
   } else if (fruitType === 'apple') {
-    curved = new THREE.Mesh(
-      getAppleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
-      getSkinMatForFruit(fruitType, skinColor),
-    )
-    capScale = radius * APPLE_MAX_XZ * 1.01
+    const referenceHalf = createAppleReferenceHalfMesh(radius, sideSign < 0 ? 'top' : 'bottom')
+    if (referenceHalf) {
+      curved = referenceHalf.mesh
+      capScale = referenceHalf.capRadius
+      capInsetOverride = Math.max(0.0025, radius * 0.012)
+      capGeometryOverride = createAppleReferenceCapGeometry(radius)
+      ;(g as any).__appleReferenceHalf = true
+    } else {
+      curved = new THREE.Mesh(
+        getAppleSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+        getSkinMatForFruit(fruitType, skinColor),
+      )
+      capScale = radius * APPLE_MAX_XZ * 1.01
+    }
   } else if (fruitType === 'kiwi') {
     curved = new THREE.Mesh(
       getKiwiSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
@@ -1024,11 +1125,20 @@ export function createFruitHalfMesh(
     )
     capScale = radius * PEAR_MAX_XZ * 0.885
   } else if (fruitType === 'lemon') {
-    curved = new THREE.Mesh(
-      getLemonSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
-      getSkinMatForFruit(fruitType, skinColor),
-    )
-    capScale = radius * LEMON_MAX_XZ * 1.01
+    const referenceHalf = createLemonReferenceHalfMesh(radius, sideSign < 0 ? 'top' : 'bottom')
+    if (referenceHalf) {
+      curved = referenceHalf.mesh
+      capScale = referenceHalf.capRadius
+      capInsetOverride = Math.max(0.0025, radius * 0.012)
+      capGeometryOverride = createLemonReferenceCapGeometry(radius)
+      ;(g as any).__lemonReferenceHalf = true
+    } else {
+      curved = new THREE.Mesh(
+        getLemonSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
+        getSkinMatForFruit(fruitType, skinColor),
+      )
+      capScale = radius * LEMON_MAX_XZ * 1.01
+    }
   } else if (fruitType === 'lime') {
     curved = new THREE.Mesh(
       getLimeSlicedHalfPolyGeometry(radius, sideSign < 0 ? 'top' : 'bottom'),
@@ -1192,7 +1302,7 @@ export function createFruitHalfMesh(
   }
 
   // Apple stem on the top half
-  if (fruitType === 'apple' && n.y > 0.5) {
+  if (fruitType === 'apple' && n.y > 0.5 && !(g as any).__appleReferenceHalf) {
     const stemH = radius * 0.24
     const stemCenterY = radius * APPLE_TOP_POLE_Y_RATIO + stemH * 0.40
     const stem = new THREE.Mesh(

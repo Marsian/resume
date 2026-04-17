@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 
+import { createAppleReferenceMesh } from './appleReferenceModel'
+import { createLemonReferenceMesh } from './lemonReferenceModel'
 import { getAppleBodyMaterial } from './appleSkin'
 import { getAppleBodyPolyGeometry, APPLE_TOP_POLE_Y_RATIO } from './applePolyGeometry'
 import { getLemonBodyMaterial } from './lemonSkin'
@@ -225,6 +227,9 @@ function createWatermelonMesh(radius: number): THREE.Group {
 }
 
 function createAppleMesh(radius: number, _skinHex: number): THREE.Group {
+  const imported = createAppleReferenceMesh(radius)
+  if (imported) return imported
+
   const g = new THREE.Group()
   const body = new THREE.Mesh(
     getAppleBodyPolyGeometry(radius),
@@ -277,6 +282,9 @@ function createBananaMesh(radius: number, skinHex: number): THREE.Group {
 }
 
 function createLemonMesh(radius: number, _skinHex: number): THREE.Group {
+  const imported = createLemonReferenceMesh(radius)
+  if (imported) return imported
+
   const g = new THREE.Group()
   const body = new THREE.Mesh(
     getLemonBodyPolyGeometry(radius),
